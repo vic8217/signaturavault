@@ -1,0 +1,46 @@
+{
+	"name": "Signatura - Trust Every Document",
+	"short_name": "Signatura",
+	"description": "Zero-trust digital document issuance, verification, and blockchain anchoring platform.",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"orientation": "portrait-primary",
+	"theme_color": "#0F172A",
+	"background_color": "#030914",
+	"icons": [
+		{
+			"src": "/signatura-logo.png",
+			"sizes": "any",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/signatura-logo.png",
+			"sizes": "any",
+			"type": "image/png",
+			"purpose": "maskable"
+		}
+	],
+	"categories": ["productivity", "business"],
+	"shortcuts": [
+		{
+			"name": "Issuer Portal",
+			"short_name": "Issue",
+			"url": "/issuer-portal",
+			"icons": [{ "src": "/signatura-logo.png", "sizes": "any" }]
+		},
+		{
+			"name": "Document Wallet",
+			"short_name": "Wallet",
+			"url": "/wallet",
+			"icons": [{ "src": "/signatura-logo.png", "sizes": "any" }]
+		},
+		{
+			"name": "Verify Document",
+			"short_name": "Verify",
+			"url": "/verify",
+			"icons": [{ "src": "/signatura-logo.png", "sizes": "any" }]
+		}
+	]
+}

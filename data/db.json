@@ -1,0 +1,16 @@
+{
+	"tenants": [],
+	"issuers": [],
+	"issuer_users": [],
+	"issuer_api_clients": [],
+	"issuer_api_keys": [],
+	"document_types": [],
+	"document_templates": [],
+	"document_records": [],
+	"verification_tokens": [],
+	"storage_connections": [],
+	"blockchain_anchors": [],
+	"webhooks": [],
+	"api_logs": [],
+	"audit_logs": []
+}
