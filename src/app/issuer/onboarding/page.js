@@ -1,3 +1,5 @@
+import { IssuerInvitationForm } from '@/components/IssuerInvitationForm';
+
 export default function IssuerOnboarding() {
 	return (
 		<div className="space-y-8">
@@ -28,6 +30,8 @@ export default function IssuerOnboarding() {
 					</p>
 				</div>
 			</section>
+
+			<IssuerInvitationForm />
 		</div>
 	);
 }

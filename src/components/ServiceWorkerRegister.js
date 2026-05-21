@@ -4,13 +4,31 @@ import { useEffect } from 'react';
 
 export function ServiceWorkerRegister() {
 	useEffect(() => {
-		if ('serviceWorker' in navigator) {
+		if (!('serviceWorker' in navigator)) {
+			return;
+		}
+
+		if (process.env.NODE_ENV !== 'production') {
+			navigator.serviceWorker.getRegistrations().then((registrations) => {
+				registrations.forEach((registration) => registration.unregister());
+			});
+
+			if ('caches' in window) {
+				caches.keys().then((cacheNames) => {
+					cacheNames
+						.filter((cacheName) => cacheName.startsWith('signatura-'))
+						.forEach((cacheName) => caches.delete(cacheName));
+				});
+			}
+
+			return;
+		}
+
 			navigator.serviceWorker
 				.register('/sw.js', { scope: '/', updateViaCache: 'none' })
 				.catch(() => {
 					// Silently fail if SW not available
 				});
-		}
 	}, []);
 
 	return null;

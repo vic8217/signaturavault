@@ -1,6 +1,5 @@
-const CACHE_VERSION = 'signatura-v2';
+const CACHE_VERSION = 'signatura-v4';
 const ASSETS_TO_CACHE = [
-	'/',
 	'/manifest.json',
 	'/offline.html',
 	'/signatura-logo.png',
@@ -35,8 +34,19 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
 	const { request } = event;
 	const url = new URL(request.url);
+	const isProtectedPath = [
+		'/_next',
+		'/admin',
+		'/api',
+		'/issuer-portal',
+		'/wallet',
+	].some((path) => url.pathname === path || url.pathname.startsWith(`${path}/`));
 
 	if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+		return;
+	}
+
+	if (isProtectedPath || url.origin !== self.location.origin) {
 		return;
 	}
 
@@ -47,17 +57,8 @@ self.addEventListener('fetch', (event) => {
 	if (request.mode === 'navigate') {
 		event.respondWith(
 			fetch(request)
-				.then((response) => {
-					const responseClone = response.clone();
-					caches.open(CACHE_VERSION).then((cache) => {
-						cache.put(request, responseClone);
-					});
-					return response;
-				})
 				.catch(() => {
-					return caches.match(request).then((response) => {
-						return response || caches.match('/offline.html');
-					});
+					return caches.match('/offline.html');
 				}),
 		);
 		return;
@@ -67,10 +68,12 @@ self.addEventListener('fetch', (event) => {
 		caches.match(request).then((cachedResponse) => {
 			const networkResponse = fetch(request)
 				.then((response) => {
-					const responseClone = response.clone();
-					caches.open(CACHE_VERSION).then((cache) => {
-						cache.put(request, responseClone);
-					});
+					if (response.ok && response.type === 'basic') {
+						const responseClone = response.clone();
+						caches.open(CACHE_VERSION).then((cache) => {
+							cache.put(request, responseClone);
+						});
+					}
 					return response;
 				})
 				.catch(() => cachedResponse);

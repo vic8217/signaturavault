@@ -70,6 +70,14 @@ export function PortalIcon({ name, className = 'h-5 w-5' }) {
 				<path d="M8 11V8a4 4 0 0 1 8 0v3" />
 			</svg>
 		),
+		mic: (
+			<svg {...common}>
+				<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
+				<path d="M5 10v2a7 7 0 0 0 14 0v-2" />
+				<path d="M12 19v3" />
+				<path d="M8 22h8" />
+			</svg>
+		),
 		qr: (
 			<svg {...common}>
 				<rect width="5" height="5" x="4" y="4" rx="1" />
@@ -77,6 +85,23 @@ export function PortalIcon({ name, className = 'h-5 w-5' }) {
 				<rect width="5" height="5" x="4" y="15" rx="1" />
 				<path d="M15 15h2v2h-2z" />
 				<path d="M20 15v5h-5" />
+			</svg>
+		),
+		more: (
+			<svg {...common}>
+				<circle cx="5" cy="12" r="1.5" />
+				<circle cx="12" cy="12" r="1.5" />
+				<circle cx="19" cy="12" r="1.5" />
+			</svg>
+		),
+		scanner: (
+			<svg {...common}>
+				<path d="M4 8V5a1 1 0 0 1 1-1h3" />
+				<path d="M16 4h3a1 1 0 0 1 1 1v3" />
+				<path d="M20 16v3a1 1 0 0 1-1 1h-3" />
+				<path d="M8 20H5a1 1 0 0 1-1-1v-3" />
+				<path d="M7 12h10" />
+				<rect width="6" height="6" x="9" y="9" rx="1.5" />
 			</svg>
 		),
 		shield: (

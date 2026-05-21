@@ -1,8 +1,12 @@
 import { authenticateApiRequest } from '@/lib/auth';
 import { withDb, generateId, now } from '@/lib/db';
+import {
+	verifyDocumentMerkleProof,
+	verifyOpenTimestampsBatchProof,
+} from '@/lib/anchoring/batchService';
 
 export async function GET(req, { params }) {
-	const { tenantId } = params;
+	const { tenantId } = await params;
 	const token = new URL(req.url).searchParams.get('token');
 
 	if (!token) {
@@ -25,7 +29,50 @@ export async function GET(req, { params }) {
 			);
 		}
 
-		const status = record.status === 'revoked' ? 'revoked' : 'valid';
+		const storedHash = record.document_hash || record.hash;
+		const documentHashMatch = Boolean(storedHash && storedHash === record.hash);
+		const { proof, batch, valid: merkleProofValid } = verifyDocumentMerkleProof(
+			db,
+			record,
+		);
+		const batchPublished = batch?.status === 'published';
+		let publicCommitmentValid = Boolean(
+			batchPublished && batch.transaction_id && batch.chain && batch.block_number,
+		);
+		if (batchPublished && batch.publish_method === 'mock') {
+			publicCommitmentValid = Boolean(batch.timestamp_proof);
+		}
+		if (batchPublished && batch.publish_method === 'opentimestamps') {
+			const otsVerification = await verifyOpenTimestampsBatchProof(batch).catch(() => ({
+				verified: false,
+			}));
+			publicCommitmentValid = Boolean(otsVerification.verified);
+		}
+		const documentStatus = record.status || 'valid';
+		const tokenRow = db.verification_tokens.find(
+			(item) => item.token === token && item.document_record_id === record.id,
+		);
+		const tokenValid =
+			(record.verification_token === token || record.qr_token === token) &&
+			(!tokenRow ||
+				(tokenRow.status === 'active' && new Date(tokenRow.expires_at) > new Date()));
+
+		if (!documentHashMatch || !proof || !batch) {
+			return new Response(
+				JSON.stringify({
+					tokenValid,
+					documentHashMatch,
+					documentStatus,
+					anchorStatus: record.anchor_status || 'pending',
+					merkleProofValid: false,
+					publicCommitmentValid: false,
+					error: 'Document hash mismatch or Merkle proof missing',
+				}),
+				{ status: 400 },
+			);
+		}
+
+		const status = documentStatus === 'revoked' ? 'revoked' : documentStatus;
 
 		db.api_logs.push({
 			id: generateId('apilog'),
@@ -35,12 +82,32 @@ export async function GET(req, { params }) {
 			method: req.method,
 			status: 200,
 			request_body: { token },
-			response_body: { status },
+			response_body: {
+				tokenValid,
+				documentHashMatch,
+				documentStatus: status,
+				anchorStatus: record.anchor_status,
+				merkleProofValid,
+				publicCommitmentValid,
+			},
 			created_at: now(),
 		});
 
 		return new Response(
 			JSON.stringify({
+				tokenValid,
+				documentHashMatch,
+				documentStatus: status,
+				anchorStatus: record.anchor_status || 'pending',
+				merkleProofValid,
+				publicCommitmentValid,
+				publishMethod: batch.publish_method,
+				chain: batch.chain,
+				batchId: batch.id,
+				merkleRoot: batch.merkle_root,
+				transactionId: batch.transaction_id,
+				blockNumber: batch.block_number,
+				timestampProofAvailable: Boolean(batch.timestamp_proof),
 				documentId: record.id,
 				externalId: record.external_id,
 				status,
@@ -54,7 +121,7 @@ export async function GET(req, { params }) {
 }
 
 export async function POST(req, { params }) {
-	const { tenantId } = params;
+	const { tenantId } = await params;
 	const auth = await authenticateApiRequest(req, tenantId);
 	if (!auth) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), {

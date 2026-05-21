@@ -2,7 +2,7 @@ import { authenticateApiRequest } from '@/lib/auth';
 import { withDb, generateId, now } from '@/lib/db';
 
 export async function POST(req, { params }) {
-	const { tenantId } = params;
+	const { tenantId } = await params;
 	const auth = await authenticateApiRequest(req, tenantId);
 	if (!auth) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -29,16 +29,31 @@ export async function POST(req, { params }) {
 				status: 404,
 			});
 		}
+		if (record.anchor_status === 'published') {
+			return new Response(
+				JSON.stringify({
+					error:
+						'Published document hashes cannot be edited. Create a corrected document version instead.',
+				}),
+				{ status: 409 },
+			);
+		}
 		record.hash = documentHash;
+		record.document_hash = documentHash;
+		record.anchor_status = 'pending';
+		record.anchor_batch_id = null;
 		record.updated_at = now();
 
-		db.blockchain_anchors.push({
-			id: generateId('anchor'),
-			tenant_id: tenantId,
-			document_record_id: documentId,
-			anchor_hash: documentHash,
-			chain: 'placeholder-chain',
-			transaction_id: null,
+		db.anchor_pool = db.anchor_pool.filter(
+			(poolRecord) => poolRecord.document_id !== documentId,
+		);
+		db.merkle_proofs = db.merkle_proofs.filter(
+			(proof) => proof.document_id !== documentId,
+		);
+		db.anchor_pool.push({
+			id: generateId('pool'),
+			document_id: documentId,
+			document_hash: documentHash,
 			status: 'pending',
 			created_at: now(),
 			updated_at: now(),

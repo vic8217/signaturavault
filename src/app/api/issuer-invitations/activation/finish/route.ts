@@ -1,0 +1,294 @@
+import {
+	verifyAuthenticationResponse,
+	verifyRegistrationResponse,
+} from '@simplewebauthn/server';
+import crypto from 'crypto';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { jsonError, safeApiErrorMessage } from '@/lib/api';
+import { ROLE_COOKIE, ROLES } from '@/lib/roles';
+import { setSessionCookie } from '@/lib/session';
+import {
+	assertSecureWebAuthnRequest,
+	consumeChallenge,
+	getOrigin,
+	getRpID,
+	getUserAgent,
+	hashActivationToken,
+	logSecurityEvent,
+} from '@/lib/webauthn';
+
+export async function POST(req: Request) {
+	try {
+		assertSecureWebAuthnRequest(req);
+		const body = await req.json();
+		const token = String(body.token || '').trim();
+		const invitationId = String(body.invitationId || '').trim();
+		const userId = String(body.userId || '').trim();
+		const deviceName = String(body.deviceName || '').trim() || 'Issuer device';
+		const mode = String(body.mode || 'registration');
+		const response = body.response;
+
+		if (!token || !invitationId || !userId || !response) {
+			return jsonError('token, invitationId, userId, and response are required');
+		}
+		if (mode !== 'authentication' && mode !== 'registration') {
+			return jsonError('Activation mode is invalid');
+		}
+
+		const invitation = await prisma.issuerInvitation.findFirst({
+			where: {
+				id: invitationId,
+				tokenHash: hashActivationToken(token),
+				usedAt: null,
+				expiresAt: { gt: new Date() },
+			},
+		});
+
+		if (!invitation) {
+			return jsonError('Activation link is invalid, expired, or already used', 400);
+		}
+
+		const challenge = await prisma.authChallenge.findFirst({
+			where: {
+				userId,
+				issuerInvitationId: invitation.id,
+				type: 'ISSUER_INVITATION_ACTIVATION',
+				usedAt: null,
+				expiresAt: { gt: new Date() },
+			},
+			orderBy: { createdAt: 'desc' },
+		});
+
+		if (!challenge) return jsonError('Activation challenge expired', 400);
+
+		const userAgent = getUserAgent(req);
+		const now = new Date();
+		let credentialId = '';
+		let existingCredentialForUpdate = null;
+		let newCounter = null;
+		let newCredentialForCreate = null;
+
+		if (mode === 'authentication') {
+			const existingCredential = await prisma.webAuthnCredential.findUnique({
+				where: { credentialId: response.id },
+			});
+
+			if (
+				!existingCredential ||
+				existingCredential.userId !== userId ||
+				!existingCredential.isTrusted
+			) {
+				return jsonError('Credential is not trusted for this account', 401);
+			}
+
+			const verification = await verifyAuthenticationResponse({
+				response,
+				expectedChallenge: challenge.challenge,
+				expectedOrigin: getOrigin(req),
+				expectedRPID: getRpID(req),
+				requireUserVerification: true,
+				credential: {
+					id: existingCredential.credentialId,
+					publicKey: existingCredential.publicKey,
+					counter: existingCredential.counter,
+					transports: existingCredential.transports as never,
+				},
+			});
+
+			await consumeChallenge({
+				challenge: challenge.challenge,
+				type: 'ISSUER_INVITATION_ACTIVATION',
+				userId,
+			});
+
+			if (!verification.verified) {
+				await logSecurityEvent(
+					req,
+					'issuer_activation_verification_failed',
+					userId,
+					{
+						invitationId: invitation.id,
+						mode,
+					},
+				);
+				return jsonError('Trusted-device verification failed', 401);
+			}
+
+			credentialId = existingCredential.credentialId;
+			existingCredentialForUpdate = existingCredential;
+			newCounter = verification.authenticationInfo.newCounter;
+		} else {
+			const verification = await verifyRegistrationResponse({
+				response,
+				expectedChallenge: challenge.challenge,
+				expectedOrigin: getOrigin(req),
+				expectedRPID: getRpID(req),
+				requireUserVerification: true,
+			});
+
+			await consumeChallenge({
+				challenge: challenge.challenge,
+				type: 'ISSUER_INVITATION_ACTIVATION',
+				userId,
+			});
+
+			if (!verification.verified || !verification.registrationInfo) {
+				await logSecurityEvent(
+					req,
+					'issuer_activation_verification_failed',
+					userId,
+					{
+						invitationId: invitation.id,
+						mode,
+					},
+				);
+				return jsonError('Trusted-device registration could not be verified', 400);
+			}
+
+			const { credential } = verification.registrationInfo;
+			credentialId = credential.id;
+			newCredentialForCreate = credential;
+		}
+
+		const user = await prisma.$transaction(async (tx) => {
+			const updated = await tx.issuerInvitation.updateMany({
+				where: {
+					id: invitation.id,
+					usedAt: null,
+					expiresAt: { gt: now },
+				},
+				data: {
+					usedAt: now,
+					activatedAt: now,
+				},
+			});
+
+			if (updated.count !== 1) {
+				throw new Error('Activation token was already used');
+			}
+
+			const activatedUser = await tx.user.findUnique({ where: { id: userId } });
+			if (!activatedUser) throw new Error('User not found');
+
+			if (existingCredentialForUpdate) {
+				await tx.webAuthnCredential.update({
+					where: { id: existingCredentialForUpdate.id },
+					data: {
+						counter: newCounter,
+						lastUsedAt: now,
+					},
+				});
+
+				await tx.trustedDevice.updateMany({
+					where: {
+						userId,
+						credentialId: existingCredentialForUpdate.credentialId,
+						removedAt: null,
+					},
+					data: { lastUsedAt: now },
+				});
+			} else if (newCredentialForCreate) {
+				await tx.webAuthnCredential.create({
+					data: {
+						id: crypto.randomUUID(),
+						userId,
+						credentialId: newCredentialForCreate.id,
+						publicKey: Buffer.from(newCredentialForCreate.publicKey),
+						counter: newCredentialForCreate.counter,
+						transports: newCredentialForCreate.transports || [],
+						deviceName,
+						userAgent,
+						lastUsedAt: now,
+						isTrusted: true,
+					},
+				});
+
+				await tx.trustedDevice.create({
+					data: {
+						id: crypto.randomUUID(),
+						userId,
+						credentialId: newCredentialForCreate.id,
+						deviceName,
+						userAgent,
+						lastUsedAt: now,
+						isTrusted: true,
+					},
+				});
+			}
+
+			if (invitation.issuerUserId) {
+				await tx.issuerUser.update({
+					where: { id: invitation.issuerUserId },
+					data: {
+						userId,
+						status: 'active',
+						activatedAt: now,
+					},
+				});
+			}
+
+			await tx.securityEventLog.create({
+				data: {
+					id: crypto.randomUUID(),
+					userId,
+					event: 'issuer_invitation_activation_succeeded_notify_org',
+					userAgent,
+					details: {
+						invitationId: invitation.id,
+						tenantId: invitation.tenantId,
+						issuerId: invitation.issuerId,
+						deliveryChannel: invitation.deliveryChannel,
+						deviceName,
+						mode,
+						notification:
+							'Issuer organization should be notified that invitation activation succeeded.',
+					},
+				},
+			});
+
+			return activatedUser;
+		});
+
+		await logSecurityEvent(req, 'issuer_trusted_device_registered', user.id, {
+			invitationId: invitation.id,
+			tenantId: invitation.tenantId,
+			credentialId,
+			mode,
+		});
+
+		const responseJson = NextResponse.json({
+			ok: true,
+			next: '/issuer-portal',
+			user: { id: user.id, email: user.email, name: user.name },
+			tenantId: invitation.tenantId,
+			issuerId: invitation.issuerId,
+		});
+		setSessionCookie(responseJson, req, {
+			userId: user.id,
+			email: user.email,
+			createdAt: Date.now(),
+			reauthenticatedAt: Date.now(),
+		});
+		responseJson.cookies.set(
+			ROLE_COOKIE,
+			invitation.role === ROLES.ISSUER_ADMIN
+				? ROLES.ISSUER_ADMIN
+				: ROLES.ISSUER_STAFF,
+			{
+				httpOnly: true,
+				sameSite: 'lax',
+				secure: process.env.NODE_ENV === 'production',
+				path: '/',
+				maxAge: 60 * 60 * 8,
+			},
+		);
+
+		return responseJson;
+	} catch (error) {
+		return jsonError(
+			safeApiErrorMessage(error, 'Unable to finish activation'),
+			400,
+		);
+	}
+}

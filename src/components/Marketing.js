@@ -27,7 +27,7 @@ function PublicMarketingLayout({ children }) {
 							alt="Signatura logo"
 							width={44}
 							height={52}
-							className="h-11 w-11 object-contain"
+							className="h-11 w-auto object-contain"
 							priority
 						/>
 						<span className="hidden text-lg font-bold uppercase tracking-[0.18em] sm:block">

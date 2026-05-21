@@ -20,8 +20,15 @@ function redirectTo(url, pathname, search = '') {
 	return NextResponse.redirect(redirectUrl);
 }
 
-export function proxy(request) {
+function proxy(request) {
 	const { pathname } = request.nextUrl;
+
+	if (
+		pathname === '/issuer/activate' ||
+		pathname === '/issuer-portal/activate'
+	) {
+		return NextResponse.next();
+	}
 
 	if (pathname === '/issuer' || pathname.startsWith('/issuer/')) {
 		return redirectTo(
@@ -49,6 +56,8 @@ export function proxy(request) {
 	return NextResponse.next();
 }
 
+export { proxy };
+
 export const config = {
 	matcher: [
 		'/wallet/:path*',
@@ -57,3 +66,5 @@ export const config = {
 		'/issuer/:path*',
 	],
 };
+
+export default proxy;

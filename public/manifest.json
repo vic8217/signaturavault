@@ -2,9 +2,10 @@
 	"name": "Signatura - Trust Every Document",
 	"short_name": "Signatura",
 	"description": "Zero-trust digital document issuance, verification, and blockchain anchoring platform.",
-	"start_url": "/",
+	"start_url": "/login?next=/wallet",
 	"scope": "/",
 	"display": "standalone",
+	"display_override": ["standalone", "minimal-ui"],
 	"orientation": "portrait-primary",
 	"theme_color": "#0F172A",
 	"background_color": "#030914",
@@ -33,7 +34,7 @@
 		{
 			"name": "Document Wallet",
 			"short_name": "Wallet",
-			"url": "/wallet",
+			"url": "/login?next=/wallet",
 			"icons": [{ "src": "/signatura-logo.png", "sizes": "any" }]
 		},
 		{

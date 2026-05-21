@@ -164,13 +164,18 @@ export default async function UseCaseDetailPage({ params }) {
 							alt="Signatura logo"
 							width={48}
 							height={56}
-							className="h-11 w-11 object-contain"
+							className="h-11 w-auto object-contain"
 						/>
 						<span className="text-lg font-bold uppercase tracking-[0.18em]">
 							Signatura
 						</span>
 					</Link>
-					<div className="flex items-center gap-3">
+					<div className="flex flex-wrap items-center justify-end gap-3">
+						<Link
+							href="/"
+							className="rounded-xl border border-white/15 px-4 py-2 text-sm font-bold text-slate-200 transition hover:border-red-500 hover:text-red-300">
+							Main Page
+						</Link>
 						<Link
 							href="/use-cases"
 							className="rounded-xl border border-white/15 px-4 py-2 text-sm font-bold text-slate-200 transition hover:border-red-500 hover:text-red-300">
@@ -222,7 +227,7 @@ export default async function UseCaseDetailPage({ params }) {
 										alt=""
 										width={56}
 										height={66}
-										className="h-12 w-12 object-contain"
+										className="h-12 w-auto object-contain"
 									/>
 									<p className="text-2xl font-black">Signatura</p>
 								</div>

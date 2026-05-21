@@ -2,7 +2,7 @@ import { authenticateApiRequest } from '@/lib/auth';
 import { withDb, generateId, now } from '@/lib/db';
 
 export async function POST(req, { params }) {
-	const { tenantId } = params;
+	const { tenantId } = await params;
 	const auth = await authenticateApiRequest(req, tenantId);
 	if (!auth) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -27,21 +27,36 @@ export async function POST(req, { params }) {
 		const documentId = generateId('doc');
 		const verificationToken = generateId('verify');
 		const qrToken = generateId('qr');
+		const timestamp = now();
+		const issuer = db.issuers.find((record) => record.tenant_id === tenantId);
 
 		db.document_records.push({
 			id: documentId,
 			tenant_id: tenantId,
+			issuer_id: issuer?.id || null,
 			document_template_id: templateId || null,
 			external_id: externalId,
 			recipient_name: recipientName,
-			issued_at: now(),
+			issued_at: timestamp,
 			hash: documentHash,
-			status: 'issued',
+			document_hash: documentHash,
+			status: 'valid',
+			anchor_status: 'pending',
+			anchor_batch_id: null,
 			verification_token: verificationToken,
 			qr_token: qrToken,
 			metadata: metadata || {},
-			created_at: now(),
-			updated_at: now(),
+			created_at: timestamp,
+			updated_at: timestamp,
+		});
+
+		db.anchor_pool.push({
+			id: generateId('pool'),
+			document_id: documentId,
+			document_hash: documentHash,
+			status: 'pending',
+			created_at: timestamp,
+			updated_at: timestamp,
 		});
 
 		db.verification_tokens.push({
@@ -51,18 +66,6 @@ export async function POST(req, { params }) {
 			token: verificationToken,
 			expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
 			status: 'active',
-			created_at: now(),
-			updated_at: now(),
-		});
-
-		db.blockchain_anchors.push({
-			id: generateId('anchor'),
-			tenant_id: tenantId,
-			document_record_id: documentId,
-			anchor_hash: documentHash,
-			chain: 'placeholder-chain',
-			transaction_id: null,
-			status: 'pending',
 			created_at: now(),
 			updated_at: now(),
 		});
@@ -82,7 +85,8 @@ export async function POST(req, { params }) {
 		return new Response(
 			JSON.stringify({
 				documentId,
-				status: 'issued',
+				status: 'valid',
+				anchorStatus: 'pending',
 				verificationToken,
 				qrToken,
 				qrUrl: `/api/issuers/${tenantId}/qr?token=${qrToken}`,

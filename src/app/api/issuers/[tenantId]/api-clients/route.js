@@ -1,8 +1,8 @@
-import { authenticateApiRequest } from '@/lib/auth';
+import { authenticateApiRequest, hashValue } from '@/lib/auth';
 import { withDb, generateId, now } from '@/lib/db';
 
 export async function GET(req, { params }) {
-	const { tenantId } = params;
+	const { tenantId } = await params;
 	const auth = await authenticateApiRequest(req, tenantId);
 	if (!auth) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -19,7 +19,7 @@ export async function GET(req, { params }) {
 }
 
 export async function POST(req, { params }) {
-	const { tenantId } = params;
+	const { tenantId } = await params;
 	const auth = await authenticateApiRequest(req, tenantId);
 	if (!auth) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -46,7 +46,7 @@ export async function POST(req, { params }) {
 			tenant_id: tenantId,
 			name,
 			client_id: generateId('cid'),
-			client_secret: clientSecret,
+			client_secret_hash: hashValue(clientSecret),
 			scopes: scopes || [
 				'document:read',
 				'document:write',
@@ -60,7 +60,7 @@ export async function POST(req, { params }) {
 			id: apiKeyId,
 			tenant_id: tenantId,
 			api_client_id: apiClientId,
-			key: apiKey,
+			key_hash: hashValue(apiKey),
 			status: 'active',
 			created_at: now(),
 			updated_at: now(),

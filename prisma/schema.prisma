@@ -1,0 +1,508 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  credentials       WebAuthnCredential[]
+  trustedDevices    TrustedDevice[]
+  authChallenges    AuthChallenge[]
+  recoveryCodes     RecoveryCode[]
+  securityEventLogs SecurityEventLog[]
+
+  @@map("users")
+}
+
+model WebAuthnCredential {
+  id           String   @id
+  userId       String   @map("user_id")
+  credentialId String   @unique @map("credential_id")
+  publicKey    Bytes    @map("public_key")
+  counter      Int      @default(0)
+  transports   String[] @default([])
+  deviceName   String?  @map("device_name")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+  lastUsedAt   DateTime? @map("last_used_at")
+  isTrusted    Boolean  @default(true) @map("is_trusted")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("webauthn_credentials")
+}
+
+model TrustedDevice {
+  id           String   @id
+  userId       String   @map("user_id")
+  credentialId String?  @map("credential_id")
+  deviceName   String   @map("device_name")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+  lastUsedAt   DateTime? @map("last_used_at")
+  isTrusted    Boolean  @default(true) @map("is_trusted")
+  removedAt    DateTime? @map("removed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([credentialId])
+  @@map("trusted_devices")
+}
+
+model AuthChallenge {
+  id         String   @id
+  userId     String?  @map("user_id")
+  issuerInvitationId String? @map("issuer_invitation_id")
+  type       String
+  challenge  String   @unique
+  deviceName String?  @map("device_name")
+  userAgent  String?  @map("user_agent")
+  expiresAt  DateTime @map("expires_at")
+  usedAt     DateTime? @map("used_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([issuerInvitationId])
+  @@index([type])
+  @@map("auth_challenges")
+}
+
+model RecoveryCode {
+  id        String   @id
+  userId    String   @map("user_id")
+  codeHash  String   @unique @map("code_hash")
+  codePrefix String  @map("code_prefix")
+  createdAt DateTime @default(now()) @map("created_at")
+  usedAt    DateTime? @map("used_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("recovery_codes")
+}
+
+model SecurityEventLog {
+  id        String   @id
+  userId    String?  @map("user_id")
+  event     String
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([event])
+  @@map("security_event_logs")
+}
+
+model Tenant {
+  id                String   @id
+  name              String
+  externalReference String?  @map("external_reference")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("tenants")
+}
+
+model Issuer {
+  id                 String   @id
+  tenantId           String   @map("tenant_id")
+  name               String
+  contactEmail       String?  @map("contact_email")
+  type               String?
+  address            String?
+  registrationNumber String?  @map("registration_number")
+  registrationDate   DateTime? @map("registration_date")
+  status             String   @default("active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@map("issuers")
+}
+
+model IssuerUser {
+  id        String   @id
+  tenantId  String   @map("tenant_id")
+  issuerId  String?  @map("issuer_id")
+  userId    String?  @map("user_id")
+  email     String
+  role      String
+  status    String   @default("active")
+  invitedAt DateTime? @map("invited_at")
+  activatedAt DateTime? @map("activated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([issuerId])
+  @@index([userId])
+  @@map("issuer_users")
+}
+
+model IssuerInvitation {
+  id              String   @id
+  tenantId        String   @map("tenant_id")
+  issuerId        String?  @map("issuer_id")
+  issuerUserId    String?  @map("issuer_user_id")
+  email           String
+  role            String
+  deliveryChannel String   @map("delivery_channel")
+  recipient       String
+  tokenHash       String   @unique @map("token_hash")
+  expiresAt       DateTime @map("expires_at")
+  usedAt          DateTime? @map("used_at")
+  activatedAt     DateTime? @map("activated_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([issuerId])
+  @@index([issuerUserId])
+  @@index([email])
+  @@map("issuer_invitations")
+}
+
+model IssuerApiClient {
+  id               String   @id
+  tenantId         String   @map("tenant_id")
+  name             String
+  clientId         String   @unique @map("client_id")
+  clientSecretHash String?  @map("client_secret_hash")
+  scopes           String[]
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@map("issuer_api_clients")
+}
+
+model IssuerApiKey {
+  id          String   @id
+  tenantId    String   @map("tenant_id")
+  apiClientId String   @map("api_client_id")
+  keyHash     String?  @map("key_hash")
+  status      String   @default("active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([apiClientId])
+  @@map("issuer_api_keys")
+}
+
+model DocumentType {
+  id          String   @id
+  tenantId    String   @map("tenant_id")
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@map("document_types")
+}
+
+model DocumentTemplate {
+  id               String   @id
+  tenantId         String   @map("tenant_id")
+  issuerId         String?  @map("issuer_id")
+  documentTypeId   String?  @map("document_type_id")
+  name             String
+  documentType     String?  @map("document_type")
+  version          Int      @default(1)
+  status           String   @default("draft")
+  originalFileUrl  String?  @map("original_file_url")
+  previewImageUrl  String?  @map("preview_image_url")
+  schema           Json?
+  fields           Json?
+  createdBy        String?  @map("created_by")
+  publishedBy      String?  @map("published_by")
+  publishedAt      DateTime? @map("published_at")
+  sourceTemplateId String?  @map("source_template_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  templateFields DocumentTemplateField[]
+  extractionLogs TemplateExtractionLog[]
+  auditLogs      TemplateAuditLog[]
+  versions       TemplateVersion[]
+
+  @@index([tenantId])
+  @@index([issuerId])
+  @@index([documentTypeId])
+  @@index([status])
+  @@index([sourceTemplateId])
+  @@map("document_templates")
+}
+
+model DocumentTemplateField {
+  id             String   @id
+  templateId     String   @map("template_id")
+  fieldLabel     String   @map("field_label")
+  fieldKey       String   @map("field_key")
+  fieldType      String   @map("field_type")
+  required       Boolean  @default(false)
+  encrypted      Boolean  @default(false)
+  publicVisible  Boolean  @default(false) @map("public_visible")
+  searchable     Boolean  @default(false)
+  validationRule String?  @map("validation_rule")
+  defaultValue   String?  @map("default_value")
+  optionsJson    Json?    @map("options_json")
+  xPosition      Float    @default(0) @map("x_position")
+  yPosition      Float    @default(0) @map("y_position")
+  width          Float    @default(20)
+  height         Float    @default(8)
+  pageNumber     Int      @default(1) @map("page_number")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([fieldKey])
+  @@map("template_fields")
+}
+
+model TemplateVersion {
+  id             String   @id
+  templateId     String   @map("template_id")
+  version        Int
+  status         String
+  schemaJson     Json?    @map("schema_json")
+  fieldsJson     Json?    @map("fields_json")
+  templateHash   String?  @map("template_hash")
+  createdBy      String?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([version])
+  @@map("template_versions")
+}
+
+model TemplateExtractionLog {
+  id                String   @id
+  templateId        String   @map("template_id")
+  extractionStatus  String   @map("extraction_status")
+  ocrProvider       String?  @map("ocr_provider")
+  rawOcrJson        Json?    @map("raw_ocr_json")
+  aiSuggestionsJson Json?    @map("ai_suggestions_json")
+  errorMessage      String?  @map("error_message")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([extractionStatus])
+  @@map("template_extraction_logs")
+}
+
+model TemplateAuditLog {
+  id           String   @id
+  templateId   String   @map("template_id")
+  userId       String?  @map("user_id")
+  action       String
+  oldValueJson Json?    @map("old_value_json")
+  newValueJson Json?    @map("new_value_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([userId])
+  @@index([action])
+  @@map("template_audit_logs")
+}
+
+model DocumentRecord {
+  id                 String   @id
+  tenantId           String   @map("tenant_id")
+  issuerId           String?  @map("issuer_id")
+  documentTemplateId String?  @map("document_template_id")
+  externalId         String   @map("external_id")
+  recipientName      String   @map("recipient_name")
+  issuedAt           DateTime @map("issued_at")
+  hash               String
+  documentHash       String?  @map("document_hash")
+  status             String   @default("valid")
+  anchorStatus       String   @default("pending") @map("anchor_status")
+  anchorBatchId      String?  @map("anchor_batch_id")
+  verificationToken  String   @unique @map("verification_token")
+  qrToken            String   @unique @map("qr_token")
+  metadata           Json?
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  anchorPool   AnchorPool[]
+  merkleProofs MerkleProof[]
+
+  @@index([tenantId])
+  @@index([issuerId])
+  @@index([documentTemplateId])
+  @@index([externalId])
+  @@index([anchorStatus])
+  @@index([anchorBatchId])
+  @@map("document_records")
+}
+
+model AnchorPool {
+  id           String   @id
+  documentId   String   @map("document_id")
+  documentHash String   @map("document_hash")
+  status       String   @default("pending")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  document DocumentRecord @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([documentHash])
+  @@index([status])
+  @@map("anchor_pool")
+}
+
+model MerkleBatch {
+  id             String    @id
+  merkleRoot     String    @map("merkle_root")
+  batchSize      Int       @map("batch_size")
+  status         String    @default("created")
+  publishMethod  String    @default("mock") @map("publish_method")
+  chain          String?
+  transactionId  String?   @map("transaction_id")
+  blockNumber    String?   @map("block_number")
+  timestampProof String?   @map("timestamp_proof")
+  publishedAt    DateTime? @map("published_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  proofs MerkleProof[]
+
+  @@index([status])
+  @@index([publishMethod])
+  @@index([transactionId])
+  @@map("merkle_batches")
+}
+
+model MerkleProof {
+  id         String   @id
+  documentId String   @map("document_id")
+  batchId    String   @map("batch_id")
+  leafHash   String   @map("leaf_hash")
+  proofPath  Json     @map("proof_path")
+  proofIndex Int      @map("proof_index")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  document DocumentRecord @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  batch    MerkleBatch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([batchId])
+  @@index([leafHash])
+  @@map("merkle_proofs")
+}
+
+model VerificationToken {
+  id               String   @id
+  tenantId         String   @map("tenant_id")
+  documentRecordId String   @map("document_record_id")
+  token            String   @unique
+  expiresAt        DateTime @map("expires_at")
+  status           String   @default("active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([documentRecordId])
+  @@map("verification_tokens")
+}
+
+model StorageConnection {
+  id             String   @id
+  tenantId       String   @map("tenant_id")
+  provider       String
+  connectionData Json?    @map("connection_data")
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@map("storage_connections")
+}
+
+model BlockchainAnchor {
+  id               String   @id
+  tenantId         String   @map("tenant_id")
+  documentRecordId String   @map("document_record_id")
+  anchorHash       String   @map("anchor_hash")
+  chain            String
+  transactionId    String?  @map("transaction_id")
+  status           String   @default("pending")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([documentRecordId])
+  @@map("blockchain_anchors")
+}
+
+model Webhook {
+  id        String   @id
+  tenantId  String   @map("tenant_id")
+  targetUrl String   @map("target_url")
+  events    String[]
+  secret    String
+  status    String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@map("webhooks")
+}
+
+model ApiLog {
+  id           String   @id
+  tenantId     String   @map("tenant_id")
+  apiClientId  String?  @map("api_client_id")
+  path         String
+  method       String
+  status       Int
+  requestBody  Json?    @map("request_body")
+  responseBody Json?    @map("response_body")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([apiClientId])
+  @@map("api_logs")
+}
+
+model AuditLog {
+  id        String   @id
+  tenantId  String   @map("tenant_id")
+  issuerId  String?  @map("issuer_id")
+  userId    String?  @map("user_id")
+  action    String
+  target    String?
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([issuerId])
+  @@map("audit_logs")
+}

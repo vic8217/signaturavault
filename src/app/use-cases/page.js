@@ -37,7 +37,7 @@ export default function UseCasesPage() {
 							alt="Signatura logo"
 							width={48}
 							height={56}
-							className="h-11 w-11 object-contain"
+							className="h-11 w-auto object-contain"
 						/>
 						<span className="text-lg font-bold uppercase tracking-[0.18em]">
 							Signatura

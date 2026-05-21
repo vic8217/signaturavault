@@ -2,7 +2,7 @@ import { authenticateApiRequest } from '@/lib/auth';
 import { withDb, generateId, now } from '@/lib/db';
 
 export async function POST(req, { params }) {
-	const { tenantId } = params;
+	const { tenantId } = await params;
 	const auth = await authenticateApiRequest(req, tenantId);
 	if (!auth) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), {

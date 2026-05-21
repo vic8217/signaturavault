@@ -44,7 +44,7 @@ This workspace now includes a tenant-aware issuer portal and issuer API architec
 
 ### New data model support
 
-The solution includes lightweight table design for:
+The solution includes a Prisma/PostgreSQL schema for:
 
 - `tenants`
 - `issuers`
@@ -60,6 +60,50 @@ The solution includes lightweight table design for:
 - `webhooks`
 - `api_logs`
 - `audit_logs`
+
+### PostgreSQL setup
+
+Prisma is configured in `prisma/schema.prisma` and reads `DATABASE_URL` from the
+project root `.env` through `prisma.config.ts`.
+
+```bash
+npm run db:generate
+npm run db:migrate
+npm run db:studio
+```
+
+For local development, set:
+
+```bash
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/signatura?schema=public"
+SESSION_SECRET="replace-with-a-long-random-session-secret"
+RECOVERY_CODE_SECRET="replace-with-a-long-random-recovery-code-secret"
+ACTIVATION_TOKEN_SECRET="replace-with-a-long-random-activation-token-secret"
+```
+
+If you already have a PostgreSQL database, replace the value with that
+connection string before running `npm run db:migrate`.
+
+### Passkey authentication
+
+The user security flow uses WebAuthn/passkeys through `@simplewebauthn/server`
+and `@simplewebauthn/browser`.
+
+- `GET /register`
+- `GET /login`
+- `GET /security/devices`
+- `GET /security/add-device`
+- `GET /security/add-passkey`
+- `GET /security/recovery-codes`
+
+Signatura never receives or stores fingerprint or face data. The device keeps
+biometrics locally and the app stores only credential IDs, public keys, counters,
+trusted-device metadata, recovery-code hashes, and security event logs.
+
+Issuer onboarding invitations support Viber, Messenger, WhatsApp, SMS, and
+secure enterprise channels as delivery channels only. Activation links are
+single-use, expiring, and stored hashed. Activation still requires registering a
+trusted device with WebAuthn/passkey security.
 
 ### API routes
 

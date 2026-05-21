@@ -71,14 +71,6 @@ const workSteps = [
 	['shield', 'Verifier scans QR to confirm authenticity'],
 ];
 
-const portalRoles = [
-	['identity', 'DOCUMENT_OWNER', 'Document Owner', 'Open Wallet'],
-	['bank', 'ISSUER_ADMIN', 'Issuer Admin', 'Open Issuer Portal'],
-	['shield', 'ISSUER_STAFF', 'Issuer Staff', 'Open Issuer Portal'],
-	['lock', 'SIGNATURA_ADMIN', 'Dev Admin', 'Open Admin Console'],
-	['document', 'SIGNATURA_STAFF', 'Dev Staff', 'Open Admin Console'],
-];
-
 function Icon({ name, className = 'h-6 w-6' }) {
 	const common = {
 		className,
@@ -222,7 +214,7 @@ export default function Home() {
 							width={48}
 							height={56}
 							priority
-							className="h-11 w-11 object-contain"
+							className="h-11 w-auto object-contain"
 						/>
 						<span className="hidden text-lg font-bold uppercase tracking-[0.18em] sm:block">
 							Signatura
@@ -240,11 +232,18 @@ export default function Home() {
 						))}
 					</div>
 
-					<div className="flex items-center gap-3">
-						<LoginModal />
+					<div className="flex items-center gap-2 sm:gap-3">
+						<Link
+							href="/login?next=/wallet"
+							className="rounded-xl border border-white/20 px-4 py-3 text-sm font-bold text-white transition hover:border-red-400 hover:text-red-300 sm:hidden">
+							Login
+						</Link>
+						<div className="hidden sm:block">
+							<LoginModal />
+						</div>
 						<Link
 							href="/issuer-portal/onboarding"
-							className="rounded-xl bg-red-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_30px_rgba(239,68,68,0.35)] transition hover:bg-red-400 sm:px-5">
+							className="hidden rounded-xl bg-red-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_30px_rgba(239,68,68,0.35)] transition hover:bg-red-400 sm:inline-block sm:px-5">
 							Request Demo
 						</Link>
 					</div>
@@ -275,31 +274,6 @@ export default function Home() {
 							<Icon name="play" className="h-4 w-4" />
 							How It Works
 						</Link>
-					</div>
-					<div className="mt-8 rounded-2xl border border-white/10 bg-white/4 p-4">
-						<p className="text-xs font-bold uppercase tracking-[0.22em] text-red-300">
-							Demo access
-						</p>
-						<div className="mt-4 grid gap-3 sm:grid-cols-2">
-							{portalRoles.map(([icon, role, label, action]) => (
-								<form key={role} action="/api/auth/session" method="post">
-									<input type="hidden" name="role" value={role} />
-									<button className="flex h-full w-full items-center gap-3 rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-left transition hover:border-red-400 hover:bg-slate-900">
-										<span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
-											<Icon name={icon} className="h-5 w-5" />
-										</span>
-										<span>
-											<span className="block text-sm font-bold text-white">
-												{label}
-											</span>
-											<span className="mt-1 block text-xs text-slate-400">
-												{action}
-											</span>
-										</span>
-									</button>
-								</form>
-							))}
-						</div>
 					</div>
 					<div className="mt-12 grid grid-cols-2 gap-5 text-sm text-slate-200 sm:grid-cols-4">
 						{trustBadges.map(([icon, label]) => (
@@ -332,7 +306,7 @@ export default function Home() {
 								width={290}
 								height={340}
 								priority
-								className="h-52 w-52 object-contain drop-shadow-[0_0_34px_rgba(248,35,35,0.45)] sm:h-64 sm:w-64"
+								className="h-52 w-auto object-contain drop-shadow-[0_0_34px_rgba(248,35,35,0.45)] sm:h-64"
 							/>
 						</div>
 					</div>
@@ -495,7 +469,7 @@ export default function Home() {
 									alt=""
 									width={70}
 									height={82}
-									className="h-14 w-14 object-contain"
+									className="h-14 w-auto object-contain"
 								/>
 								<div>
 									<h3 className="text-2xl font-black">
@@ -534,43 +508,6 @@ export default function Home() {
 							{useCase.title}
 						</Link>
 					))}
-				</div>
-			</section>
-
-			<section className="w-full px-4 pb-16 sm:px-6 lg:px-10 2xl:px-14">
-				<div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-white/4 p-6">
-					<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-						<div>
-							<p className="text-sm font-bold uppercase tracking-[0.18em] text-red-300">
-								Demo access
-							</p>
-							<h2 className="mt-2 text-2xl font-black">Open a role portal</h2>
-						</div>
-						<p className="max-w-xl text-sm leading-6 text-slate-300">
-							Choose a demo role to set your session and enter the matching
-							portal.
-						</p>
-					</div>
-					<div className="mt-6 grid gap-3 md:grid-cols-4">
-						{portalRoles.map(([icon, role, label, action]) => (
-							<form key={role} action="/api/auth/session" method="post">
-								<input type="hidden" name="role" value={role} />
-								<button className="flex h-full w-full items-center gap-3 rounded-xl border border-white/10 bg-slate-950 px-4 py-4 text-left transition hover:border-red-400 hover:bg-slate-900">
-									<span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
-										<Icon name={icon} className="h-5 w-5" />
-									</span>
-									<span>
-										<span className="block text-sm font-bold text-white">
-											{label}
-										</span>
-										<span className="mt-1 block text-xs text-slate-400">
-											{action}
-										</span>
-									</span>
-								</button>
-							</form>
-						))}
-					</div>
 				</div>
 			</section>
 

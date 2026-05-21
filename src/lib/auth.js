@@ -32,8 +32,12 @@ async function authenticateApiRequest(req, tenantId) {
 	const apiKeyValue = await getApiKeyFromRequest(req);
 	if (!apiKeyValue) return null;
 
+	const apiKeyHash = hashValue(apiKeyValue);
 	const keyRecord = db.issuer_api_keys.find(
-		(key) => key.key === apiKeyValue && key.tenant_id === tenantId,
+		(key) =>
+			key.tenant_id === tenantId &&
+			((key.key_hash && constantTimeCompare(key.key_hash, apiKeyHash)) ||
+				(key.key && constantTimeCompare(key.key, apiKeyValue))),
 	);
 	if (!keyRecord) return null;
 
