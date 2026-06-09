@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { jsonError } from '@/lib/api';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
+import { requireSession } from '@/lib/session';
 import {
 	createActivationToken,
 	hashActivationToken,
@@ -27,6 +28,9 @@ function activationUrl(req: Request, token: string) {
 
 export async function POST(req: Request) {
 	try {
+		const session = await requireSession();
+		if (!session) return jsonError('Authentication required', 401);
+
 		const cookieStore = await cookies();
 		const role = cookieStore.get(ROLE_COOKIE)?.value;
 
@@ -41,25 +45,39 @@ export async function POST(req: Request) {
 		const body = await req.json();
 		const tenantId = String(body.tenantId || '').trim();
 		const issuerId = String(body.issuerId || '').trim() || null;
-		const email = String(body.email || '').trim().toLowerCase();
 		const inviteRole = String(body.role || 'ISSUER_STAFF').trim();
 		const deliveryChannel = String(body.deliveryChannel || '').trim().toUpperCase();
-		const recipient = String(body.recipient || '').trim();
 		const expiresInHours = Number(body.expiresInHours || 72);
 
 		if (
 			!tenantId ||
-			!email ||
-			!recipient ||
 			!DELIVERY_CHANNELS.has(deliveryChannel)
 		) {
 			return jsonError(
-				'tenantId, email, recipient, and a supported deliveryChannel are required',
+				'tenantId and a supported deliveryChannel are required',
 			);
+		}
+
+		if (role === ROLES.ISSUER_ADMIN) {
+			const issuerUser = await prisma.issuerUser.findFirst({
+				where: {
+					userId: session.userId,
+					tenantId,
+					...(issuerId ? { issuerId } : {}),
+					role: ROLES.ISSUER_ADMIN,
+					status: 'active',
+				},
+			});
+
+			if (!issuerUser) {
+				return jsonError('Issuer admin is not authorized for this tenant', 403);
+			}
 		}
 
 		const token = createActivationToken();
 		const tokenHash = hashActivationToken(token);
+		const invitationId = crypto.randomUUID();
+		const hiddenContactPlaceholder = `${invitationId}@hidden.signatura.local`;
 		const expiresAt = new Date(
 			Date.now() +
 				Math.max(1, Math.min(expiresInHours, 168)) * 60 * 60 * 1000,
@@ -71,7 +89,7 @@ export async function POST(req: Request) {
 					id: crypto.randomUUID(),
 					tenantId,
 					issuerId,
-					email,
+					email: hiddenContactPlaceholder,
 					role: inviteRole,
 					status: 'invited',
 					invitedAt: new Date(),
@@ -80,14 +98,14 @@ export async function POST(req: Request) {
 
 			return tx.issuerInvitation.create({
 				data: {
-					id: crypto.randomUUID(),
+					id: invitationId,
 					tenantId,
 					issuerId,
 					issuerUserId: issuerUser.id,
-					email,
+					email: hiddenContactPlaceholder,
 					role: inviteRole,
 					deliveryChannel,
-					recipient,
+					recipient: '[hidden]',
 					tokenHash,
 					expiresAt,
 				},
@@ -99,9 +117,8 @@ export async function POST(req: Request) {
 			tenantId,
 			issuerId,
 			deliveryChannel,
-			recipient,
 			securityNotice:
-				'Messaging platform is a delivery channel only, not proof of identity. No passwords or recovery codes were sent.',
+				'Activation link created without storing plaintext recipient contact data.',
 		});
 
 		return Response.json({

@@ -78,6 +78,10 @@ export async function POST(req: Request) {
 					userId: session.userId,
 					credentialId: credential.id,
 					deviceName,
+					deviceHash: crypto
+						.createHash('sha256')
+						.update(`${session.userId}:${credential.id}`)
+						.digest('hex'),
 					userAgent,
 					lastUsedAt: new Date(),
 					isTrusted: true,

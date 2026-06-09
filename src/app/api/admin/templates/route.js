@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdminRole } from '@/lib/admin-auth';
 import { loadDb } from '@/lib/db';
 import { templateToApi } from '@/lib/issuer-templates';
+import { redactTemplateForProvider } from '@/lib/security';
 
 async function issuerMap() {
 	const [issuers, devDb] = await Promise.all([
@@ -51,12 +52,10 @@ function withIssuer(template, issuers) {
 	const issuer =
 		(template.issuerId && issuers.get(template.issuerId)) ||
 		issuers.get(template.tenantId);
-	const apiTemplate = templateToApi(template);
+	const apiTemplate = redactTemplateForProvider(templateToApi(template));
 
 	return {
 		...apiTemplate,
-		original_file_url: `/api/admin/templates/${template.id}/file`,
-		preview_image_url: `/api/admin/templates/${template.id}/file?preview=1`,
 		issuer_name: issuer?.name || 'Unknown issuer',
 		issuer_type: issuer?.type || null,
 	};

@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { requireIssuerContext, templateToApi } from '@/lib/issuer-templates';
@@ -50,9 +51,12 @@ function RedactedDocumentPreview({ template }) {
 		<div className="rounded-xl border border-white/10 bg-slate-950/70 p-3">
 			{template.preview_image_url ? (
 				<div className="relative mx-auto w-fit max-w-full overflow-hidden rounded-lg border border-white/10 bg-slate-900 shadow-inner">
-					<img
+					<Image
 						src={template.preview_image_url}
 						alt={`${template.name} redacted sample`}
+						width={720}
+						height={455}
+						unoptimized
 						className="block max-h-72 max-w-full object-contain"
 					/>
 					{template.fields.map((field) => (

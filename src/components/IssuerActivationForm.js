@@ -10,7 +10,6 @@ import {
 import { PasskeyNotice } from './PasskeyNotice';
 
 function IssuerActivationForm({ token }) {
-	const [name, setName] = useState('');
 	const [deviceName, setDeviceName] = useState('');
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
@@ -39,9 +38,9 @@ function IssuerActivationForm({ token }) {
 			const startResponse = await fetch(
 				'/api/issuer-invitations/activation/start',
 				{
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ token, name, deviceName }),
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ token, deviceName }),
 				},
 			);
 			const startData = await startResponse.json();
@@ -109,15 +108,7 @@ function IssuerActivationForm({ token }) {
 			</p>
 
 			<form onSubmit={submit} className="mt-6 grid gap-4">
-				<label className="grid gap-2 text-sm font-semibold">
-					<span>Name</span>
-					<input
-						value={name}
-						onChange={(event) => setName(event.target.value)}
-						className="rounded-xl border border-white/10 bg-white px-4 py-3 text-slate-950 outline-none ring-red-500 focus:ring-2"
-					/>
-				</label>
-				<label className="grid gap-2 text-sm font-semibold">
+					<label className="grid gap-2 text-sm font-semibold">
 					<span>Device name</span>
 					<input
 						value={deviceName}

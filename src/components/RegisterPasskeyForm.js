@@ -8,15 +8,16 @@ import {
 } from '@simplewebauthn/browser';
 import { PasskeyNotice } from './PasskeyNotice';
 
-function RegisterPasskeyForm() {
+function RegisterPasskeyForm({ nextPath = '/wallet' }) {
 	const [form, setForm] = useState({
-		email: '',
-		name: '',
 		deviceName: '',
 	});
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
 	const [recoveryCodes, setRecoveryCodes] = useState([]);
+	const [createdUserId, setCreatedUserId] = useState('');
+	const loginHref = `/login?next=${encodeURIComponent(nextPath)}`;
+	const trustedDevicesHref = `/security/devices?next=${encodeURIComponent(nextPath)}`;
 
 	function updateField(event) {
 		setForm((current) => ({
@@ -30,6 +31,7 @@ function RegisterPasskeyForm() {
 		setError('');
 		setStatus('Preparing secure device registration...');
 		setRecoveryCodes([]);
+		setCreatedUserId('');
 
 		if (!browserSupportsWebAuthn()) {
 			setError('This browser does not support passkeys/WebAuthn.');
@@ -64,6 +66,7 @@ function RegisterPasskeyForm() {
 			const finishData = await finishResponse.json();
 			if (!finishResponse.ok) throw new Error(finishData.error);
 
+			setCreatedUserId(finishData.user?.signaturaId || startData.signaturaId || '');
 			setRecoveryCodes(finishData.recoveryCodes || []);
 			setStatus('Account created and this device is now trusted.');
 		} catch (registrationError) {
@@ -93,26 +96,6 @@ function RegisterPasskeyForm() {
 
 			<form onSubmit={submit} className="mt-6 grid gap-4">
 				<label className="grid gap-2 text-sm font-semibold">
-					<span>Email</span>
-					<input
-						name="email"
-						type="email"
-						required
-						value={form.email}
-						onChange={updateField}
-						className="rounded-xl border border-white/10 bg-white px-4 py-3 text-slate-950 outline-none ring-red-500 transition focus:ring-2"
-					/>
-				</label>
-				<label className="grid gap-2 text-sm font-semibold">
-					<span>Name</span>
-					<input
-						name="name"
-						value={form.name}
-						onChange={updateField}
-						className="rounded-xl border border-white/10 bg-white px-4 py-3 text-slate-950 outline-none ring-red-500 transition focus:ring-2"
-					/>
-				</label>
-				<label className="grid gap-2 text-sm font-semibold">
 					<span>Device name</span>
 					<input
 						name="deviceName"
@@ -128,15 +111,24 @@ function RegisterPasskeyForm() {
 			</form>
 
 			{status ? <p className="mt-4 text-sm text-slate-200">{status}</p> : null}
+			{createdUserId ? (
+				<div className="mt-4 rounded-xl border border-red-300/25 bg-red-500/10 p-4 text-sm text-red-100">
+					<p className="font-bold">Signatura ID</p>
+					<p className="mt-2 break-all font-mono text-white">{createdUserId}</p>
+					<p className="mt-2 text-xs leading-5 text-red-100/75">
+						Use this ID when signing in with a passkey.
+					</p>
+				</div>
+			) : null}
 			{error ? (
 				<div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
 					<p>{error}</p>
 					{error.includes('Account already exists') ? (
 						<div className="mt-3 flex flex-col gap-2 sm:flex-row">
 							<Link
-								href="/login?next=/wallet"
+								href={loginHref}
 								className="rounded-lg bg-red-500 px-4 py-2 text-center text-xs font-bold text-white transition hover:bg-red-400">
-								Sign in to wallet
+								Sign in
 							</Link>
 							<Link
 								href="/login?next=/issuer-portal"
@@ -168,12 +160,12 @@ function RegisterPasskeyForm() {
 					</div>
 					<div className="mt-5 flex flex-col gap-3 sm:flex-row">
 						<Link
-							href="/wallet"
+							href={nextPath || '/wallet'}
 							className="rounded-xl bg-red-500 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-400">
 							Open main dashboard
 						</Link>
 						<Link
-							href="/security/devices"
+							href={trustedDevicesHref}
 							className="rounded-xl border border-white/15 px-5 py-3 text-center text-sm font-bold text-amber-50 transition hover:border-red-400 hover:text-white">
 							View trusted devices
 						</Link>

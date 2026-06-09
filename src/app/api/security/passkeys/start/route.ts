@@ -34,8 +34,8 @@ export async function POST(req: Request) {
 			rpName: RP_NAME,
 			rpID: getRpID(req),
 			userID: new TextEncoder().encode(user.id),
-			userName: user.email,
-			userDisplayName: user.name || user.email,
+			userName: user.signaturaId,
+			userDisplayName: user.signaturaId,
 			attestationType: 'none',
 			authenticatorSelection: {
 				residentKey: 'preferred',

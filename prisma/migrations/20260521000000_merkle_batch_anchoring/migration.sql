@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS "merkle_batches" (
     "merkle_root" TEXT NOT NULL,
     "batch_size" INTEGER NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'created',
-    "publish_method" TEXT NOT NULL DEFAULT 'mock',
+    "publish_method" TEXT NOT NULL,
     "chain" TEXT,
     "transaction_id" TEXT,
     "block_number" TEXT,

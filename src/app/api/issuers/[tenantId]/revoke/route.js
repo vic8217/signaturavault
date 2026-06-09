@@ -1,5 +1,6 @@
 import { authenticateApiRequest } from '@/lib/auth';
 import { withDb, generateId, now } from '@/lib/db';
+import { redactForLog, safeApiLogEntry } from '@/lib/security';
 
 export async function POST(req, { params }) {
 	const { tenantId } = await params;
@@ -38,21 +39,22 @@ export async function POST(req, { params }) {
 			user_id: auth.key.id,
 			action: 'document_revoked',
 			target: documentId,
-			details: { reason: reason || 'manual revocation' },
+			details: redactForLog({ reason: reason || 'manual revocation' }),
 			created_at: now(),
 		});
 
-		db.api_logs.push({
-			id: generateId('apilog'),
-			tenant_id: tenantId,
-			api_client_id: auth.client.id,
-			path: req.url,
-			method: req.method,
-			status: 200,
-			request_body: payload,
-			response_body: { message: 'document revoked' },
-			created_at: now(),
-		});
+		db.api_logs.push(
+			safeApiLogEntry({
+				id: generateId('apilog'),
+				tenantId,
+				apiClientId: auth.client.id,
+				req,
+				status: 200,
+				requestBody: { action: 'document_revoked', documentId },
+				responseBody: { message: 'document revoked' },
+				createdAt: now(),
+			}),
+		);
 
 		return new Response(
 			JSON.stringify({ message: 'document revoked', status: 'revoked' }),

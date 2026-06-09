@@ -5,6 +5,7 @@ import {
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
+import { createUniqueSignaturaId } from '@/lib/identity';
 import {
 	RP_NAME,
 	assertSecureWebAuthnRequest,
@@ -20,7 +21,6 @@ export async function POST(req: Request) {
 		assertSecureWebAuthnRequest(req);
 		const body = await req.json();
 		const token = String(body.token || '').trim();
-		const name = String(body.name || '').trim();
 		const deviceName = String(body.deviceName || '').trim() || 'Issuer device';
 
 		if (!token) return jsonError('Activation token is required');
@@ -37,16 +37,30 @@ export async function POST(req: Request) {
 			return jsonError('Activation link is invalid, expired, or already used', 400);
 		}
 
-		const user = await prisma.user.upsert({
-			where: { email: invitation.email },
-			update: { name: name || undefined },
-			create: {
-				id: crypto.randomUUID(),
-				email: invitation.email,
-				name: name || null,
-			},
-			include: { credentials: true },
-		});
+		const issuerUser = invitation.issuerUserId
+			? await prisma.issuerUser.findUnique({
+					where: { id: invitation.issuerUserId },
+					select: { userId: true },
+				})
+			: null;
+		const user = issuerUser?.userId
+			? await prisma.user.findUnique({
+					where: { id: issuerUser.userId },
+					include: { credentials: true },
+				})
+			: await prisma.user.create({
+					data: {
+						id: crypto.randomUUID(),
+						signaturaId: await createUniqueSignaturaId(prisma),
+						email: null,
+						name: null,
+						accountStatus: 'active',
+						trustLevel: 1,
+					},
+					include: { credentials: true },
+				});
+
+		if (!user) return jsonError('Activation user could not be prepared', 400);
 
 		const trustedCredentials = user.credentials.filter(
 			(credential) => credential.isTrusted,
@@ -68,8 +82,8 @@ export async function POST(req: Request) {
 						rpName: RP_NAME,
 						rpID: getRpID(req),
 						userID: new TextEncoder().encode(user.id),
-						userName: user.email,
-						userDisplayName: user.name || user.email,
+						userName: user.signaturaId,
+						userDisplayName: user.signaturaId,
 						attestationType: 'none',
 						authenticatorSelection: {
 							residentKey: 'preferred',
@@ -104,8 +118,8 @@ export async function POST(req: Request) {
 
 		return Response.json({
 			userId: user.id,
+			signaturaId: user.signaturaId,
 			invitationId: invitation.id,
-			email: user.email,
 			mode,
 			options,
 		});

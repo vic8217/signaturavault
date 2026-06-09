@@ -11,6 +11,14 @@ import { readTemplateFile } from '@/lib/template-files';
 import { detectLayout, suggestFieldsFromOcr } from '@/services/ocrService';
 
 export async function POST(_req, { params }) {
+	const ocrProvider = process.env.OCR_PROVIDER || 'mock';
+	if (process.env.NODE_ENV === 'production' && ocrProvider === 'mock') {
+		return Response.json(
+			{ error: 'Mock OCR is disabled in production' },
+			{ status: 503 },
+		);
+	}
+
 	const context = await requireIssuerContext();
 	if (context.error) return context.error;
 

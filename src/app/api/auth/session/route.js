@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import { ROLE_COOKIE, ROLE_HOME, isKnownRole } from '@/lib/roles';
 
 export async function POST(request) {
+	if (process.env.NODE_ENV === 'production') {
+		return NextResponse.json(
+			{ error: 'Role switching is disabled in production' },
+			{ status: 403 },
+		);
+	}
+
 	const formData = await request.formData();
 	const role = formData.get('role');
 

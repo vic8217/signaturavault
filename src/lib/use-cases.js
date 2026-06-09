@@ -5,7 +5,7 @@ export const useCases = [
 		sector: 'Education',
 		headline: 'Issue diplomas, transcripts, and certificates that can be trusted anywhere.',
 		summary:
-			'Signatura lets universities publish official academic records with QR verification, encrypted student access, revocation controls, and private blockchain proof.',
+			'Signatura lets universities publish official academic records with QR verification, role-based student access, revocation controls, and private blockchain proof.',
 		issuer: 'University registrar',
 		owner: 'Graduate or student',
 		verifier: 'Employer, embassy, or licensing body',
@@ -80,13 +80,13 @@ export const useCases = [
 		sector: 'Healthcare',
 		headline: 'Verify health records without exposing the private medical file.',
 		summary:
-			'Clinics, hospitals, and labs can issue encrypted records where a verifier can confirm authenticity while sensitive content stays permissioned.',
+			'Clinics, hospitals, and labs can issue records with encrypted private fields so a verifier can confirm authenticity while sensitive content stays permissioned.',
 		issuer: 'Clinic, lab, or hospital',
 		owner: 'Patient',
 		verifier: 'Employer, school, insurer, or border desk',
 		documents: ['Lab results', 'Medical certificates', 'Vaccination records', 'Fit-to-work clearances'],
 		pain: ['Medical PDFs are sensitive', 'Certificates are easy to fake', 'Verification must respect privacy'],
-		benefits: ['Encrypted access', 'Consent-based sharing', 'Authenticity without public medical data'],
+		benefits: ['Role-based access', 'Consent-based sharing', 'Authenticity without public medical data'],
 		workflow: ['Provider issues record', 'Patient controls access', 'Verifier scans QR', 'Authenticity is confirmed'],
 	},
 	{

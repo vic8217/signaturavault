@@ -11,15 +11,13 @@ const channels = [
 ];
 
 function IssuerInvitationForm() {
-	const [form, setForm] = useState({
-		tenantId: '',
-		issuerId: '',
-		email: '',
-		role: 'ISSUER_STAFF',
-		deliveryChannel: 'SECURE_ENTERPRISE_CHANNEL',
-		recipient: '',
-		expiresInHours: '72',
-	});
+		const [form, setForm] = useState({
+			tenantId: '',
+			issuerId: '',
+			role: 'ISSUER_STAFF',
+			deliveryChannel: 'SECURE_ENTERPRISE_CHANNEL',
+			expiresInHours: '72',
+		});
 	const [result, setResult] = useState(null);
 	const [error, setError] = useState('');
 
@@ -84,19 +82,8 @@ function IssuerInvitationForm() {
 				</div>
 
 				<div className="grid gap-4 md:grid-cols-2">
-					<label className="grid gap-2 text-sm font-semibold text-slate-700">
-						<span>Email</span>
-						<input
-							name="email"
-							type="email"
-							required
-							value={form.email}
-							onChange={updateField}
-							className="rounded-xl border border-slate-300 px-4 py-3 outline-none ring-red-500 focus:ring-2"
-						/>
-					</label>
-					<label className="grid gap-2 text-sm font-semibold text-slate-700">
-						<span>Role</span>
+						<label className="grid gap-2 text-sm font-semibold text-slate-700">
+							<span>Role</span>
 						<select
 							name="role"
 							value={form.role}
@@ -123,17 +110,7 @@ function IssuerInvitationForm() {
 							))}
 						</select>
 					</label>
-					<label className="grid gap-2 text-sm font-semibold text-slate-700">
-						<span>Recipient handle / phone / channel ID</span>
-						<input
-							name="recipient"
-							required
-							value={form.recipient}
-							onChange={updateField}
-							className="rounded-xl border border-slate-300 px-4 py-3 outline-none ring-red-500 focus:ring-2"
-						/>
-					</label>
-				</div>
+					</div>
 
 				<label className="grid gap-2 text-sm font-semibold text-slate-700">
 					<span>Expires in hours</span>

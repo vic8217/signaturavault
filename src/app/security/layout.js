@@ -1,11 +1,6 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
-
-const links = [
-	['Devices', '/security/devices'],
-	['Add Device', '/security/add-device'],
-	['Add Passkey', '/security/add-passkey'],
-	['Recovery Codes', '/security/recovery-codes'],
-];
+import { SecurityNavLinks } from '@/components/SecurityNavLinks';
 
 export default function SecurityLayout({ children }) {
 	return (
@@ -14,16 +9,9 @@ export default function SecurityLayout({ children }) {
 				<Link href="/" className="text-sm font-bold uppercase tracking-[0.18em]">
 					Signatura
 				</Link>
-				<div className="flex flex-wrap gap-2">
-					{links.map(([label, href]) => (
-						<Link
-							key={href}
-							href={href}
-							className="rounded-xl border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-red-400 hover:text-red-300">
-							{label}
-						</Link>
-					))}
-				</div>
+				<Suspense fallback={<div className="flex flex-wrap gap-2" />}>
+					<SecurityNavLinks />
+				</Suspense>
 			</nav>
 			{children}
 		</main>

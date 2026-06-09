@@ -104,8 +104,8 @@ export default function WalletHome() {
 					<li className="flex gap-3">
 						<span className="text-red-600 font-bold">4.</span>
 						<span>
-							Your data is encrypted and backed up. Only you control what you
-							share.
+							Sensitive private fields are encrypted, and every important access
+							or change is logged.
 						</span>
 					</li>
 				</ol>

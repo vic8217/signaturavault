@@ -17,6 +17,14 @@ function pendingPoolRecords(db, limit = Number(process.env.ANCHOR_BATCH_SIZE || 
 		.slice(0, limit);
 }
 
+function resolvePublishMethod(method) {
+	const publishMethod = method || process.env.ANCHOR_PUBLISH_METHOD || 'mock';
+	if (process.env.NODE_ENV === 'production' && publishMethod === 'mock') {
+		throw new Error('ANCHOR_PUBLISH_METHOD must not be mock in production');
+	}
+	return publishMethod;
+}
+
 function createMerkleBatch(db, options = {}) {
 	const pending = pendingPoolRecords(db, options.limit);
 	if (pending.length === 0) return null;
@@ -37,7 +45,7 @@ function createMerkleBatch(db, options = {}) {
 		merkle_root: merkleRoot,
 		batch_size: leaves.length,
 		status: 'created',
-		publish_method: options.publishMethod || process.env.ANCHOR_PUBLISH_METHOD || 'mock',
+		publish_method: resolvePublishMethod(options.publishMethod),
 		chain: null,
 		transaction_id: null,
 		block_number: null,
@@ -121,7 +129,9 @@ async function publishMerkleBatch(db, batchId, options = {}) {
 	batch.updated_at = now();
 
 	try {
-		const publisher = options.publisher || createPublisher(options.publishMethod || batch.publish_method);
+		const publisher =
+			options.publisher ||
+			createPublisher(resolvePublishMethod(options.publishMethod || batch.publish_method));
 		const result = await publisher.publishMerkleRoot({
 			batchId: batch.id,
 			merkleRoot: batch.merkle_root,

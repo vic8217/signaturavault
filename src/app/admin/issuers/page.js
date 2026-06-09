@@ -87,9 +87,7 @@ export default function AdminIssuers() {
 			issuerId: row.id,
 			name: row.name,
 			apiClient: registeredIssuer.apiClient,
-			issuerAdminEmail: registeredIssuer.issuerAdminEmail,
 			deliveryChannel: registeredIssuer.deliveryChannel,
-			recipient: registeredIssuer.recipient,
 			invitation: registeredIssuer.invitation,
 			invitationError: registeredIssuer.invitationError,
 		});
@@ -118,9 +116,7 @@ export default function AdminIssuers() {
 		const payload = {
 			tenantId: inviteIssuer.tenantId,
 			issuerId: inviteIssuer.id,
-			email: formData.get('email'),
 			deliveryChannel: formData.get('deliveryChannel'),
-			recipient: formData.get('recipient'),
 			expiresInHours: formData.get('expiresInHours'),
 			role: 'ISSUER_ADMIN',
 		};
@@ -143,9 +139,7 @@ export default function AdminIssuers() {
 				issuerId: inviteIssuer.id,
 				name: inviteIssuer.name,
 				apiClient: null,
-				issuerAdminEmail: payload.email,
 				deliveryChannel: payload.deliveryChannel,
-				recipient: payload.recipient,
 				invitation: data,
 				invitationError: null,
 			});
@@ -213,9 +207,7 @@ export default function AdminIssuers() {
 							Issuer admin activation
 						</p>
 						<div className="mt-3 grid gap-2 text-sm text-emerald-50">
-							<p>Email: {latestCredentials.issuerAdminEmail}</p>
 							<p>Delivery channel: {latestCredentials.deliveryChannel}</p>
-							<p>Recipient: {latestCredentials.recipient}</p>
 						</div>
 
 						{latestCredentials.invitation ? (
@@ -381,22 +373,6 @@ export default function AdminIssuers() {
 								<div className="grid gap-4 sm:grid-cols-2">
 									<div className="grid gap-2">
 										<label
-											htmlFor="invite-email"
-											className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-											Issuer admin email
-										</label>
-										<input
-											id="invite-email"
-											name="email"
-											type="email"
-											required
-											className="rounded-xl border border-white/10 bg-[#030914] px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition focus:border-red-500"
-											placeholder="admin@example.edu"
-										/>
-									</div>
-
-									<div className="grid gap-2">
-										<label
 											htmlFor="invite-channel"
 											className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
 											Delivery channel
@@ -416,21 +392,6 @@ export default function AdminIssuers() {
 								</div>
 
 								<div className="grid gap-4 sm:grid-cols-2">
-									<div className="grid gap-2">
-										<label
-											htmlFor="invite-recipient"
-											className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-											Recipient handle / phone
-										</label>
-										<input
-											id="invite-recipient"
-											name="recipient"
-											required
-											className="rounded-xl border border-white/10 bg-[#030914] px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition focus:border-red-500"
-											placeholder="+63917..., Viber ID, Messenger handle"
-										/>
-									</div>
-
 									<div className="grid gap-2">
 										<label
 											htmlFor="invite-expiry"

@@ -8,14 +8,16 @@ import {
 } from '@simplewebauthn/browser';
 import { PasskeyNotice } from './PasskeyNotice';
 
+const UNREGISTERED_PASSKEY_ERROR = 'No passkey is registered for this account';
+
 function LoginPasskeyForm({ nextPath = '/wallet' }) {
-	const [email, setEmail] = useState('');
+	const [signaturaId, setSignaturaId] = useState('');
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const recoveryHref = `/account-recovery?next=${encodeURIComponent(nextPath)}${
-		email ? `&email=${encodeURIComponent(email)}` : ''
-	}`;
+	const showCreateAccount = error === UNREGISTERED_PASSKEY_ERROR;
+	const createAccountHref = `/register?next=${encodeURIComponent(nextPath)}`;
+	const recoveryHref = `/account-recovery?next=${encodeURIComponent(nextPath)}`;
 
 	async function submit(event) {
 		event.preventDefault();
@@ -42,7 +44,7 @@ function LoginPasskeyForm({ nextPath = '/wallet' }) {
 			const startResponse = await fetch('/api/auth/login/start', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email }),
+				body: JSON.stringify({ signaturaId }),
 			});
 			const startData = await startResponse.json();
 			if (!startResponse.ok) throw new Error(startData.error);
@@ -93,12 +95,14 @@ function LoginPasskeyForm({ nextPath = '/wallet' }) {
 
 			<form onSubmit={submit} className="mt-6 grid gap-4">
 				<label className="grid gap-2 text-sm font-semibold">
-					<span>Email</span>
+					<span>Signatura ID</span>
 					<input
-						type="email"
+						type="text"
 						required
-						value={email}
-						onChange={(event) => setEmail(event.target.value)}
+						value={signaturaId}
+						onChange={(event) => setSignaturaId(event.target.value)}
+						autoComplete="username"
+						placeholder="SIG-8FD2A91C"
 						className="rounded-xl border border-white/10 bg-white px-4 py-3 text-slate-950 outline-none ring-red-500 transition focus:ring-2"
 					/>
 				</label>
@@ -111,6 +115,13 @@ function LoginPasskeyForm({ nextPath = '/wallet' }) {
 
 			{status ? <p className="mt-4 text-sm text-slate-200">{status}</p> : null}
 			{error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}
+			{showCreateAccount ? (
+				<Link
+					href={createAccountHref}
+					className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400">
+					Create account
+				</Link>
+			) : null}
 
 			<div className="mt-6 border-t border-white/10 pt-5">
 				<Link

@@ -4,18 +4,19 @@ import { prisma } from '@/lib/prisma';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
 import { requireSession } from '@/lib/session';
 
+function usesDevIssuerRegistry() {
+	return process.env.NODE_ENV !== 'production';
+}
+
 function profileFromIssuer(issuer, source = 'prisma') {
 	if (!issuer) return null;
 
 	return {
-		id: issuer.id,
-		tenantId: issuer.tenantId || issuer.tenant_id,
-		name: issuer.name,
-		contactEmail: issuer.contactEmail || issuer.contact_email || '',
-		type: issuer.type || '',
-		address: issuer.address || '',
-		registrationNumber: issuer.registrationNumber || issuer.registration_number || '',
-		registrationDate: issuer.registrationDate || issuer.registration_date || '',
+			id: issuer.id,
+			tenantId: issuer.tenantId || issuer.tenant_id,
+			name: issuer.name,
+			type: issuer.type || '',
+			registrationDate: issuer.registrationDate || issuer.registration_date || '',
 		status: issuer.status || 'active',
 		logoUrl: issuer.logoUrl || issuer.logo_url || issuer.logo || '',
 		website: issuer.website || '',
@@ -25,6 +26,8 @@ function profileFromIssuer(issuer, source = 'prisma') {
 }
 
 async function getDevIssuerFallback(tenantId = '') {
+	if (!usesDevIssuerRegistry()) return null;
+
 	const db = await loadDb();
 	const issuers = db.issuers || [];
 	const issuer = tenantId
@@ -109,13 +112,10 @@ async function updateActiveIssuerProfile(input) {
 	if (context.error) return context;
 
 	const profile = context.profile;
-	const patch = {
-		name: String(input.name || profile.name || '').trim(),
-		contactEmail: String(input.contactEmail || '').trim(),
-		type: String(input.type || '').trim(),
-		address: String(input.address || '').trim(),
-		registrationNumber: String(input.registrationNumber || '').trim(),
-		registrationDate: String(input.registrationDate || '').trim(),
+		const patch = {
+			name: String(input.name || profile.name || '').trim(),
+			type: String(input.type || '').trim(),
+			registrationDate: String(input.registrationDate || '').trim(),
 		logoUrl: String(input.logoUrl || '').trim(),
 		website: String(input.website || '').trim(),
 		description: String(input.description || '').trim(),
@@ -131,13 +131,10 @@ async function updateActiveIssuerProfile(input) {
 		try {
 			await prisma.issuer.update({
 				where: { id: profile.id },
-				data: {
-					name: patch.name,
-					contactEmail: patch.contactEmail || null,
-					type: patch.type || null,
-					address: patch.address || null,
-					registrationNumber: patch.registrationNumber || null,
-					registrationDate: patch.registrationDate
+					data: {
+						name: patch.name,
+						type: patch.type || null,
+						registrationDate: patch.registrationDate
 						? new Date(patch.registrationDate)
 						: null,
 				},
@@ -147,25 +144,24 @@ async function updateActiveIssuerProfile(input) {
 		}
 	}
 
-	const db = await loadDb();
-	const issuerIndex = (db.issuers || []).findIndex(
-		(issuer) => issuer.id === profile.id || issuer.tenant_id === profile.tenantId,
-	);
-	if (issuerIndex >= 0) {
-		db.issuers[issuerIndex] = {
-			...db.issuers[issuerIndex],
-			name: patch.name,
-			contact_email: patch.contactEmail || null,
-			type: patch.type || null,
-			address: patch.address || null,
-			registration_number: patch.registrationNumber || null,
-			registration_date: patch.registrationDate || null,
-			logo_url: patch.logoUrl || null,
-			website: patch.website || null,
-			description: patch.description || null,
-			updated_at: new Date().toISOString(),
-		};
-		await saveDb(db);
+	if (usesDevIssuerRegistry()) {
+		const db = await loadDb();
+		const issuerIndex = (db.issuers || []).findIndex(
+			(issuer) => issuer.id === profile.id || issuer.tenant_id === profile.tenantId,
+		);
+		if (issuerIndex >= 0) {
+			db.issuers[issuerIndex] = {
+					...db.issuers[issuerIndex],
+					name: patch.name,
+					type: patch.type || null,
+					registration_date: patch.registrationDate || null,
+				logo_url: patch.logoUrl || null,
+				website: patch.website || null,
+				description: patch.description || null,
+				updated_at: new Date().toISOString(),
+			};
+			await saveDb(db);
+		}
 	}
 
 	return {

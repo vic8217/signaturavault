@@ -34,7 +34,10 @@ function AdminAnchoringPanel() {
 	}
 
 	useEffect(() => {
-		loadAnchoring();
+		const timer = setTimeout(() => {
+			loadAnchoring();
+		}, 0);
+		return () => clearTimeout(timer);
 	}, []);
 
 	async function createBatch(publishMethod = 'mock') {

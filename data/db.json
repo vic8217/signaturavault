@@ -1,56 +1,9 @@
 {
-  "tenants": [
-    {
-      "id": "tenant_6531794d05f92443",
-      "name": "Letran - Manila",
-      "external_reference": null,
-      "created_at": "2026-05-19T06:51:58.778Z",
-      "updated_at": "2026-05-19T06:51:58.778Z"
-    }
-  ],
-  "issuers": [
-    {
-      "id": "issuer_697fdeda764ac290",
-      "tenant_id": "tenant_6531794d05f92443",
-      "name": "Letran - Manila",
-      "contact_email": null,
-      "type": "Educational institutions",
-      "address": "Muralla",
-      "registration_number": "LET0010001",
-      "registration_date": "1900-01-01",
-      "status": "active",
-      "created_at": "2026-05-19T06:51:58.779Z",
-      "updated_at": "2026-05-19T06:51:58.779Z"
-    }
-  ],
+  "tenants": [],
+  "issuers": [],
   "issuer_users": [],
-  "issuer_api_clients": [
-    {
-      "id": "client_3e1f31fe142b196a",
-      "tenant_id": "tenant_6531794d05f92443",
-      "name": "Letran - Manila default client",
-      "client_id": "cid_ff0555ba9e693775",
-      "client_secret_hash": "8d24285e4502eb310b83efbede78f78446007c0cf87f8046b26ea7b725b57bef",
-      "scopes": [
-        "document:read",
-        "document:write",
-        "verification:read"
-      ],
-      "created_at": "2026-05-19T06:51:58.779Z",
-      "updated_at": "2026-05-19T06:51:58.779Z"
-    }
-  ],
-  "issuer_api_keys": [
-    {
-      "id": "apikey_f406d251e24dc24d",
-      "tenant_id": "tenant_6531794d05f92443",
-      "api_client_id": "client_3e1f31fe142b196a",
-      "key_hash": "4e759ad9b8cb603769b8747f05c3db21628a99e8195c6d5c5e4a8e6396065d8d",
-      "status": "active",
-      "created_at": "2026-05-19T06:51:58.779Z",
-      "updated_at": "2026-05-19T06:51:58.779Z"
-    }
-  ],
+  "issuer_api_clients": [],
+  "issuer_api_keys": [],
   "document_types": [],
   "document_templates": [],
   "document_records": [],
@@ -59,24 +12,7 @@
   "blockchain_anchors": [],
   "webhooks": [],
   "api_logs": [],
-  "audit_logs": [
-    {
-      "id": "audit_7f7d955d4e7b6328",
-      "tenant_id": "tenant_6531794d05f92443",
-      "issuer_id": "issuer_697fdeda764ac290",
-      "user_id": null,
-      "action": "issuer_registered",
-      "target": "issuer_697fdeda764ac290",
-      "details": {
-        "issuerName": "Letran - Manila",
-        "contactEmail": null,
-        "issuerType": "Educational institutions",
-        "registrationNumber": "LET0010001",
-        "registrationDate": "1900-01-01"
-      },
-      "created_at": "2026-05-19T06:51:58.779Z"
-    }
-  ],
+  "audit_logs": [],
   "anchor_pool": [],
   "merkle_batches": [],
   "merkle_proofs": []

@@ -71,14 +71,10 @@ export function RegisterIssuerModal({ onRegistered }) {
 		const issuerPayload = {
 			issuerType: formData.get('issuerType'),
 			registeredName: formData.get('registeredName'),
-			address: formData.get('address'),
-			registrationNumber: formData.get('registrationNumber'),
 			registrationDate: formData.get('registrationDate'),
 		};
 		const invitePayload = {
-			email: formData.get('issuerAdminEmail'),
 			deliveryChannel: formData.get('deliveryChannel'),
-			recipient: formData.get('recipient'),
 			expiresInHours: formData.get('expiresInHours'),
 			role: 'ISSUER_ADMIN',
 		};
@@ -127,12 +123,8 @@ export function RegisterIssuerModal({ onRegistered }) {
 				...data,
 				issuerType: issuerPayload.issuerType,
 				registeredName: issuerPayload.registeredName,
-				address: issuerPayload.address,
-				registrationNumber: issuerPayload.registrationNumber,
 				registrationDate: issuerPayload.registrationDate,
-				issuerAdminEmail: invitePayload.email,
 				deliveryChannel: invitePayload.deliveryChannel,
-				recipient: invitePayload.recipient,
 				invitation,
 				invitationError,
 			});
@@ -216,30 +208,9 @@ export function RegisterIssuerModal({ onRegistered }) {
 									</Field>
 								</div>
 
-								<Field id="address" label="Address">
-									<textarea
-										id="address"
-										name="address"
-										rows={3}
-										required
-										className={`${inputClass} resize-none`}
-										placeholder="Complete business or office address"
-									/>
-								</Field>
-
-								<div className="grid gap-4 sm:grid-cols-2">
-									<Field id="registration-number" label="SEC/DTI Registration Number">
-										<input
-											id="registration-number"
-											name="registrationNumber"
-											required
-											className={inputClass}
-											placeholder="Registration number"
-										/>
-									</Field>
-
-									<Field id="registration-date" label="Registration Date">
-										<input
+									<div className="grid gap-4 sm:grid-cols-2">
+										<Field id="registration-date" label="Registration Date">
+											<input
 											id="registration-date"
 											name="registrationDate"
 											type="date"
@@ -257,22 +228,11 @@ export function RegisterIssuerModal({ onRegistered }) {
 										The channel only delivers the activation link. It is not proof
 										of identity. Do not send passwords or recovery codes.
 									</p>
-								</div>
+									</div>
 
-								<div className="grid gap-4 sm:grid-cols-2">
-									<Field id="issuer-admin-email" label="Issuer admin email">
-										<input
-											id="issuer-admin-email"
-											name="issuerAdminEmail"
-											type="email"
-											required
-											className={inputClass}
-											placeholder="admin@example.edu"
-										/>
-									</Field>
-
-									<Field id="delivery-channel" label="Delivery channel">
-										<select
+									<div className="grid gap-4 sm:grid-cols-2">
+										<Field id="delivery-channel" label="Delivery channel">
+											<select
 											id="delivery-channel"
 											name="deliveryChannel"
 											required
@@ -284,20 +244,10 @@ export function RegisterIssuerModal({ onRegistered }) {
 											))}
 										</select>
 									</Field>
-								</div>
+									</div>
 
-								<div className="grid gap-4 sm:grid-cols-2">
-									<Field id="recipient" label="Recipient handle / phone">
-										<input
-											id="recipient"
-											name="recipient"
-											required
-											className={inputClass}
-											placeholder="+63917..., Viber ID, Messenger handle"
-										/>
-									</Field>
-
-									<Field id="expires-in-hours" label="Invite expiry">
+									<div className="grid gap-4 sm:grid-cols-2">
+										<Field id="expires-in-hours" label="Invite expiry">
 										<select
 											id="expires-in-hours"
 											name="expiresInHours"

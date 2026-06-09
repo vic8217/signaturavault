@@ -7,33 +7,40 @@ datasource db {
 }
 
 model User {
-  id        String   @id
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id               String   @id
+  signaturaId      String   @unique @map("signatura_id")
+  email            String?  @unique
+  name             String?
+  emailLookupHash  String?  @unique @map("email_lookup_hash")
+  mobileLookupHash String?  @unique @map("mobile_lookup_hash")
+  accountStatus    String   @default("active") @map("account_status")
+  trustLevel       Int      @default(1) @map("trust_level")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   credentials       WebAuthnCredential[]
   trustedDevices    TrustedDevice[]
   authChallenges    AuthChallenge[]
   recoveryCodes     RecoveryCode[]
   securityEventLogs SecurityEventLog[]
+  consents          Consent[]
+  signaturaSessions SignaturaSession[]
 
   @@map("users")
 }
 
 model WebAuthnCredential {
-  id           String   @id
-  userId       String   @map("user_id")
-  credentialId String   @unique @map("credential_id")
-  publicKey    Bytes    @map("public_key")
-  counter      Int      @default(0)
-  transports   String[] @default([])
-  deviceName   String?  @map("device_name")
-  userAgent    String?  @map("user_agent")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id           String    @id
+  userId       String    @map("user_id")
+  credentialId String    @unique @map("credential_id")
+  publicKey    Bytes     @map("public_key")
+  counter      Int       @default(0)
+  transports   String[]  @default([])
+  deviceName   String?   @map("device_name")
+  userAgent    String?   @map("user_agent")
+  createdAt    DateTime  @default(now()) @map("created_at")
   lastUsedAt   DateTime? @map("last_used_at")
-  isTrusted    Boolean  @default(true) @map("is_trusted")
+  isTrusted    Boolean   @default(true) @map("is_trusted")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -42,14 +49,16 @@ model WebAuthnCredential {
 }
 
 model TrustedDevice {
-  id           String   @id
-  userId       String   @map("user_id")
-  credentialId String?  @map("credential_id")
-  deviceName   String   @map("device_name")
-  userAgent    String?  @map("user_agent")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  credentialId String?   @map("credential_id")
+  deviceName   String?   @map("device_name")
+  deviceHash   String    @unique @map("device_hash")
+  status       String    @default("active")
+  userAgent    String?   @map("user_agent")
+  createdAt    DateTime  @default(now()) @map("created_at")
   lastUsedAt   DateTime? @map("last_used_at")
-  isTrusted    Boolean  @default(true) @map("is_trusted")
+  isTrusted    Boolean   @default(true) @map("is_trusted")
   removedAt    DateTime? @map("removed_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -60,16 +69,16 @@ model TrustedDevice {
 }
 
 model AuthChallenge {
-  id         String   @id
-  userId     String?  @map("user_id")
-  issuerInvitationId String? @map("issuer_invitation_id")
-  type       String
-  challenge  String   @unique
-  deviceName String?  @map("device_name")
-  userAgent  String?  @map("user_agent")
-  expiresAt  DateTime @map("expires_at")
-  usedAt     DateTime? @map("used_at")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id                 String    @id
+  userId             String?   @map("user_id")
+  issuerInvitationId String?   @map("issuer_invitation_id")
+  type               String
+  challenge          String    @unique
+  deviceName         String?   @map("device_name")
+  userAgent          String?   @map("user_agent")
+  expiresAt          DateTime  @map("expires_at")
+  usedAt             DateTime? @map("used_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -80,12 +89,12 @@ model AuthChallenge {
 }
 
 model RecoveryCode {
-  id        String   @id
-  userId    String   @map("user_id")
-  codeHash  String   @unique @map("code_hash")
-  codePrefix String  @map("code_prefix")
-  createdAt DateTime @default(now()) @map("created_at")
-  usedAt    DateTime? @map("used_at")
+  id         String    @id
+  userId     String    @map("user_id")
+  codeHash   String    @unique @map("code_hash")
+  codePrefix String    @map("code_prefix")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  usedAt     DateTime? @map("used_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -109,6 +118,23 @@ model SecurityEventLog {
   @@map("security_event_logs")
 }
 
+model SecurityAuditLog {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+  userId    String?  @map("user_id")
+  tenantId  String   @map("tenant_id")
+  action    String
+  result    String
+  ipAddress String?  @map("ip_address")
+  device    String?
+  details   Json?
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([action])
+  @@map("security_audit_logs")
+}
+
 model Tenant {
   id                String   @id
   name              String
@@ -119,35 +145,116 @@ model Tenant {
   @@map("tenants")
 }
 
+model PrivateFieldKeyReference {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  hoaId           String?   @map("hoa_id")
+  keyRef          String    @unique @map("key_ref")
+  algorithm       String
+  wrappedKey      String    @map("wrapped_key")
+  salt            String
+  iv              String
+  tag             String
+  kdfName         String    @map("kdf_name")
+  kdfParams       Json      @map("kdf_params")
+  unlockProofSalt String    @map("unlock_proof_salt")
+  unlockProofHash String    @map("unlock_proof_hash")
+  version         Int       @default(1)
+  status          String    @default("active")
+  createdByUserId String    @map("created_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  rotatedAt       DateTime? @map("rotated_at")
+
+  authorizations PrivateFieldKeyAuthorization[]
+  privateFields EncryptedPrivateField[]
+
+  @@index([tenantId])
+  @@index([hoaId])
+  @@index([status])
+  @@map("customer_keys")
+}
+
+model PrivateFieldKeyAuthorization {
+  id                 String    @id @default(cuid())
+  tenantId           String    @map("tenant_id")
+  hoaId              String?   @map("hoa_id")
+  keyRef             String    @map("key_ref")
+  userId             String    @map("user_id")
+  credentialId       String?   @map("credential_id")
+  purpose            String
+  authorizationHash  String    @unique @map("authorization_hash")
+  status             String    @default("authorized")
+  expiresAt          DateTime  @map("expires_at")
+  consumedAt         DateTime? @map("consumed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  keyReference PrivateFieldKeyReference @relation(fields: [keyRef], references: [keyRef], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([hoaId])
+  @@index([keyRef])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("customer_key_unlocks")
+}
+
+model EncryptedPrivateField {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  hoaId       String?  @map("hoa_id")
+  ownerUserId String?  @map("owner_user_id")
+  recordType  String   @map("record_type")
+  recordId    String   @map("record_id")
+  fieldKey    String   @map("field_key")
+  keyRef      String   @map("key_ref")
+  algorithm   String
+  iv          String
+  tag         String
+  ciphertext  String
+  aad         String?
+  version     Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  keyReference PrivateFieldKeyReference @relation(fields: [keyRef], references: [keyRef], onDelete: Restrict)
+
+  @@unique([tenantId, recordType, recordId, fieldKey])
+  @@index([tenantId])
+  @@index([hoaId])
+  @@index([ownerUserId])
+  @@index([keyRef])
+  @@map("encrypted_private_fields")
+}
+
 model Issuer {
-  id                 String   @id
-  tenantId           String   @map("tenant_id")
+  id                 String    @id
+  tenantId           String    @map("tenant_id")
   name               String
-  contactEmail       String?  @map("contact_email")
+  contactEmail       String?   @map("contact_email")
   type               String?
   address            String?
-  registrationNumber String?  @map("registration_number")
+  registrationNumber String?   @map("registration_number")
   registrationDate   DateTime? @map("registration_date")
-  status             String   @default("active")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  status             String    @default("active")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@map("issuers")
 }
 
 model IssuerUser {
-  id        String   @id
-  tenantId  String   @map("tenant_id")
-  issuerId  String?  @map("issuer_id")
-  userId    String?  @map("user_id")
-  email     String
-  role      String
-  status    String   @default("active")
-  invitedAt DateTime? @map("invited_at")
+  id          String    @id
+  tenantId    String    @map("tenant_id")
+  issuerId    String?   @map("issuer_id")
+  userId      String?   @map("user_id")
+  email       String
+  role        String
+  status      String    @default("active")
+  invitedAt   DateTime? @map("invited_at")
   activatedAt DateTime? @map("activated_at")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([issuerId])
@@ -156,19 +263,19 @@ model IssuerUser {
 }
 
 model IssuerInvitation {
-  id              String   @id
-  tenantId        String   @map("tenant_id")
-  issuerId        String?  @map("issuer_id")
-  issuerUserId    String?  @map("issuer_user_id")
+  id              String    @id
+  tenantId        String    @map("tenant_id")
+  issuerId        String?   @map("issuer_id")
+  issuerUserId    String?   @map("issuer_user_id")
   email           String
   role            String
-  deliveryChannel String   @map("delivery_channel")
+  deliveryChannel String    @map("delivery_channel")
   recipient       String
-  tokenHash       String   @unique @map("token_hash")
-  expiresAt       DateTime @map("expires_at")
+  tokenHash       String    @unique @map("token_hash")
+  expiresAt       DateTime  @map("expires_at")
   usedAt          DateTime? @map("used_at")
   activatedAt     DateTime? @map("activated_at")
-  createdAt       DateTime @default(now()) @map("created_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
 
   @@index([tenantId])
   @@index([issuerId])
@@ -205,6 +312,85 @@ model IssuerApiKey {
   @@map("issuer_api_keys")
 }
 
+model ApiClient {
+  id             String   @id @default(cuid())
+  name           String
+  clientId       String   @unique @map("client_id")
+  clientSecret   String   @map("client_secret")
+  redirectUris   String[] @map("redirect_uris")
+  allowedOrigins String[] @map("allowed_origins")
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("api_clients")
+}
+
+model Consent {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  clientId  String    @map("client_id")
+  scopes    String[]
+  status    String    @default("approved")
+  createdAt DateTime  @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+  @@map("consents")
+}
+
+model AuthorizationCode {
+  id                  String    @id @default(cuid())
+  code                String    @unique
+  userId              String    @map("user_id")
+  clientId            String    @map("client_id")
+  redirectUri         String    @map("redirect_uri")
+  codeChallenge       String    @map("code_challenge")
+  codeChallengeMethod String    @default("S256") @map("code_challenge_method")
+  scopes              String[]
+  expiresAt           DateTime  @map("expires_at")
+  usedAt              DateTime? @map("used_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([expiresAt])
+  @@map("authorization_codes")
+}
+
+model SignaturaSession {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("signatura_sessions")
+}
+
+model AuditAnchor {
+  id         String    @id @default(cuid())
+  sourceApp  String    @map("source_app")
+  recordType String    @map("record_type")
+  recordId   String    @map("record_id")
+  hash       String
+  status     String    @default("pending")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  anchoredAt DateTime? @map("anchored_at")
+
+  @@index([sourceApp])
+  @@index([recordType, recordId])
+  @@index([status])
+  @@map("audit_anchors")
+}
+
 model DocumentType {
   id          String   @id
   tenantId    String   @map("tenant_id")
@@ -218,24 +404,24 @@ model DocumentType {
 }
 
 model DocumentTemplate {
-  id               String   @id
-  tenantId         String   @map("tenant_id")
-  issuerId         String?  @map("issuer_id")
-  documentTypeId   String?  @map("document_type_id")
+  id               String    @id
+  tenantId         String    @map("tenant_id")
+  issuerId         String?   @map("issuer_id")
+  documentTypeId   String?   @map("document_type_id")
   name             String
-  documentType     String?  @map("document_type")
-  version          Int      @default(1)
-  status           String   @default("draft")
-  originalFileUrl  String?  @map("original_file_url")
-  previewImageUrl  String?  @map("preview_image_url")
+  documentType     String?   @map("document_type")
+  version          Int       @default(1)
+  status           String    @default("draft")
+  originalFileUrl  String?   @map("original_file_url")
+  previewImageUrl  String?   @map("preview_image_url")
   schema           Json?
   fields           Json?
-  createdBy        String?  @map("created_by")
-  publishedBy      String?  @map("published_by")
+  createdBy        String?   @map("created_by")
+  publishedBy      String?   @map("published_by")
   publishedAt      DateTime? @map("published_at")
-  sourceTemplateId String?  @map("source_template_id")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  sourceTemplateId String?   @map("source_template_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   templateFields DocumentTemplateField[]
   extractionLogs TemplateExtractionLog[]
@@ -280,15 +466,15 @@ model DocumentTemplateField {
 }
 
 model TemplateVersion {
-  id             String   @id
-  templateId     String   @map("template_id")
-  version        Int
-  status         String
-  schemaJson     Json?    @map("schema_json")
-  fieldsJson     Json?    @map("fields_json")
-  templateHash   String?  @map("template_hash")
-  createdBy      String?  @map("created_by")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id           String   @id
+  templateId   String   @map("template_id")
+  version      Int
+  status       String
+  schemaJson   Json?    @map("schema_json")
+  fieldsJson   Json?    @map("fields_json")
+  templateHash String?  @map("template_hash")
+  createdBy    String?  @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
 
   template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
@@ -383,7 +569,7 @@ model MerkleBatch {
   merkleRoot     String    @map("merkle_root")
   batchSize      Int       @map("batch_size")
   status         String    @default("created")
-  publishMethod  String    @default("mock") @map("publish_method")
+  publishMethod  String    @map("publish_method")
   chain          String?
   transactionId  String?   @map("transaction_id")
   blockNumber    String?   @map("block_number")

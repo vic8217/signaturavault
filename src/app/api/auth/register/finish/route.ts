@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
+import { userPublicIdentity } from '@/lib/identity';
 import { setSessionCookie } from '@/lib/session';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
 import {
@@ -90,6 +91,10 @@ export async function POST(req: Request) {
 					userId,
 					credentialId: credential.id,
 					deviceName,
+					deviceHash: crypto
+						.createHash('sha256')
+						.update(`${userId}:${credential.id}`)
+						.digest('hex'),
 					userAgent,
 					lastUsedAt: new Date(),
 					isTrusted: true,
@@ -124,12 +129,15 @@ export async function POST(req: Request) {
 
 		const responseJson = NextResponse.json({
 			ok: true,
-			user: { id: result.id, email: result.email, name: result.name },
+			user: userPublicIdentity(result),
 			recoveryCodes,
 		});
 		setSessionCookie(responseJson, req, {
 			userId: result.id,
-			email: result.email,
+			signaturaId: result.signaturaId,
+			role: ROLES.DOCUMENT_OWNER,
+			trustLevel: result.trustLevel,
+			iat: Date.now(),
 			createdAt: Date.now(),
 			reauthenticatedAt: Date.now(),
 		});

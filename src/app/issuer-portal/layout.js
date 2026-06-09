@@ -34,9 +34,12 @@ function IssuerBrand({ issuer, compact = false }) {
 				compact ? 'px-3 py-2' : 'mt-6 px-4 py-3'
 			}`}>
 			{issuer.logoUrl ? (
-				<img
+				<Image
 					src={issuer.logoUrl}
 					alt={`${issuer.name} logo`}
+					width={40}
+					height={40}
+					unoptimized
 					className="h-10 w-10 rounded-lg object-contain"
 				/>
 			) : (

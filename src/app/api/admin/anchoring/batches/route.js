@@ -11,7 +11,7 @@ export async function POST(req) {
 		try {
 			const batch = await createAndPublishMerkleBatch(db, {
 				limit: Number(body.limit || process.env.ANCHOR_BATCH_SIZE || 100),
-				publishMethod: body.publishMethod || process.env.ANCHOR_PUBLISH_METHOD || 'mock',
+				publishMethod: body.publishMethod || process.env.ANCHOR_PUBLISH_METHOD,
 			});
 			if (!batch) {
 				return Response.json({ message: 'No pending anchors to batch' });

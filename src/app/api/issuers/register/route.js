@@ -1,6 +1,8 @@
 import { hashValue } from '@/lib/auth';
 import { withDb, generateId, now } from '@/lib/db';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
+import { requireSession } from '@/lib/session';
+import { redactForLog } from '@/lib/security';
 
 function normalizeIdentity(value) {
 	return String(value || '')
@@ -11,6 +13,11 @@ function normalizeIdentity(value) {
 
 export async function POST(req) {
 	const payload = await req.json();
+	const session = await requireSession();
+	if (!session) {
+		return Response.json({ error: 'Authentication required' }, { status: 401 });
+	}
+
 	const role = req.cookies.get(ROLE_COOKIE)?.value;
 
 	if (role !== ROLES.SIGNATURA_ADMIN && role !== ROLES.SIGNATURA_STAFF) {
@@ -20,11 +27,8 @@ export async function POST(req) {
 	const {
 		issuerName,
 		tenantName,
-		contactEmail,
 		issuerType,
 		registeredName,
-		address,
-		registrationNumber,
 		registrationDate,
 	} = payload;
 	const normalizedIssuerName = issuerName || registeredName;
@@ -34,31 +38,20 @@ export async function POST(req) {
 		!normalizedIssuerName ||
 		!normalizedTenantName ||
 		!issuerType ||
-		!address ||
-		!registrationNumber ||
 		!registrationDate
 	) {
 		return new Response(
 			JSON.stringify({
 				error:
-					'issuerType, registeredName, address, registrationNumber, and registrationDate are required',
+					'issuerType, registeredName, and registrationDate are required',
 			}),
 			{ status: 400 },
 		);
 	}
 
 	return withDb(async (db) => {
-		const normalizedRegistrationNumber = normalizeIdentity(registrationNumber);
 		const normalizedName = normalizeIdentity(normalizedIssuerName);
 		const duplicateIssuer = db.issuers.find((issuer) => {
-			const issuerRegistrationNumber = normalizeIdentity(
-				issuer.registration_number,
-			);
-
-			if (issuerRegistrationNumber && normalizedRegistrationNumber) {
-				return issuerRegistrationNumber === normalizedRegistrationNumber;
-			}
-
 			return normalizeIdentity(issuer.name) === normalizedName;
 		});
 
@@ -93,10 +86,10 @@ export async function POST(req) {
 			id: issuerId,
 			tenant_id: tenantId,
 			name: normalizedIssuerName,
-			contact_email: contactEmail || null,
+			contact_email: null,
 			type: issuerType,
-			address,
-			registration_number: registrationNumber,
+			address: null,
+			registration_number: null,
 			registration_date: registrationDate,
 			status: 'active',
 			created_at: now(),
@@ -131,13 +124,12 @@ export async function POST(req) {
 			user_id: null,
 			action: 'issuer_registered',
 			target: issuerId,
-			details: {
+			details: redactForLog({
 				issuerName: normalizedIssuerName,
-				contactEmail: contactEmail || null,
 				issuerType,
-				registrationNumber,
 				registrationDate,
-			},
+				privateFieldsStoredAsPlaintext: false,
+			}),
 			created_at: now(),
 		});
 

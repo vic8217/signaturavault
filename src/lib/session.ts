@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 const SESSION_COOKIE = 'signatura_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -8,8 +9,12 @@ const REAUTH_TTL_MS = 5 * 60 * 1000;
 
 type SessionPayload = {
 	userId: string;
-	email: string;
-	createdAt: number;
+	signaturaId: string;
+	role?: string | null;
+	trustLevel?: number;
+	iat?: number;
+	exp?: number;
+	createdAt?: number;
 	reauthenticatedAt?: number;
 };
 
@@ -55,7 +60,11 @@ function decodeSession(token?: string | null): SessionPayload | null {
 	}
 
 	try {
-		return JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+		const payload = JSON.parse(
+			Buffer.from(body, 'base64url').toString('utf8'),
+		);
+		if (payload.exp && Date.now() > payload.exp) return null;
+		return payload;
 	} catch {
 		return null;
 	}
@@ -78,7 +87,24 @@ async function getSession() {
 async function requireSession() {
 	const session = await getSession();
 	if (!session?.userId) return null;
-	return session;
+
+	const user = await prisma.user.findUnique({
+		where: { id: session.userId },
+		select: {
+			id: true,
+			signaturaId: true,
+			accountStatus: true,
+			trustLevel: true,
+		},
+	});
+
+	if (!user) return null;
+	return {
+		...session,
+		signaturaId: user.signaturaId,
+		accountStatus: user.accountStatus,
+		trustLevel: user.trustLevel,
+	};
 }
 
 function setSessionCookie(
@@ -86,7 +112,19 @@ function setSessionCookie(
 	req: Request,
 	payload: SessionPayload,
 ) {
-	response.cookies.set(SESSION_COOKIE, encodeSession(payload), {
+	const issuedAt = payload.iat || Date.now();
+	const expiresAt = payload.exp || issuedAt + SESSION_TTL_SECONDS * 1000;
+	const safePayload = {
+		userId: payload.userId,
+		signaturaId: payload.signaturaId,
+		role: payload.role || null,
+		trustLevel: payload.trustLevel || 1,
+		iat: issuedAt,
+		exp: expiresAt,
+		createdAt: payload.createdAt || issuedAt,
+		reauthenticatedAt: payload.reauthenticatedAt,
+	};
+	response.cookies.set(SESSION_COOKIE, encodeSession(safePayload), {
 		httpOnly: true,
 		secure: secureCookie(req),
 		sameSite: 'lax',

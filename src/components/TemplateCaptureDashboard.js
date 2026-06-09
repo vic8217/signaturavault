@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const FIELD_TYPES = [
 	'text',
@@ -79,20 +80,12 @@ function TemplateCaptureDashboard({
 	const previewRef = useRef(null);
 	const dragRef = useRef(null);
 
-	useEffect(() => {
-		loadTemplates();
-	}, [listPath]);
-
-	useEffect(() => {
-		if (selectedId) loadTemplate(selectedId);
-	}, [selectedId]);
-
 	const activeField = useMemo(
 		() => fields.find((field) => field.id === activeFieldId) || fields[0],
 		[activeFieldId, fields],
 	);
 
-	async function api(path, options = {}) {
+	const api = useCallback(async (path, options = {}) => {
 		const response = await fetch(path, options);
 		const text = await response.text();
 		let data = {};
@@ -105,22 +98,20 @@ function TemplateCaptureDashboard({
 			throw new Error(data.error || `Request failed (${response.status})`);
 		}
 		return data;
-	}
+	}, []);
 
-	async function loadTemplates() {
+	const loadTemplates = useCallback(async () => {
 		setError('');
 		try {
 			const data = await api(listPath);
 			setTemplates(data.templates || []);
-			if (!selectedId && data.templates?.[0]) {
-				setSelectedId(data.templates[0].id);
-			}
+			setSelectedId((current) => current || data.templates?.[0]?.id || '');
 		} catch (loadError) {
 			setError(loadError.message);
 		}
-	}
+	}, [api, listPath]);
 
-	async function loadTemplate(id) {
+	const loadTemplate = useCallback(async (id) => {
 		setError('');
 		try {
 			const data = await api(`${apiBase}/${id}`);
@@ -130,7 +121,18 @@ function TemplateCaptureDashboard({
 		} catch (loadError) {
 			setError(loadError.message);
 		}
-	}
+	}, [api, apiBase]);
+
+	useEffect(() => {
+		const timer = setTimeout(loadTemplates, 0);
+		return () => clearTimeout(timer);
+	}, [loadTemplates]);
+
+	useEffect(() => {
+		if (!selectedId) return undefined;
+		const timer = setTimeout(() => loadTemplate(selectedId), 0);
+		return () => clearTimeout(timer);
+	}, [loadTemplate, selectedId]);
 
 	async function uploadTemplate(event) {
 		event.preventDefault();
@@ -604,9 +606,12 @@ function ReviewWorkspace({
 							</object>
 						) : (
 							<div ref={previewRef} className="relative mx-auto w-fit max-w-full">
-								<img
+								<Image
 									src={template.preview_image_url}
 									alt={`${template.name} preview`}
+									width={900}
+									height={760}
+									unoptimized
 									className="block max-h-[760px] max-w-full rounded bg-white object-contain"
 								/>
 								<FieldBoxes

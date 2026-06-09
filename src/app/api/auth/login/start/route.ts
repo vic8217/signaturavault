@@ -2,6 +2,7 @@ import { generateAuthenticationOptions } from '@simplewebauthn/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
+import { normalizeSignaturaId } from '@/lib/identity';
 import {
 	assertSecureWebAuthnRequest,
 	challengeExpiresAt,
@@ -14,14 +15,14 @@ export async function POST(req: Request) {
 	try {
 		assertSecureWebAuthnRequest(req);
 		const body = await req.json();
-		const email = String(body.email || '').trim().toLowerCase();
+		const signaturaId = normalizeSignaturaId(body.signaturaId || body.userId);
 
-		if (!email) {
-			return jsonError('Email is required');
+		if (!signaturaId) {
+			return jsonError('Signatura ID is required');
 		}
 
 		const user = await prisma.user.findUnique({
-			where: { email },
+			where: { signaturaId },
 			include: { credentials: { where: { isTrusted: true } } },
 		});
 
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
 
 		await logSecurityEvent(req, 'login_challenge_created', user.id);
 
-		return Response.json({ userId: user.id, options });
+		return Response.json({ userId: user.id, signaturaId: user.signaturaId, options });
 	} catch (error) {
 		return jsonError(
 			safeApiErrorMessage(error, 'Unable to start login'),

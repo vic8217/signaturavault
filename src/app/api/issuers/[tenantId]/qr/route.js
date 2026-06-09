@@ -1,5 +1,6 @@
 import { authenticateApiRequest } from '@/lib/auth';
 import { withDb, generateId, now } from '@/lib/db';
+import { safeApiLogEntry } from '@/lib/security';
 
 export async function POST(req, { params }) {
 	const { tenantId } = await params;
@@ -33,20 +34,18 @@ export async function POST(req, { params }) {
 		record.qr_token = qrToken;
 		record.updated_at = now();
 
-		db.api_logs.push({
-			id: generateId('apilog'),
-			tenant_id: tenantId,
-			api_client_id: auth.client.id,
-			path: req.url,
-			method: req.method,
-			status: 200,
-			request_body: payload,
-			response_body: {
-				qrToken,
-				qrUrl: `/api/issuers/${tenantId}/verify?token=${qrToken}`,
-			},
-			created_at: now(),
-		});
+		db.api_logs.push(
+			safeApiLogEntry({
+				id: generateId('apilog'),
+				tenantId,
+				apiClientId: auth.client.id,
+				req,
+				status: 200,
+				requestBody: { action: 'document_qr_rotated', documentId },
+				responseBody: { message: 'qr rotated' },
+				createdAt: now(),
+			}),
+		);
 
 		return new Response(
 			JSON.stringify({

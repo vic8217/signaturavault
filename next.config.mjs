@@ -1,6 +1,11 @@
+const projectRoot = new URL('.', import.meta.url).pathname.replace(/\/$/, '');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
+	allowedDevOrigins: ['192.168.1.33'],
+	turbopack: {
+		root: projectRoot,
+	},
 };
 
 export default nextConfig;

@@ -1,7 +1,7 @@
 {
 	"name": "Signatura - Trust Every Document",
 	"short_name": "Signatura",
-	"description": "Zero-trust digital document issuance, verification, and blockchain anchoring platform.",
+	"description": "Zero Trust Level 2 digital document issuance, verification, and blockchain anchoring platform.",
 	"start_url": "/login?next=/wallet",
 	"scope": "/",
 	"display": "standalone",

@@ -31,7 +31,10 @@ export function WalletIssuerDirectory({ issuers = [], classifications = [] }) {
 	const [voiceAvailable, setVoiceAvailable] = useState(false);
 
 	useEffect(() => {
-		setVoiceAvailable(supportsVoiceSearch());
+		const timer = setTimeout(() => {
+			setVoiceAvailable(supportsVoiceSearch());
+		}, 0);
+		return () => clearTimeout(timer);
 	}, []);
 
 	const filteredIssuers = useMemo(() => {
@@ -43,13 +46,11 @@ export function WalletIssuerDirectory({ issuers = [], classifications = [] }) {
 			}
 			if (!query) return true;
 
-			return [
-				issuer.name,
-				issuer.type,
-				issuer.address,
-				issuer.registration_number,
-				issuer.status,
-			]
+				return [
+					issuer.name,
+					issuer.type,
+					issuer.status,
+				]
 				.map(normalize)
 				.join(' ')
 				.includes(query);
@@ -112,11 +113,11 @@ export function WalletIssuerDirectory({ issuers = [], classifications = [] }) {
 							Search issuer
 						</span>
 						<div className="mt-2 flex gap-2">
-							<input
-								type="search"
-								value={search}
-								onChange={(event) => setSearch(event.target.value)}
-								placeholder="Search by name, address, registration, or status"
+								<input
+									type="search"
+									value={search}
+									onChange={(event) => setSearch(event.target.value)}
+									placeholder="Search by name, classification, or status"
 								className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-red-400"
 							/>
 							<button
@@ -205,13 +206,7 @@ export function WalletIssuerDirectory({ issuers = [], classifications = [] }) {
 										{issuer.status || 'active'}
 									</span>
 								</div>
-								<div className="mt-3 grid gap-1 text-sm leading-6 text-slate-300">
-									<p>{issuer.address || 'No address recorded'}</p>
-									<p className="break-all text-xs text-slate-500">
-										Registration: {issuer.registration_number || 'Not provided'}
-									</p>
-								</div>
-								<div className="mt-4 flex flex-wrap gap-2">
+									<div className="mt-4 flex flex-wrap gap-2">
 									<span className="rounded-lg bg-red-500 px-3 py-2 text-xs font-bold text-white">
 										View documents
 									</span>

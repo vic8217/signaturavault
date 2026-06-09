@@ -1,13 +1,11 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 
 const emptyProfile = {
 	name: '',
 	type: '',
-	contactEmail: '',
-	address: '',
-	registrationNumber: '',
 	registrationDate: '',
 	logoUrl: '',
 	website: '',
@@ -91,9 +89,12 @@ function IssuerProfileForm() {
 					</p>
 				</div>
 				{profile.logoUrl ? (
-					<img
+					<Image
 						src={profile.logoUrl}
 						alt={`${profile.name || 'Issuer'} logo`}
+						width={80}
+						height={80}
+						unoptimized
 						className="h-20 w-20 rounded-xl border border-white/10 bg-slate-950 object-contain p-2"
 					/>
 				) : (
@@ -136,17 +137,8 @@ function IssuerProfileForm() {
 						className="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-red-400"
 					/>
 				</label>
-				<label className="grid gap-2 text-sm font-semibold text-slate-200">
-					Contact email
-					<input
-						type="email"
-						value={profile.contactEmail}
-						onChange={(event) => updateField('contactEmail', event.target.value)}
-						className="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-red-400"
-					/>
-				</label>
-				<label className="grid gap-2 text-sm font-semibold text-slate-200">
-					Logo URL
+					<label className="grid gap-2 text-sm font-semibold text-slate-200">
+						Logo URL
 					<input
 						value={profile.logoUrl}
 						onChange={(event) => updateField('logoUrl', event.target.value)}
@@ -154,18 +146,8 @@ function IssuerProfileForm() {
 						className="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-red-400"
 					/>
 				</label>
-				<label className="grid gap-2 text-sm font-semibold text-slate-200">
-					Registration number
-					<input
-						value={profile.registrationNumber}
-						onChange={(event) =>
-							updateField('registrationNumber', event.target.value)
-						}
-						className="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-red-400"
-					/>
-				</label>
-				<label className="grid gap-2 text-sm font-semibold text-slate-200">
-					Registration date
+					<label className="grid gap-2 text-sm font-semibold text-slate-200">
+						Registration date
 					<input
 						type="date"
 						value={String(profile.registrationDate || '').slice(0, 10)}
@@ -183,15 +165,7 @@ function IssuerProfileForm() {
 						className="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-red-400"
 					/>
 				</label>
-				<label className="grid gap-2 text-sm font-semibold text-slate-200 lg:col-span-2">
-					Address
-					<input
-						value={profile.address}
-						onChange={(event) => updateField('address', event.target.value)}
-						className="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-red-400"
-					/>
-				</label>
-				<label className="grid gap-2 text-sm font-semibold text-slate-200 lg:col-span-2">
+					<label className="grid gap-2 text-sm font-semibold text-slate-200 lg:col-span-2">
 					Profile notes
 					<textarea
 						value={profile.description}

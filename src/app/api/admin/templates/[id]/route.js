@@ -10,6 +10,7 @@ import {
 	normalizeField,
 	templateToApi,
 } from '@/lib/issuer-templates';
+import { redactTemplateForProvider } from '@/lib/security';
 
 async function findTemplate(id, include = {}) {
 	return prisma.documentTemplate.findUnique({
@@ -78,12 +79,10 @@ export async function GET(_req, { params }) {
 	if (!template) return Response.json({ error: 'Template not found' }, { status: 404 });
 
 	const issuer = await templateIssuer(template);
-	const apiTemplate = templateToApi(template);
+	const apiTemplate = redactTemplateForProvider(templateToApi(template));
 	return Response.json({
 		template: {
 			...apiTemplate,
-			original_file_url: `/api/admin/templates/${template.id}/file`,
-			preview_image_url: `/api/admin/templates/${template.id}/file?preview=1`,
 			issuer_name: issuer?.name || 'Unknown issuer',
 			issuer_type: issuer?.type || null,
 		},
@@ -141,8 +140,8 @@ export async function PUT(req, { params }) {
 			existing.id,
 			context.session?.userId || null,
 			'developer_template_assisted',
-			templateToApi(existing),
-			{
+			redactTemplateForProvider(templateToApi(existing)),
+			redactTemplateForProvider({
 				name: nextTemplate.name,
 				documentType: nextTemplate.documentType,
 				fields: fields?.map((field, index) =>
@@ -152,7 +151,7 @@ export async function PUT(req, { params }) {
 						...normalizeField(field, index + 1),
 					}),
 				),
-			},
+			}),
 		);
 
 		const saved = await tx.documentTemplate.findUnique({
@@ -168,11 +167,10 @@ export async function PUT(req, { params }) {
 	});
 
 	const issuer = await templateIssuer(updated);
+	const apiTemplate = redactTemplateForProvider(templateToApi(updated));
 	return Response.json({
 		template: {
-			...templateToApi(updated),
-			original_file_url: `/api/admin/templates/${updated.id}/file`,
-			preview_image_url: `/api/admin/templates/${updated.id}/file?preview=1`,
+			...apiTemplate,
 			issuer_name: issuer?.name || 'Unknown issuer',
 			issuer_type: issuer?.type || null,
 		},

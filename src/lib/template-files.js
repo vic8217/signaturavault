@@ -2,15 +2,15 @@ import crypto from 'crypto';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import path from 'path';
 
-const UPLOAD_ROOT = path.join(
-	/*turbopackIgnore: true*/ process.cwd(),
-	'data/template-uploads',
-);
 const ALLOWED_MIME_TYPES = new Map([
 	['image/jpeg', 'jpg'],
 	['image/png', 'png'],
 	['application/pdf', 'pdf'],
 ]);
+
+function templateUploadPath(...segments) {
+	return path.join(/*turbopackIgnore: true*/ process.cwd(), 'data', 'template-uploads', ...segments);
+}
 
 function extensionForUpload(file) {
 	const typeExtension = ALLOWED_MIME_TYPES.get(file.type);
@@ -30,7 +30,7 @@ async function storeTemplateUpload(file, templateId) {
 		throw new Error('Unsupported upload format. Use JPG, PNG, or PDF.');
 	}
 
-	const directory = path.join(UPLOAD_ROOT, templateId);
+	const directory = templateUploadPath(templateId);
 	await mkdir(directory, { recursive: true });
 
 	const filename = `original-${crypto.randomUUID()}.${extension}`;
@@ -50,7 +50,7 @@ async function storeTemplateUpload(file, templateId) {
 function resolveStoredFile(fileUrl) {
 	const match = String(fileUrl || '').match(/\/api\/issuer\/templates\/([^/]+)\/file/);
 	if (!match) return null;
-	return path.join(UPLOAD_ROOT, match[1]);
+	return templateUploadPath(match[1]);
 }
 
 async function readTemplateFile(template) {

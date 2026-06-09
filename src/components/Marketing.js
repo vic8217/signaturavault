@@ -136,9 +136,9 @@ function MarketingHome() {
 	return (
 		<>
 			<PageHero
-				eyebrow="Zero-trust document verification"
+				eyebrow="Zero Trust Level 2 document verification"
 				title="Secure digital documents, verified at the source."
-				text="Signatura helps issuers protect, issue, and verify official documents using QR verification, encrypted wallets, revocation controls, and private blockchain anchoring.">
+				text="Signatura helps issuers protect, issue, and verify official documents using QR verification, role-based access, audit trails, revocation controls, and private blockchain anchoring.">
 				<div className="mt-9 flex flex-col gap-4 sm:flex-row">
 					<Link
 						href="/contact"
@@ -181,15 +181,15 @@ function SecurityPage() {
 		<>
 			<PageHero
 				eyebrow="Security"
-				title="Zero-trust controls for documents that must stay authoritative."
-				text="Signatura keeps documents encrypted, separates tenant data, anchors hashes privately, and verifies each scan against issuer-controlled status."
+				title="Zero Trust Level 2 controls for documents that must stay authoritative."
+				text="Signatura encrypts sensitive private fields, separates tenant data, anchors hashes privately, logs important access or changes, and verifies each scan against issuer-controlled status."
 			/>
 			<FeatureGrid
 				items={[
 					{
 						kicker: 'Encryption',
 						title: 'Sensitive data stays protected',
-						text: 'Records can be encrypted at rest and shared only through controlled owner or verifier workflows.',
+						text: 'Sensitive private fields can be encrypted before storage and shared only through controlled owner or verifier workflows.',
 					},
 					{
 						kicker: 'QR proof',

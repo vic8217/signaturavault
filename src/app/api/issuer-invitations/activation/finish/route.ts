@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
+import { userPublicIdentity } from '@/lib/identity';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
 import { setSessionCookie } from '@/lib/session';
 import {
@@ -210,6 +211,10 @@ export async function POST(req: Request) {
 						userId,
 						credentialId: newCredentialForCreate.id,
 						deviceName,
+						deviceHash: crypto
+							.createHash('sha256')
+							.update(`${userId}:${newCredentialForCreate.id}`)
+							.digest('hex'),
 						userAgent,
 						lastUsedAt: now,
 						isTrusted: true,
@@ -260,21 +265,26 @@ export async function POST(req: Request) {
 		const responseJson = NextResponse.json({
 			ok: true,
 			next: '/issuer-portal',
-			user: { id: user.id, email: user.email, name: user.name },
+			user: userPublicIdentity(user),
 			tenantId: invitation.tenantId,
 			issuerId: invitation.issuerId,
 		});
+		const portalRole =
+			invitation.role === ROLES.ISSUER_ADMIN
+				? ROLES.ISSUER_ADMIN
+				: ROLES.ISSUER_STAFF;
 		setSessionCookie(responseJson, req, {
 			userId: user.id,
-			email: user.email,
+			signaturaId: user.signaturaId,
+			role: portalRole,
+			trustLevel: user.trustLevel,
+			iat: Date.now(),
 			createdAt: Date.now(),
 			reauthenticatedAt: Date.now(),
 		});
 		responseJson.cookies.set(
 			ROLE_COOKIE,
-			invitation.role === ROLES.ISSUER_ADMIN
-				? ROLES.ISSUER_ADMIN
-				: ROLES.ISSUER_STAFF,
+			portalRole,
 			{
 				httpOnly: true,
 				sameSite: 'lax',

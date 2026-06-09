@@ -1,5 +1,7 @@
 import { loadDb } from '@/lib/db';
+import { requireSession } from '@/lib/session';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
+import { redactIssuerForProvider } from '@/lib/security';
 
 function normalizeIdentity(value) {
 	return String(value || '')
@@ -9,6 +11,11 @@ function normalizeIdentity(value) {
 }
 
 export async function GET(req) {
+	const session = await requireSession();
+	if (!session) {
+		return Response.json({ error: 'Authentication required' }, { status: 401 });
+	}
+
 	const role = req.cookies.get(ROLE_COOKIE)?.value;
 
 	if (role !== ROLES.SIGNATURA_ADMIN && role !== ROLES.SIGNATURA_STAFF) {
@@ -40,20 +47,7 @@ export async function GET(req) {
 		.map((issuer) => {
 			const tenant = tenantsById.get(issuer.tenant_id);
 
-			return {
-				id: issuer.id,
-				tenantId: issuer.tenant_id,
-				tenantName: tenant?.name || issuer.name,
-				name: issuer.name,
-				type: issuer.type || null,
-				address: issuer.address || null,
-				registrationNumber: issuer.registration_number || null,
-				registrationDate: issuer.registration_date || null,
-				status: issuer.status,
-				contactEmail: issuer.contact_email || null,
-				createdAt: issuer.created_at,
-				updatedAt: issuer.updated_at,
-			};
+			return redactIssuerForProvider(issuer, tenant);
 		})
 		.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 

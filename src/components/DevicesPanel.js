@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { reverifyPasskey } from '@/lib/passkey-client';
 import { PasskeyNotice } from './PasskeyNotice';
 
@@ -12,10 +13,16 @@ function formatDate(value) {
 	}).format(new Date(value));
 }
 
-function DevicesPanel() {
+function DevicesPanel({ returnPath = '' }) {
 	const [devices, setDevices] = useState([]);
 	const [status, setStatus] = useState('Loading trusted devices...');
 	const [error, setError] = useState('');
+	const returnToLoginHref = returnPath
+		? `/login?next=${encodeURIComponent(returnPath)}`
+		: '';
+	const addDeviceHref = returnPath
+		? `/security/add-device?next=${encodeURIComponent(returnPath)}`
+		: '/security/add-device';
 
 	async function loadDevices() {
 		const response = await fetch('/api/security/devices');
@@ -98,12 +105,25 @@ function DevicesPanel() {
 
 			<PasskeyNotice />
 
+			{returnPath ? (
+				<div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/90 p-5">
+					<Link
+						href={returnToLoginHref}
+						className="inline-flex rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400">
+						Return to passkey login
+					</Link>
+					<p className="mt-3 text-sm leading-6 text-slate-400">
+						Continue the sign-in request that opened this trusted-device setup.
+					</p>
+				</div>
+			) : null}
+
 			<div className="mt-6 flex flex-wrap gap-3">
-				<a
-					href="/security/add-device"
+				<Link
+					href={addDeviceHref}
 					className="rounded-xl bg-red-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-400">
 					Add trusted device
-				</a>
+				</Link>
 				<button
 					onClick={verify}
 					className="rounded-xl border border-white/20 px-4 py-3 text-sm font-bold text-white transition hover:border-red-400 hover:text-red-300">

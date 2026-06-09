@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
+import { normalizeSignaturaId } from '@/lib/identity';
 import { prisma } from '@/lib/prisma';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
 import { setSessionCookie } from '@/lib/session';
@@ -13,20 +14,20 @@ function normalizeRecoveryCode(code: string) {
 export async function POST(req: Request) {
 	try {
 		const body = await req.json();
-		const email = String(body.email || '').trim().toLowerCase();
+		const signaturaId = normalizeSignaturaId(body.signaturaId || body.userId);
 		const recoveryCode = normalizeRecoveryCode(String(body.recoveryCode || ''));
 		const requestedNext = String(body.next || '');
 		const nextPath = requestedNext.startsWith('/')
 			? requestedNext
 			: '/security/devices';
 
-		if (!email || !recoveryCode) {
-			return jsonError('Email and recovery code are required');
+		if (!signaturaId || !recoveryCode) {
+			return jsonError('Signatura ID and recovery code are required');
 		}
 
 		const user = await prisma.user.findUnique({
-			where: { email },
-			select: { id: true, email: true },
+			where: { signaturaId },
+			select: { id: true, signaturaId: true, trustLevel: true },
 		});
 
 		if (!user) {
@@ -113,7 +114,10 @@ export async function POST(req: Request) {
 
 		setSessionCookie(response, req, {
 			userId: user.id,
-			email: user.email,
+			signaturaId: user.signaturaId,
+			role: portalRole,
+			trustLevel: user.trustLevel,
+			iat: Date.now(),
 			createdAt: Date.now(),
 			reauthenticatedAt: Date.now(),
 		});

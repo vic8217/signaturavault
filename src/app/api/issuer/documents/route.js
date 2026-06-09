@@ -74,11 +74,11 @@ export async function GET(req) {
 		.map((record) => {
 			const { proof, batch } = getBatchForDocument(db, record);
 			const documentHash = record.document_hash || record.hash || '';
-			const row = {
-				id: record.id,
-				externalId: record.external_id || '',
-				recipientName: record.recipient_name || '',
-				documentStatus: record.status || 'valid',
+				const row = {
+					id: record.id,
+					externalId: record.id,
+					recipientName: '[hidden]',
+					documentStatus: record.status || 'valid',
 				anchorStatus: record.anchor_status || 'pending',
 				otsStatus: getOtsStatus(record, batch),
 				publishMethod: batch?.publish_method || null,
@@ -93,13 +93,11 @@ export async function GET(req) {
 				issuedAt: record.issued_at || record.created_at || null,
 				updatedAt: record.updated_at || null,
 			};
-			row.searchText = lower(
-				[
-					row.id,
-					row.externalId,
-					row.recipientName,
-					row.documentStatus,
-					row.anchorStatus,
+				row.searchText = lower(
+					[
+						row.id,
+						row.documentStatus,
+						row.anchorStatus,
 					row.otsStatus,
 					row.batchId,
 					row.documentHash,

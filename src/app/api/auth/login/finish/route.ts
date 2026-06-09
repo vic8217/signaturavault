@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
+import { userPublicIdentity } from '@/lib/identity';
 import { setSessionCookie } from '@/lib/session';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
 import {
@@ -136,14 +137,15 @@ export async function POST(req: Request) {
 			ok: true,
 			next: allowedNext,
 			user: {
-				id: credential.user.id,
-				email: credential.user.email,
-				name: credential.user.name,
+				...userPublicIdentity(credential.user),
 			},
 		});
 		setSessionCookie(responseJson, req, {
 			userId: credential.user.id,
-			email: credential.user.email,
+			signaturaId: credential.user.signaturaId,
+			role: portalRole,
+			trustLevel: credential.user.trustLevel,
+			iat: Date.now(),
 			createdAt: Date.now(),
 			reauthenticatedAt: Date.now(),
 		});

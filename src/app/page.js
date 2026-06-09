@@ -14,22 +14,22 @@ const navItems = [
 ];
 
 const trustBadges = [
-	['shield', 'Zero Trust'],
+	['shield', 'Zero Trust L2'],
 	['blocks', 'Blockchain'],
-	['lock', 'Encrypted'],
+	['lock', 'Private Fields'],
 	['qr', 'QR Verified'],
 ];
 
 const securityItems = [
 	{
 		icon: 'identity',
-		title: 'Zero-Trust Design',
-		text: 'Signatura does not need to read or own document data. Issuers control source records while Signatura secures verification.',
+		title: 'Zero Trust Level 2 Design',
+		text: 'Users are authenticated, access is limited by role and tenant, and important access or changes are logged.',
 	},
 	{
 		icon: 'lock',
-		title: 'Encryption',
-		text: 'Documents and records are encrypted so only authorized parties can view sensitive content.',
+		title: 'Encrypted Private Fields',
+		text: 'Sensitive private fields are encrypted before database storage. The database should not expose readable private information.',
 	},
 	{
 		icon: 'blocks',
@@ -63,7 +63,7 @@ const userBenefits = [
 
 const workSteps = [
 	['document', 'Issuer creates or uploads document record'],
-	['lock', 'Document is encrypted or linked securely'],
+	['lock', 'Sensitive private fields are encrypted'],
 	['hash', 'A hash is generated'],
 	['blocks', 'Hash is anchored to private blockchain'],
 	['qr', 'QR code is attached to the document'],
@@ -259,8 +259,8 @@ export default function Home() {
 					</h1>
 					<p className="mt-7 max-w-xl text-lg leading-8 text-slate-300">
 						Signatura helps issuers protect, issue, and verify official
-						documents using zero-trust security, QR verification, and private
-						blockchain anchoring.
+						documents using Zero Trust Level 2 controls, QR verification, and
+						private blockchain anchoring.
 					</p>
 					<div className="mt-9 flex flex-col gap-4 sm:flex-row">
 						<Link
@@ -356,9 +356,9 @@ export default function Home() {
 							<CheckItem>Issue digital documents</CheckItem>
 							<CheckItem>Add QR verification</CheckItem>
 							<CheckItem>Anchor hashes to private blockchain</CheckItem>
-							<CheckItem>Provide encrypted access to owners</CheckItem>
+							<CheckItem>Store sensitive private fields as encrypted envelopes</CheckItem>
 							<CheckItem>Allow third parties to verify authenticity</CheckItem>
-							<CheckItem>Keep issuer data under issuer control</CheckItem>
+							<CheckItem>Log important access and status changes</CheckItem>
 						</ul>
 					</div>
 

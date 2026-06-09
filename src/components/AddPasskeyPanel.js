@@ -33,6 +33,7 @@ function AddPasskeyPanel({
 	const [recoveryCodes, setRecoveryCodes] = useState([]);
 	const [isComplete, setIsComplete] = useState(false);
 	const isRecoveryFlow = approvalMethod === 'recovery-code';
+	const trustedDevicesHref = `/security/devices?next=${encodeURIComponent(nextPath)}`;
 
 	async function submit(event) {
 		event.preventDefault();
@@ -172,7 +173,7 @@ function AddPasskeyPanel({
 						Open main dashboard
 					</Link>
 					<Link
-						href="/security/devices"
+						href={trustedDevicesHref}
 						className="rounded-xl border border-white/15 px-5 py-3 text-center text-sm font-bold text-slate-200 transition hover:border-red-400 hover:text-white">
 						View trusted devices
 					</Link>

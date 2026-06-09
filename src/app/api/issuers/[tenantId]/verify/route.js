@@ -1,5 +1,6 @@
 import { authenticateApiRequest } from '@/lib/auth';
 import { withDb, generateId, now } from '@/lib/db';
+import { redactedDocumentVerification, safeApiLogEntry } from '@/lib/security';
 import {
 	verifyDocumentMerkleProof,
 	verifyOpenTimestampsBatchProof,
@@ -74,24 +75,24 @@ export async function GET(req, { params }) {
 
 		const status = documentStatus === 'revoked' ? 'revoked' : documentStatus;
 
-		db.api_logs.push({
-			id: generateId('apilog'),
-			tenant_id: tenantId,
-			api_client_id: null,
-			path: req.url,
-			method: req.method,
-			status: 200,
-			request_body: { token },
-			response_body: {
-				tokenValid,
-				documentHashMatch,
-				documentStatus: status,
-				anchorStatus: record.anchor_status,
-				merkleProofValid,
-				publicCommitmentValid,
-			},
-			created_at: now(),
-		});
+		db.api_logs.push(
+			safeApiLogEntry({
+				id: generateId('apilog'),
+				tenantId,
+				req,
+				status: 200,
+				requestBody: { action: 'document_verification_checked' },
+				responseBody: {
+					tokenValid,
+					documentHashMatch,
+					documentStatus: status,
+					anchorStatus: record.anchor_status,
+					merkleProofValid,
+					publicCommitmentValid,
+				},
+				createdAt: now(),
+			}),
+		);
 
 		return new Response(
 			JSON.stringify({
@@ -108,11 +109,8 @@ export async function GET(req, { params }) {
 				transactionId: batch.transaction_id,
 				blockNumber: batch.block_number,
 				timestampProofAvailable: Boolean(batch.timestamp_proof),
-				documentId: record.id,
-				externalId: record.external_id,
+				...redactedDocumentVerification(record),
 				status,
-				recipientName: record.recipient_name,
-				issuedAt: record.issued_at,
 				qrToken: record.qr_token,
 			}),
 			{ status: 200 },

@@ -1,6 +1,9 @@
 import { PortalIcon } from '@/components/PortalIcon';
 
 export default function AdminSystem() {
+	const publishMethod = process.env.ANCHOR_PUBLISH_METHOD || 'Not configured';
+	const chain = process.env.ANCHOR_CHAIN || 'Not configured';
+
 	return (
 		<div className="space-y-8">
 			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-10">
@@ -36,7 +39,8 @@ export default function AdminSystem() {
 					</div>
 					<h2 className="text-xl font-bold text-white mb-4">Blockchain</h2>
 					<ul className="space-y-2 text-sm text-slate-300">
-						<li>Network: Placeholder</li>
+						<li>Publish method: {publishMethod}</li>
+						<li>Network: {chain}</li>
 						<li>Anchor interval: Every 24 hours</li>
 						<li>Pending anchors: 0</li>
 					</ul>

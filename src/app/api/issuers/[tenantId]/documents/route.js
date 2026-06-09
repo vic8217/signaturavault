@@ -1,5 +1,6 @@
 import { authenticateApiRequest } from '@/lib/auth';
 import { withDb, generateId, now } from '@/lib/db';
+import { safeApiLogEntry } from '@/lib/security';
 
 export async function POST(req, { params }) {
 	const { tenantId } = await params;
@@ -11,13 +12,12 @@ export async function POST(req, { params }) {
 	}
 
 	const payload = await req.json();
-	const { externalId, templateId, recipientName, documentHash, metadata } =
-		payload;
+	const { templateId, documentHash } = payload;
 
-	if (!externalId || !recipientName || !documentHash) {
+	if (!documentHash) {
 		return new Response(
 			JSON.stringify({
-				error: 'externalId, recipientName, and documentHash are required',
+				error: 'documentHash is required',
 			}),
 			{ status: 400 },
 		);
@@ -32,22 +32,22 @@ export async function POST(req, { params }) {
 
 		db.document_records.push({
 			id: documentId,
-			tenant_id: tenantId,
-			issuer_id: issuer?.id || null,
-			document_template_id: templateId || null,
-			external_id: externalId,
-			recipient_name: recipientName,
-			issued_at: timestamp,
-			hash: documentHash,
-			document_hash: documentHash,
+				tenant_id: tenantId,
+				issuer_id: issuer?.id || null,
+				document_template_id: templateId || null,
+				external_id: documentId,
+				recipient_name: '[hidden]',
+				issued_at: timestamp,
+				hash: documentHash,
+				document_hash: documentHash,
 			status: 'valid',
 			anchor_status: 'pending',
-			anchor_batch_id: null,
-			verification_token: verificationToken,
-			qr_token: qrToken,
-			metadata: metadata || {},
-			created_at: timestamp,
-			updated_at: timestamp,
+				anchor_batch_id: null,
+				verification_token: verificationToken,
+				qr_token: qrToken,
+				metadata: null,
+				created_at: timestamp,
+				updated_at: timestamp,
 		});
 
 		db.anchor_pool.push({
@@ -70,17 +70,23 @@ export async function POST(req, { params }) {
 			updated_at: now(),
 		});
 
-		db.api_logs.push({
-			id: generateId('apilog'),
-			tenant_id: tenantId,
-			api_client_id: auth.client.id,
-			path: req.url,
-			method: req.method,
-			status: 201,
-			request_body: payload,
-			response_body: { documentId, verificationToken, qrToken },
-			created_at: now(),
-		});
+		db.api_logs.push(
+			safeApiLogEntry({
+				id: generateId('apilog'),
+				tenantId,
+				apiClientId: auth.client.id,
+				req,
+				status: 201,
+					requestBody: {
+						action: 'document_created',
+						documentId,
+						templateId: templateId || null,
+						privateFieldsStoredAsPlaintext: false,
+					},
+				responseBody: { documentId, status: 'valid', anchorStatus: 'pending' },
+				createdAt: now(),
+			}),
+		);
 
 		return new Response(
 			JSON.stringify({

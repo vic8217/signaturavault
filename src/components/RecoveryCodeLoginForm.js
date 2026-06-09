@@ -16,8 +16,8 @@ async function readJsonResponse(response) {
 	}
 }
 
-function RecoveryCodeLoginForm({ initialEmail = '', nextPath = '/wallet' }) {
-	const [email, setEmail] = useState(initialEmail);
+function RecoveryCodeLoginForm({ initialSignaturaId = '', nextPath = '/wallet' }) {
+	const [signaturaId, setSignaturaId] = useState(initialSignaturaId);
 	const [recoveryCode, setRecoveryCode] = useState('');
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
@@ -31,7 +31,7 @@ function RecoveryCodeLoginForm({ initialEmail = '', nextPath = '/wallet' }) {
 			const response = await fetch('/api/auth/recovery-code', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email, recoveryCode, next: nextPath }),
+				body: JSON.stringify({ signaturaId, recoveryCode, next: nextPath }),
 			});
 			const data = await readJsonResponse(response);
 
@@ -54,12 +54,14 @@ function RecoveryCodeLoginForm({ initialEmail = '', nextPath = '/wallet' }) {
 	return (
 		<form onSubmit={submit} className="mt-6 grid gap-4">
 			<label className="grid gap-2 text-sm font-semibold">
-				<span>Email</span>
+				<span>Signatura ID</span>
 				<input
-					type="email"
+					type="text"
 					required
-					value={email}
-					onChange={(event) => setEmail(event.target.value)}
+					value={signaturaId}
+					onChange={(event) => setSignaturaId(event.target.value)}
+					autoComplete="username"
+					placeholder="SIG-8FD2A91C"
 					className="rounded-xl border border-white/10 bg-white px-4 py-3 text-slate-950 outline-none ring-red-500 transition focus:ring-2"
 				/>
 			</label>

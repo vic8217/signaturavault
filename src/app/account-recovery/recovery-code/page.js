@@ -3,7 +3,8 @@ import { RecoveryCodeLoginForm } from '@/components/RecoveryCodeLoginForm';
 
 export default async function RecoveryCodePage({ searchParams }) {
 	const params = await searchParams;
-	const email = typeof params?.email === 'string' ? params.email : '';
+	const signaturaId =
+		typeof params?.signaturaId === 'string' ? params.signaturaId : '';
 	const nextPath =
 		typeof params?.next === 'string' && params.next.startsWith('/')
 			? params.next
@@ -17,7 +18,9 @@ export default async function RecoveryCodePage({ searchParams }) {
 				</Link>
 				<Link
 					href={`/account-recovery?next=${encodeURIComponent(nextPath)}${
-						email ? `&email=${encodeURIComponent(email)}` : ''
+						signaturaId
+							? `&signaturaId=${encodeURIComponent(signaturaId)}`
+							: ''
 					}`}
 					className="text-sm font-semibold text-red-200">
 					Back to recovery
@@ -42,7 +45,10 @@ export default async function RecoveryCodePage({ searchParams }) {
 					registered.
 				</div>
 
-				<RecoveryCodeLoginForm initialEmail={email} nextPath={nextPath} />
+				<RecoveryCodeLoginForm
+					initialSignaturaId={signaturaId}
+					nextPath={nextPath}
+				/>
 			</section>
 		</main>
 	);

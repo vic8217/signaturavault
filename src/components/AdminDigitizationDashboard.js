@@ -98,7 +98,10 @@ export function AdminDigitizationDashboard() {
 	}
 
 	useEffect(() => {
-		loadTemplates();
+		const timer = setTimeout(() => {
+			loadTemplates();
+		}, 0);
+		return () => clearTimeout(timer);
 	}, []);
 
 	const issuerRows = useMemo(() => buildIssuerRows(templates), [templates]);

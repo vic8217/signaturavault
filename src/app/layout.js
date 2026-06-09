@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata = {
 	title: 'Signatura - Trust Every Document',
 	description:
-		'Zero-trust digital document issuance, verification, and blockchain anchoring platform.',
+		'Zero Trust Level 2 digital document issuance, verification, and blockchain anchoring platform.',
 	manifest: '/manifest.json',
 	icons: {
 		icon: '/signatura-logo.png',

@@ -174,6 +174,9 @@ class L2Publisher extends BlockchainPublisher {
 }
 
 function createPublisher(method = process.env.ANCHOR_PUBLISH_METHOD || 'mock') {
+	if (process.env.NODE_ENV === 'production' && method === 'mock') {
+		throw new Error('Mock anchoring is disabled in production');
+	}
 	if (method === 'opentimestamps') return new OpenTimestampsPublisher();
 	if (method === 'public_chain') return new BlockchainPublisher();
 	if (method === 'l2_chain') return new L2Publisher();
