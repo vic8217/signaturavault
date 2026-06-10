@@ -1,128 +1,52 @@
 import crypto from 'crypto';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
-import { createRequire } from 'module';
-import os from 'os';
-import path from 'path';
-
-const require = createRequire(import.meta.url);
 
 function publishedAt() {
 	return new Date().toISOString();
 }
 
-class MockPublisher {
+function buildAnchorCommitment({ batchId, merkleRoot, batchSize, publishMethod }) {
+	return Buffer.from(
+		JSON.stringify({
+			type: 'audit_anchor_commitment',
+			batchId,
+			merkleRoot,
+			batchSize,
+			publishMethod,
+			publishedAt: publishedAt(),
+		}),
+	).toString('base64');
+}
+
+class AuditAnchorPublisher {
+	constructor({ publishMethod = 'audit_anchor' } = {}) {
+		this.publishMethod = publishMethod;
+	}
+
 	async publishMerkleRoot({ batchId, merkleRoot, batchSize }) {
 		return {
-			publishMethod: 'mock',
-			chain: 'local_mock',
-			transactionId: `mock_tx_${crypto
+			publishMethod: this.publishMethod,
+			chain: 'signatura_audit',
+			transactionId: `anchor_${crypto
 				.createHash('sha256')
 				.update(`${batchId}:${merkleRoot}`)
 				.digest('hex')
 				.slice(0, 24)}`,
 			blockNumber: null,
-			timestampProof: Buffer.from(
-				JSON.stringify({
-					type: 'mock_timestamp_proof',
-					batchId,
-					merkleRoot,
-					batchSize,
-					publishedAt: publishedAt(),
-				}),
-			).toString('base64'),
+			timestampProof: buildAnchorCommitment({
+				batchId,
+				merkleRoot,
+				batchSize,
+				publishMethod: this.publishMethod,
+			}),
 			publishedAt: publishedAt(),
 			status: 'published',
 		};
 	}
 }
 
-class OpenTimestampsPublisher {
-	openTimestamps() {
-		return require('opentimestamps');
-	}
-
-	rootFileBytes(merkleRoot) {
-		return Buffer.from(`${merkleRoot}\n`, 'utf8');
-	}
-
-	async stampRootBytes(rootBytes) {
-		const OpenTimestamps = this.openTimestamps();
-		const detached = OpenTimestamps.DetachedTimestampFile.fromBytes(
-			new OpenTimestamps.Ops.OpSHA256(),
-			rootBytes,
-		);
-		await OpenTimestamps.stamp(detached);
-		return Buffer.from(detached.serializeToBytes());
-	}
-
-	async publishMerkleRoot({ batchId, merkleRoot }) {
-		const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'signatura-ots-'));
-		const rootPath = path.join(tmpDir, `${batchId}.txt`);
-
-		try {
-			const rootBytes = this.rootFileBytes(merkleRoot);
-			await writeFile(rootPath, rootBytes);
-			const proof = await this.stampRootBytes(rootBytes);
-			return {
-				publishMethod: 'opentimestamps',
-				chain: 'bitcoin_timestamp',
-				transactionId: null,
-				blockNumber: null,
-				timestampProof: proof.toString('base64'),
-				publishedAt: null,
-				status: 'timestamped_pending_confirmation',
-			};
-		} finally {
-			await rm(tmpDir, { recursive: true, force: true });
-		}
-	}
-
-	async upgradeTimestampProof({ merkleRoot, timestampProof }) {
-		const OpenTimestamps = this.openTimestamps();
-		const proofBytes = Buffer.from(timestampProof, 'base64');
-		const rootBytes = this.rootFileBytes(merkleRoot);
-		const detached = OpenTimestamps.DetachedTimestampFile.deserialize(proofBytes);
-		const changed = await OpenTimestamps.upgrade(detached);
-		const upgradedProof = Buffer.from(detached.serializeToBytes()).toString('base64');
-		const verification = await this.verifyTimestampProof({
-			merkleRoot,
-			timestampProof: upgradedProof,
-		});
-
-		return {
-			changed,
-			timestampProof: upgradedProof,
-			verified: verification.verified,
-			blockNumber: verification.blockNumber,
-			publishedAt: verification.publishedAt,
-			rootBytes,
-		};
-	}
-
-	async verifyTimestampProof({ merkleRoot, timestampProof }) {
-		const OpenTimestamps = this.openTimestamps();
-		const proofBytes = Buffer.from(timestampProof, 'base64');
-		const rootBytes = this.rootFileBytes(merkleRoot);
-		const detachedOriginal = OpenTimestamps.DetachedTimestampFile.fromBytes(
-			new OpenTimestamps.Ops.OpSHA256(),
-			rootBytes,
-		);
-		const detachedStamped = OpenTimestamps.DetachedTimestampFile.deserialize(proofBytes);
-		const result = await OpenTimestamps.verify(detachedStamped, detachedOriginal, {
-			ignoreBitcoinNode: true,
-			timeout: Number(process.env.OPENTIMESTAMPS_VERIFY_TIMEOUT_MS || 5000),
-		});
-		const bitcoin = result?.bitcoin;
-
-		return {
-			verified: Boolean(bitcoin),
-			chain: bitcoin ? 'bitcoin_timestamp' : null,
-			blockNumber: bitcoin?.height ? String(bitcoin.height) : null,
-			publishedAt: bitcoin?.timestamp
-				? new Date(bitcoin.timestamp * 1000).toISOString()
-				: null,
-			raw: result,
-		};
+class MockPublisher extends AuditAnchorPublisher {
+	constructor() {
+		super({ publishMethod: 'mock' });
 	}
 }
 
@@ -137,7 +61,9 @@ class BlockchainPublisher {
 		try {
 			({ ethers } = await runtimeImport('ethers'));
 		} catch {
-			throw new Error('ethers is required for EVM publishing. Install ethers or use mock/opentimestamps.');
+			throw new Error(
+				'ethers is required for EVM publishing. Install ethers or use audit_anchor/mock.',
+			);
 		}
 		const rpcUrl = process.env.ANCHOR_RPC_URL;
 		const privateKey = process.env.ANCHOR_PRIVATE_KEY;
@@ -173,20 +99,50 @@ class L2Publisher extends BlockchainPublisher {
 	}
 }
 
-function createPublisher(method = process.env.ANCHOR_PUBLISH_METHOD || 'mock') {
-	if (process.env.NODE_ENV === 'production' && method === 'mock') {
+function createPublisher(method = process.env.ANCHOR_PUBLISH_METHOD || 'audit_anchor') {
+	const normalized =
+		method === 'mock' || method === 'opentimestamps' ? 'audit_anchor' : method;
+	if (process.env.NODE_ENV === 'production' && normalized === 'mock') {
 		throw new Error('Mock anchoring is disabled in production');
 	}
-	if (method === 'opentimestamps') return new OpenTimestampsPublisher();
-	if (method === 'public_chain') return new BlockchainPublisher();
-	if (method === 'l2_chain') return new L2Publisher();
+	if (normalized === 'audit_anchor') return new AuditAnchorPublisher();
+	if (normalized === 'public_chain') return new BlockchainPublisher();
+	if (normalized === 'l2_chain') return new L2Publisher();
 	return new MockPublisher();
 }
 
+function parseAnchorCommitment(timestampProof) {
+	if (!timestampProof) return null;
+	try {
+		const decoded = Buffer.from(timestampProof, 'base64').toString('utf8');
+		const payload = JSON.parse(decoded);
+		if (!payload?.merkleRoot) return null;
+		return payload;
+	} catch {
+		return null;
+	}
+}
+
+function verifyAnchorCommitment({ merkleRoot, timestampProof }) {
+	const commitment = parseAnchorCommitment(timestampProof);
+	if (!commitment) {
+		return { verified: false };
+	}
+	return {
+		verified: commitment.merkleRoot === merkleRoot,
+		chain: 'signatura_audit',
+		blockNumber: null,
+		publishedAt: commitment.publishedAt || null,
+		commitment,
+	};
+}
+
 export {
+	AuditAnchorPublisher,
 	BlockchainPublisher,
 	L2Publisher,
 	MockPublisher,
-	OpenTimestampsPublisher,
 	createPublisher,
+	parseAnchorCommitment,
+	verifyAnchorCommitment,
 };

@@ -62,8 +62,10 @@ function getAdminSummary(db) {
 		anchoredDocuments: documents.filter(
 			(record) => record.anchor_status === 'published',
 		).length,
-		otsPending: batches.filter(
-			(batch) => batch.status === 'timestamped_pending_confirmation',
+		anchorPending: batches.filter(
+			(batch) =>
+				batch.status === 'timestamped_pending_confirmation' ||
+				batch.status === 'publishing',
 		).length,
 		publishedBatches: batches.filter((batch) => batch.status === 'published')
 			.length,
@@ -99,9 +101,9 @@ export default async function AdminDashboard() {
 		},
 		{
 			icon: 'scanner',
-			label: 'OTS Pending',
-			value: summary.otsPending,
-			helper: 'Timestamp proofs created but not yet Bitcoin-confirmed.',
+			label: 'Anchor Pending',
+			value: summary.anchorPending,
+			helper: 'Merkle batches waiting to finish publishing.',
 		},
 		{
 			icon: 'shield',
@@ -153,7 +155,7 @@ export default async function AdminDashboard() {
 							Anchoring
 						</p>
 						<h2 className="mt-3 text-2xl font-bold text-white">
-							Merkle and OTS status
+							Merkle and anchor status
 						</h2>
 					</div>
 					<a

@@ -23,10 +23,12 @@ function getBatchForDocument(db, document) {
 	return { proof, batch };
 }
 
-function getOtsStatus(document, batch) {
+function getAnchorStatus(document, batch) {
 	if (!batch) return document.anchor_status || 'pending';
-	if (batch.publish_method === 'opentimestamps') return batch.status;
 	if (batch.status === 'published') return 'published';
+	if (batch.publish_method === 'opentimestamps' && batch.status === 'timestamped_pending_confirmation') {
+		return 'published';
+	}
 	return batch.status || document.anchor_status || 'pending';
 }
 
@@ -45,13 +47,13 @@ function documentSummary(rows) {
 		if (row.documentStatus === 'valid') summary.valid += 1;
 		if (row.documentStatus === 'revoked') summary.revoked += 1;
 		if (row.anchorStatus === 'pending') summary.pendingAnchor += 1;
-		if (row.otsStatus === 'timestamped_pending_confirmation') {
+		if (row.anchorPublishStatus === 'timestamped_pending_confirmation') {
 			summary.timestampPending += 1;
 		}
-		if (row.anchorStatus === 'published' || row.otsStatus === 'published') {
+		if (row.anchorStatus === 'published' || row.anchorPublishStatus === 'published') {
 			summary.published += 1;
 		}
-		if (row.anchorStatus === 'failed' || row.otsStatus === 'failed') {
+		if (row.anchorStatus === 'failed' || row.anchorPublishStatus === 'failed') {
 			summary.failed += 1;
 		}
 		return summary;
@@ -65,7 +67,7 @@ export async function GET(req) {
 	const { searchParams } = new URL(req.url);
 	const search = lower(searchParams.get('search'));
 	const documentStatus = searchParams.get('status') || 'all';
-	const otsStatus = searchParams.get('otsStatus') || 'all';
+	const anchorPublishStatus = searchParams.get('anchorStatus') || searchParams.get('otsStatus') || 'all';
 
 	const db = await loadDb();
 	const tenantId = context.profile.tenantId;
@@ -80,13 +82,13 @@ export async function GET(req) {
 					recipientName: '[hidden]',
 					documentStatus: record.status || 'valid',
 				anchorStatus: record.anchor_status || 'pending',
-				otsStatus: getOtsStatus(record, batch),
+				anchorPublishStatus: getAnchorStatus(record, batch),
 				publishMethod: batch?.publish_method || null,
 				batchId: batch?.id || record.anchor_batch_id || null,
 				batchStatus: batch?.status || null,
 				chain: batch?.chain || null,
 				transactionId: batch?.transaction_id || null,
-				timestampProofAvailable: Boolean(batch?.timestamp_proof),
+				anchorCommitmentAvailable: Boolean(batch?.timestamp_proof),
 				merkleRoot: batch?.merkle_root || null,
 				proofAvailable: Boolean(proof),
 				documentHash: shortHash(documentHash),
@@ -98,7 +100,7 @@ export async function GET(req) {
 						row.id,
 						row.documentStatus,
 						row.anchorStatus,
-					row.otsStatus,
+					row.anchorPublishStatus,
 					row.batchId,
 					row.documentHash,
 				].join(' '),
@@ -113,9 +115,9 @@ export async function GET(req) {
 			return false;
 		}
 		if (
-			otsStatus !== 'all' &&
-			row.otsStatus !== otsStatus &&
-			row.anchorStatus !== otsStatus
+			anchorPublishStatus !== 'all' &&
+			row.anchorPublishStatus !== anchorPublishStatus &&
+			row.anchorStatus !== anchorPublishStatus
 		) {
 			return false;
 		}

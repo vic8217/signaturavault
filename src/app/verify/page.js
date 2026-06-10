@@ -37,7 +37,7 @@ export default function VerifyDocument() {
 								signature
 							</li>
 							<li>✓ Revocation status is confirmed</li>
-							<li>✓ Blockchain anchor is validated if available</li>
+							<li>✓ Audit anchor and Merkle proof are validated if available</li>
 							<li>✓ Issuer details and issue date are displayed</li>
 						</ul>
 					</div>

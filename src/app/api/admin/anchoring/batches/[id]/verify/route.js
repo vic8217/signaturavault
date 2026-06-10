@@ -1,8 +1,8 @@
 import { withDb } from '@/lib/db';
 import { requireAdminRole } from '@/lib/admin-auth';
 import {
+	verifyBatchPublicCommitment,
 	verifyDocumentMerkleProof,
-	verifyOpenTimestampsBatchProof,
 } from '@/lib/anchoring/batchService';
 
 export async function POST(_req, { params }) {
@@ -29,25 +29,10 @@ export async function POST(_req, { params }) {
 				valid: Boolean(result.valid),
 			};
 		});
-		let publicCommitmentValid = Boolean(
-			batch.status === 'published' &&
-				batch.transaction_id &&
-				batch.chain &&
-				batch.block_number,
+		const anchorVerification = verifyBatchPublicCommitment(batch);
+		const publicCommitmentValid = Boolean(
+			proofResults.every((result) => result.valid) && anchorVerification.verified,
 		);
-		let opentimestampsVerification = null;
-		if (batch.status === 'published' && batch.publish_method === 'mock') {
-			publicCommitmentValid = Boolean(batch.timestamp_proof);
-		}
-		if (batch.publish_method === 'opentimestamps' && batch.timestamp_proof) {
-			opentimestampsVerification = await verifyOpenTimestampsBatchProof(batch).catch((error) => ({
-				verified: false,
-				error: error instanceof Error ? error.message : 'OpenTimestamps verification failed',
-			}));
-			publicCommitmentValid = Boolean(
-				batch.status === 'published' && opentimestampsVerification.verified,
-			);
-		}
 
 		return Response.json({
 			batchId: batch.id,
@@ -57,7 +42,7 @@ export async function POST(_req, { params }) {
 			validProofCount: proofResults.filter((result) => result.valid).length,
 			merkleProofsValid: proofResults.every((result) => result.valid),
 			publicCommitmentValid,
-			opentimestampsVerification,
+			anchorVerification,
 			proofResults,
 		});
 	});

@@ -11,11 +11,11 @@ const documentStatusOptions = [
 	{ value: 'superseded', label: 'Superseded' },
 ];
 
-const otsStatusOptions = [
-	{ value: 'all', label: 'All OTS statuses' },
+const anchorStatusOptions = [
+	{ value: 'all', label: 'All anchor statuses' },
 	{ value: 'pending', label: 'Pending anchor' },
 	{ value: 'batched', label: 'Batched' },
-	{ value: 'timestamped_pending_confirmation', label: 'OTS pending confirmation' },
+	{ value: 'timestamped_pending_confirmation', label: 'Legacy anchor pending' },
 	{ value: 'published', label: 'Published' },
 	{ value: 'failed', label: 'Failed' },
 ];
@@ -29,7 +29,7 @@ const statusLabels = {
 	batched: 'Batched',
 	published: 'Published',
 	failed: 'Failed',
-	timestamped_pending_confirmation: 'OTS pending confirmation',
+	timestamped_pending_confirmation: 'Legacy anchor pending',
 	created: 'Created',
 	publishing: 'Publishing',
 };
@@ -104,7 +104,7 @@ export function IssuerDocumentSummary() {
 	});
 	const [search, setSearch] = useState('');
 	const [documentStatus, setDocumentStatus] = useState('all');
-	const [otsStatus, setOtsStatus] = useState('all');
+	const [anchorPublishStatus, setAnchorPublishStatus] = useState('all');
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState('');
 
@@ -112,9 +112,9 @@ export function IssuerDocumentSummary() {
 		const params = new URLSearchParams();
 		if (search.trim()) params.set('search', search.trim());
 		if (documentStatus !== 'all') params.set('status', documentStatus);
-		if (otsStatus !== 'all') params.set('otsStatus', otsStatus);
+		if (anchorPublishStatus !== 'all') params.set('anchorStatus', anchorPublishStatus);
 		return params.toString();
-	}, [search, documentStatus, otsStatus]);
+	}, [search, documentStatus, anchorPublishStatus]);
 
 	useEffect(() => {
 		let ignore = false;
@@ -150,11 +150,11 @@ export function IssuerDocumentSummary() {
 						Issued Documents
 					</p>
 					<h2 className="mt-3 text-2xl font-bold text-white">
-						Document issuance and OTS status
+						Document issuance and anchor status
 					</h2>
 					<p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-						Track issued records, revocation state, Merkle inclusion, and
-						OpenTimestamps confirmation from the issuer dashboard.
+						Track issued records, revocation state, Merkle inclusion, and audit
+						anchor commitments from the issuer dashboard.
 					</p>
 				</div>
 				<p className="text-sm text-slate-400">
@@ -173,7 +173,7 @@ export function IssuerDocumentSummary() {
 				/>
 				<SummaryTile
 					icon="scanner"
-					label="OTS pending"
+					label="Anchor pending"
 					value={summary.timestampPending}
 					tone="amber"
 				/>
@@ -212,13 +212,13 @@ export function IssuerDocumentSummary() {
 					</label>
 					<label className="block">
 						<span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-							OTS status
+							Anchor status
 						</span>
 						<select
-							value={otsStatus}
-							onChange={(event) => setOtsStatus(event.target.value)}
+							value={anchorPublishStatus}
+							onChange={(event) => setAnchorPublishStatus(event.target.value)}
 							className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-red-400">
-							{otsStatusOptions.map((option) => (
+							{anchorStatusOptions.map((option) => (
 								<option key={option.value} value={option.value}>
 									{option.label}
 								</option>
@@ -241,7 +241,7 @@ export function IssuerDocumentSummary() {
 									<th className="px-4 py-3">Document</th>
 									<th className="px-4 py-3">Recipient</th>
 									<th className="px-4 py-3">Document status</th>
-									<th className="px-4 py-3">OTS status</th>
+									<th className="px-4 py-3">Anchor status</th>
 									<th className="px-4 py-3">Batch</th>
 									<th className="px-4 py-3">Hash</th>
 									<th className="px-4 py-3">Issued</th>
@@ -272,14 +272,14 @@ export function IssuerDocumentSummary() {
 										<td className="px-4 py-4">
 											<span
 												className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusClass(
-													document.otsStatus,
+													document.anchorPublishStatus,
 												)}`}>
-												{formatStatus(document.otsStatus)}
+												{formatStatus(document.anchorPublishStatus)}
 											</span>
 											<p className="mt-2 text-xs text-slate-500">
 												{document.publishMethod
 													? `${document.publishMethod}${
-															document.timestampProofAvailable ? ' proof ready' : ''
+															document.anchorCommitmentAvailable ? ' anchor ready' : ''
 														}`
 													: formatStatus(document.anchorStatus)}
 											</p>

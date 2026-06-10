@@ -18,7 +18,7 @@ function batchSummary(db, batch) {
 		chain: batch.chain,
 		transactionId: batch.transaction_id,
 		blockNumber: batch.block_number,
-		timestampProofAvailable: Boolean(batch.timestamp_proof),
+		anchorCommitmentAvailable: Boolean(batch.timestamp_proof),
 		publishedAt: batch.published_at,
 		createdAt: batch.created_at,
 		updatedAt: batch.updated_at,

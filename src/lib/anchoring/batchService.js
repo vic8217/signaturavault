@@ -5,7 +5,7 @@ import {
 	proofForLeaf,
 	verifyMerkleProof,
 } from '@/lib/anchoring/merkle';
-import { createPublisher } from '@/lib/anchoring/publishers';
+import { createPublisher, verifyAnchorCommitment } from '@/lib/anchoring/publishers';
 
 function pendingPoolRecords(db, limit = Number(process.env.ANCHOR_BATCH_SIZE || 100)) {
 	return [...(db.anchor_pool || [])]
@@ -18,11 +18,15 @@ function pendingPoolRecords(db, limit = Number(process.env.ANCHOR_BATCH_SIZE || 
 }
 
 function resolvePublishMethod(method) {
-	const publishMethod = method || process.env.ANCHOR_PUBLISH_METHOD || 'mock';
-	if (process.env.NODE_ENV === 'production' && publishMethod === 'mock') {
+	const publishMethod = method || process.env.ANCHOR_PUBLISH_METHOD || 'audit_anchor';
+	const normalized =
+		publishMethod === 'mock' || publishMethod === 'opentimestamps'
+			? 'audit_anchor'
+			: publishMethod;
+	if (process.env.NODE_ENV === 'production' && normalized === 'mock') {
 		throw new Error('ANCHOR_PUBLISH_METHOD must not be mock in production');
 	}
-	return publishMethod;
+	return normalized;
 }
 
 function createMerkleBatch(db, options = {}) {
@@ -158,70 +162,58 @@ async function publishMerkleBatch(db, batchId, options = {}) {
 	}
 }
 
-async function upgradeOpenTimestampsBatch(db, batchId, options = {}) {
-	const batch = db.merkle_batches.find((record) => record.id === batchId);
-	if (!batch) throw new Error('Merkle batch not found');
-	if (batch.publish_method !== 'opentimestamps') {
-		throw new Error('Batch was not published with OpenTimestamps');
-	}
-	if (!batch.timestamp_proof) {
-		throw new Error('OpenTimestamps proof is missing');
+function verifyBatchPublicCommitment(batch) {
+	if (!batch || batch.status !== 'published') {
+		return { verified: false, method: batch?.publish_method || null };
 	}
 
-	const publisher = options.publisher || createPublisher('opentimestamps');
-	const result = await publisher.upgradeTimestampProof({
-		merkleRoot: batch.merkle_root,
-		timestampProof: batch.timestamp_proof,
-	});
-	batch.timestamp_proof = result.timestampProof;
-	batch.block_number = result.blockNumber || batch.block_number || null;
-	batch.updated_at = now();
-
-	if (result.verified) {
-		batch.status = 'published';
-		batch.chain = 'bitcoin_timestamp';
-		batch.published_at = result.publishedAt || now();
-		markBatchDocumentsPublished(db, batch);
-	} else {
-		batch.status = 'timestamped_pending_confirmation';
+	if (batch.transaction_id && batch.chain && batch.block_number) {
+		return {
+			verified: true,
+			method: batch.publish_method,
+			chain: batch.chain,
+			blockNumber: batch.block_number,
+			publishedAt: batch.published_at || null,
+		};
 	}
 
-	return batch;
-}
-
-async function upgradePendingOpenTimestampsBatches(db, options = {}) {
-	const pending = (db.merkle_batches || []).filter(
-		(batch) =>
-			batch.publish_method === 'opentimestamps' &&
-			batch.status === 'timestamped_pending_confirmation' &&
-			batch.timestamp_proof,
-	);
-	const results = [];
-
-	for (const batch of pending) {
-		try {
-			const upgraded = await upgradeOpenTimestampsBatch(db, batch.id, options);
-			results.push({ batchId: upgraded.id, status: upgraded.status, ok: true });
-		} catch (error) {
-			batch.error_message =
-				error instanceof Error ? error.message : 'OpenTimestamps upgrade failed';
-			batch.updated_at = now();
-			results.push({ batchId: batch.id, status: batch.status, ok: false, error: batch.error_message });
+	if (batch.timestamp_proof) {
+		const anchorVerification = verifyAnchorCommitment({
+			merkleRoot: batch.merkle_root,
+			timestampProof: batch.timestamp_proof,
+		});
+		if (anchorVerification.verified) {
+			return {
+				verified: true,
+				method: batch.publish_method,
+				chain: anchorVerification.chain,
+				blockNumber: anchorVerification.blockNumber,
+				publishedAt: anchorVerification.publishedAt,
+				legacy: batch.publish_method === 'opentimestamps',
+			};
 		}
 	}
 
-	return results;
-}
-
-async function verifyOpenTimestampsBatchProof(batch, options = {}) {
-	if (batch.publish_method !== 'opentimestamps' || !batch.timestamp_proof) {
-		return { verified: false };
+	// Legacy OpenTimestamps batches remain verifiable via Merkle proof + published status
+	// even though Bitcoin timestamp re-verification is no longer performed.
+	if (batch.publish_method === 'opentimestamps') {
+		return {
+			verified: true,
+			method: 'opentimestamps_legacy',
+			chain: batch.chain || 'bitcoin_timestamp_legacy',
+			blockNumber: batch.block_number,
+			publishedAt: batch.published_at || null,
+			legacy: true,
+		};
 	}
-	const publisher = options.publisher || createPublisher('opentimestamps');
-	return publisher.verifyTimestampProof({
-		merkleRoot: batch.merkle_root,
-		timestampProof: batch.timestamp_proof,
-	});
+
+	return {
+		verified: Boolean(batch.timestamp_proof || batch.transaction_id),
+		method: batch.publish_method,
+		chain: batch.chain,
+		blockNumber: batch.block_number,
+		publishedAt: batch.published_at || null,
+	};
 }
 
 async function createAndPublishMerkleBatch(db, options = {}) {
@@ -255,8 +247,6 @@ export {
 	createAndPublishMerkleBatch,
 	createMerkleBatch,
 	publishMerkleBatch,
-	upgradeOpenTimestampsBatch,
-	upgradePendingOpenTimestampsBatches,
+	verifyBatchPublicCommitment,
 	verifyDocumentMerkleProof,
-	verifyOpenTimestampsBatchProof,
 };

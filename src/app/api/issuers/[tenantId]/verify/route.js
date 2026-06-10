@@ -2,8 +2,8 @@ import { authenticateApiRequest } from '@/lib/auth';
 import { withDb, generateId, now } from '@/lib/db';
 import { redactedDocumentVerification, safeApiLogEntry } from '@/lib/security';
 import {
+	verifyBatchPublicCommitment,
 	verifyDocumentMerkleProof,
-	verifyOpenTimestampsBatchProof,
 } from '@/lib/anchoring/batchService';
 
 export async function GET(req, { params }) {
@@ -36,19 +36,10 @@ export async function GET(req, { params }) {
 			db,
 			record,
 		);
-		const batchPublished = batch?.status === 'published';
-		let publicCommitmentValid = Boolean(
-			batchPublished && batch.transaction_id && batch.chain && batch.block_number,
+		const commitmentVerification = batch ? verifyBatchPublicCommitment(batch) : { verified: false };
+		const publicCommitmentValid = Boolean(
+			merkleProofValid && commitmentVerification.verified,
 		);
-		if (batchPublished && batch.publish_method === 'mock') {
-			publicCommitmentValid = Boolean(batch.timestamp_proof);
-		}
-		if (batchPublished && batch.publish_method === 'opentimestamps') {
-			const otsVerification = await verifyOpenTimestampsBatchProof(batch).catch(() => ({
-				verified: false,
-			}));
-			publicCommitmentValid = Boolean(otsVerification.verified);
-		}
 		const documentStatus = record.status || 'valid';
 		const tokenRow = db.verification_tokens.find(
 			(item) => item.token === token && item.document_record_id === record.id,
@@ -103,12 +94,13 @@ export async function GET(req, { params }) {
 				merkleProofValid,
 				publicCommitmentValid,
 				publishMethod: batch.publish_method,
-				chain: batch.chain,
+				chain: commitmentVerification.chain || batch.chain,
 				batchId: batch.id,
 				merkleRoot: batch.merkle_root,
 				transactionId: batch.transaction_id,
-				blockNumber: batch.block_number,
-				timestampProofAvailable: Boolean(batch.timestamp_proof),
+				blockNumber: commitmentVerification.blockNumber || batch.block_number,
+				anchorCommitmentAvailable: Boolean(batch.timestamp_proof),
+				legacyAnchor: Boolean(commitmentVerification.legacy),
 				...redactedDocumentVerification(record),
 				status,
 				qrToken: record.qr_token,

@@ -40,7 +40,7 @@ function AdminAnchoringPanel() {
 		return () => clearTimeout(timer);
 	}, []);
 
-	async function createBatch(publishMethod = 'mock') {
+	async function createBatch(publishMethod = 'audit_anchor') {
 		setIsBusy(true);
 		setStatus('Creating and publishing Merkle batch...');
 		setError('');
@@ -70,7 +70,7 @@ function AdminAnchoringPanel() {
 			const response = await fetch(`/api/admin/anchoring/batches/${batchId}/retry`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ publishMethod: 'mock' }),
+				body: JSON.stringify({ publishMethod: 'audit_anchor' }),
 			});
 			const body = await response.json();
 			if (!response.ok) throw new Error(body.error || 'Unable to retry batch');
@@ -102,32 +102,6 @@ function AdminAnchoringPanel() {
 		}
 	}
 
-	async function upgradeOpenTimestamps() {
-		setIsBusy(true);
-		setStatus('Checking pending OpenTimestamps proofs...');
-		setError('');
-		try {
-			const response = await fetch('/api/admin/anchoring/opentimestamps/upgrade', {
-				method: 'POST',
-			});
-			const body = await response.json();
-			if (!response.ok) {
-				throw new Error(body.error || 'Unable to upgrade OpenTimestamps proofs');
-			}
-			setStatus(
-				`Checked ${body.checked} OpenTimestamps batch${
-					body.checked === 1 ? '' : 'es'
-				}; ${body.upgraded} confirmed.`,
-			);
-			await loadAnchoring();
-		} catch (upgradeError) {
-			setError(upgradeError.message);
-			setStatus('');
-		} finally {
-			setIsBusy(false);
-		}
-	}
-
 	return (
 		<div className="space-y-6">
 			<section className="grid gap-4 sm:grid-cols-3">
@@ -151,29 +125,15 @@ function AdminAnchoringPanel() {
 						<h2 className="text-xl font-bold text-white">Merkle batch controls</h2>
 						<p className="mt-2 text-sm leading-6 text-slate-300">
 							Create a batch from pending document hashes and publish only the
-							Merkle root or timestamp proof.
+							Merkle root and audit anchor commitment.
 						</p>
 					</div>
 					<button
 						type="button"
-						onClick={() => createBatch('mock')}
+						onClick={() => createBatch('audit_anchor')}
 						disabled={isBusy || data.pendingAnchorCount === 0}
 						className="rounded-lg bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-600 disabled:bg-slate-700">
-						Create Mock Batch
-					</button>
-					<button
-						type="button"
-						onClick={() => createBatch('opentimestamps')}
-						disabled={isBusy || data.pendingAnchorCount === 0}
-						className="rounded-lg border border-white/15 px-4 py-2 text-sm font-bold text-white transition hover:border-red-400 hover:text-red-200 disabled:text-slate-500">
-						Create OTS Batch
-					</button>
-					<button
-						type="button"
-						onClick={upgradeOpenTimestamps}
-						disabled={isBusy}
-						className="rounded-lg border border-white/15 px-4 py-2 text-sm font-bold text-white transition hover:border-red-400 hover:text-red-200">
-						Upgrade OTS Proofs
+						Create Anchor Batch
 					</button>
 				</div>
 				{status ? (
@@ -238,8 +198,8 @@ function AdminAnchoringPanel() {
 									<td className="px-4 py-3 text-xs text-slate-300">
 										{batch.transactionId
 											? shortValue(batch.transactionId)
-											: batch.timestampProofAvailable
-												? 'timestamp proof'
+											: batch.anchorCommitmentAvailable
+												? 'anchor record'
 												: 'none'}
 									</td>
 									<td className="px-4 py-3">
