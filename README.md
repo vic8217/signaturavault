@@ -89,12 +89,27 @@ connection string before running `npm run db:migrate`.
 The user security flow uses WebAuthn/passkeys through `@simplewebauthn/server`
 and `@simplewebauthn/browser`.
 
+Owner portal routes:
+
+- `GET /signatura/dashboard`
+- `GET /signatura/documents`
+- `GET /signatura/trusted-devices`
+- `GET /signatura/trusted-devices/add`
+- `GET /signatura/trusted-devices/add-passkey`
+- `GET /signatura/settings`
+- `GET /signatura/settings/security`
+- `GET /signatura/settings/recovery-codes`
+
+Issuer portal routes:
+
+- `GET /issuer`
+- `GET /issuer/onboarding`
+- `GET /issuer/activate`
+- `GET /login?next=/issuer`
 - `GET /register`
-- `GET /login`
-- `GET /security/devices`
-- `GET /security/add-device`
-- `GET /security/add-passkey`
-- `GET /security/recovery-codes`
+
+Legacy `/wallet/*`, `/security/*`, and `/issuer-portal/*` URLs redirect to the
+canonical `/signatura/*` and `/issuer/*` routes during the migration soak period.
 
 Signatura never receives or stores fingerprint or face data. The device keeps
 biometrics locally and the app stores only credential IDs, public keys, counters,

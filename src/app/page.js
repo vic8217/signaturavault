@@ -1,13 +1,27 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { LoginModal } from '@/components/LoginModal';
+import { HomeLoginModal } from '@/components/HomeLoginModal';
 import { useCases } from '@/lib/use-cases';
+import {
+	FileText,
+	LockKeyhole,
+	KeyRound,
+	Smartphone,
+	QrCode,
+	UserCheck,
+	Eye,
+	ShieldCheck,
+	ClipboardCheck,
+	Building2,
+	UserRound,
+	CheckCircle2,
+} from 'lucide-react';
 
 const navItems = [
 	['Home', '#home'],
 	['For Issuers', '#issuers'],
 	['For Users', '#users'],
-	['Security', '#security'],
+	['Security', '#security-items'],
 	['How It Works', '#how-it-works'],
 	['Use Cases', '#use-cases'],
 	['Contact', '#contact'],
@@ -22,53 +36,86 @@ const trustBadges = [
 
 const securityItems = [
 	{
-		icon: 'identity',
+		icon: ShieldCheck,
 		title: 'Zero Trust Level 2 Design',
-		text: 'Users are authenticated, access is limited by role and tenant, and important access or changes are logged.',
+		description:
+			'Every user, device, and request must be verified. Access is limited by role, tenant, and approval status.',
 	},
 	{
-		icon: 'lock',
+		icon: LockKeyhole,
 		title: 'Encrypted Private Fields',
-		text: 'Sensitive private fields are encrypted before database storage. The database should not expose readable private information.',
+		description:
+			'Full name, email, phone number, and sensitive records are encrypted before database storage.',
 	},
 	{
-		icon: 'blocks',
-		title: 'Private Blockchain Anchoring',
-		text: 'Tamper-evident document hashes are anchored privately. The actual document stays off-chain.',
+		icon: Smartphone,
+		title: 'Trusted Device Approval',
+		description:
+			'Important access, login, and verification actions require approval from a registered trusted device.',
 	},
 	{
-		icon: 'qr',
+		icon: QrCode,
 		title: 'QR Verification',
-		text: 'Every document can carry a QR code that confirms authenticity, validity, revocation, and expiry.',
+		description:
+			'QR codes confirm authenticity, validity, expiry, and revocation directly from the issuer record.',
 	},
 ];
 
 const issuerBenefits = [
 	'Reduce fake document risk',
-	'Faster verification',
-	'Protect issuer reputation',
-	'Control document issuance',
-	'Revoke or update status',
+	'Encrypt sensitive records',
+	'Control issuance and revocation',
+	'Verify every access request',
 	'Connect existing systems via API',
+	'Keep audit logs for important actions',
 ];
 
 const userBenefits = [
-	'View official documents',
-	'Share securely',
+	'View official documents securely',
+	'Approve sharing from trusted device',
 	'Avoid carrying physical copies',
-	'Prove authenticity instantly',
 	'Keep verified records in one app',
-	'Present QR-verifiable documents anywhere',
+	'Prove authenticity instantly',
+	'Share only with time-limited access',
 ];
 
-const workSteps = [
-	['document', 'Issuer creates or uploads document record'],
-	['lock', 'Sensitive private fields are encrypted'],
-	['hash', 'A hash is generated'],
-	['blocks', 'Hash is anchored to private blockchain'],
-	['qr', 'QR code is attached to the document'],
-	['identity', 'Owner views it in Signatura'],
-	['shield', 'Verifier scans QR to confirm authenticity'],
+const steps = [
+	{
+		icon: FileText,
+		title: 'Issuer creates document record',
+	},
+	{
+		icon: LockKeyhole,
+		title: 'Sensitive fields are encrypted',
+	},
+	{
+		icon: KeyRound,
+		title: 'Encryption key stays outside provider access',
+	},
+	{
+		icon: ShieldCheck,
+		title: 'Hash is generated and anchored',
+	},
+	{
+		icon: QrCode,
+		title: 'QR code is attached to document',
+	},
+	{
+		icon: Eye,
+		title: 'Verifier requests access',
+	},
+	{
+		icon: Smartphone,
+		title: 'Owner approves using trusted device',
+	},
+	{
+		icon: UserCheck,
+		title: 'Temporary access token is issued',
+	},
+	{
+		icon: ClipboardCheck,
+		title: 'Access is verified and audit logged',
+	},
 ];
 
 function Icon({ name, className = 'h-6 w-6' }) {
@@ -234,15 +281,15 @@ export default function Home() {
 
 					<div className="flex items-center gap-2 sm:gap-3">
 						<Link
-							href="/login?next=/wallet"
+							href="/login?next=/signatura/dashboard"
 							className="rounded-xl border border-white/20 px-4 py-3 text-sm font-bold text-white transition hover:border-red-400 hover:text-red-300 sm:hidden">
 							Login
 						</Link>
 						<div className="hidden sm:block">
-							<LoginModal />
+							<HomeLoginModal />
 						</div>
 						<Link
-							href="/issuer-portal/onboarding"
+							href="/issuer/onboarding"
 							className="hidden rounded-xl bg-red-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_30px_rgba(239,68,68,0.35)] transition hover:bg-red-400 sm:inline-block sm:px-5">
 							Request Demo
 						</Link>
@@ -250,7 +297,7 @@ export default function Home() {
 				</div>
 			</nav>
 
-			<section className="mx-auto grid w-full max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:min-h-[calc(100vh-81px)] lg:grid-cols-[0.92fr_1.08fr] lg:px-10 lg:py-12 2xl:px-0">
+			<section className="mx-auto grid w-full max-w-7xl items-center gap-10 px-4 pb-12 pt-14 sm:px-6 sm:pb-16 sm:pt-16 lg:min-h-[calc(100vh-81px)] lg:grid-cols-[0.92fr_1.08fr] lg:px-10 lg:pb-20 lg:pt-20 2xl:px-0">
 				<div>
 					<div className="mb-6 h-1 w-16 rounded-full bg-red-500" />
 					<h1 className="max-w-2xl text-4xl font-black leading-[1.02] tracking-tight sm:text-5xl md:text-6xl">
@@ -259,34 +306,13 @@ export default function Home() {
 					</h1>
 					<p className="mt-7 max-w-xl text-lg leading-8 text-slate-300">
 						Signatura helps issuers protect, issue, and verify official
-						documents using Zero Trust Level 2 controls, QR verification, and
-						private blockchain anchoring.
+						documents using Zero Trust Level 2 controls. Sensitive information
+						remains encrypted while QR-based verification confirms authenticity
+						directly from the issuer.
 					</p>
-					<div className="mt-9 flex flex-col gap-4 sm:flex-row">
-						<Link
-							href="/issuer-portal/onboarding"
-							className="rounded-xl bg-red-500 px-7 py-4 text-center text-sm font-bold text-white shadow-[0_0_36px_rgba(239,68,68,0.34)] transition hover:bg-red-400">
-							Request Demo
-						</Link>
-						<Link
-							href="#how-it-works"
-							className="inline-flex items-center justify-center gap-3 rounded-xl border border-white/30 px-7 py-4 text-sm font-bold text-white transition hover:border-red-400 hover:text-red-300">
-							<Icon name="play" className="h-4 w-4" />
-							How It Works
-						</Link>
-					</div>
-					<div className="mt-12 grid grid-cols-2 gap-5 text-sm text-slate-200 sm:grid-cols-4">
-						{trustBadges.map(([icon, label]) => (
-							<div key={label} className="flex items-center gap-3">
-								<Icon name={icon} className="h-6 w-6 text-red-400" />
-								<span>{label}</span>
-							</div>
-						))}
-					</div>
 				</div>
 
 				<div className="relative min-h-105 lg:min-h-130">
-					<div className="absolute left-1/2 top-6 h-64 w-64 -translate-x-1/2 rounded-full border border-red-500/20 bg-slate-950/70 shadow-[0_0_90px_rgba(248,35,35,0.2)] sm:h-80 sm:w-80" />
 					<div className="absolute left-[6%] top-24 hidden h-52 w-44 rotate-[-8deg] rounded-4xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl md:block">
 						<div className="mb-5 grid h-16 w-16 place-items-center rounded-2xl border border-red-500/70 bg-red-500/10 text-red-400">
 							<Icon name="shield" className="h-9 w-9" />
@@ -298,16 +324,19 @@ export default function Home() {
 						</div>
 					</div>
 					<div className="relative mx-auto grid h-105 w-full max-w-160 place-items-center lg:h-130">
-						<div className="absolute inset-x-20 bottom-10 h-12 rounded-full bg-red-500/25 blur-2xl" />
-						<div className="relative grid h-64 w-64 place-items-center rounded-full border border-white/10 bg-[radial-gradient(circle,#152033_0%,#070d19_62%,transparent_63%)] shadow-[inset_0_0_80px_rgba(255,255,255,0.04)] sm:h-80 sm:w-80">
-							<Image
-								src="/signatura-logo.png"
-								alt="Signatura identity mark"
-								width={290}
-								height={340}
-								priority
-								className="h-52 w-auto object-contain drop-shadow-[0_0_34px_rgba(248,35,35,0.45)] sm:h-64"
-							/>
+						<div className="relative flex h-72 w-72 items-center justify-center sm:h-80 sm:w-80">
+							<div className="absolute inset-0 rounded-full border border-red-500/20 bg-slate-950/80 shadow-[0_0_90px_rgba(248,35,35,0.2)]" />
+							<div className="absolute bottom-2 h-12 w-40 rounded-full bg-red-500/25 blur-2xl" />
+							<div className="relative grid h-[88%] w-[88%] place-items-center rounded-full border border-white/10 bg-[radial-gradient(circle,#152033_0%,#070d19_62%,transparent_63%)] shadow-[inset_0_0_80px_rgba(255,255,255,0.04)]">
+								<Image
+									src="/signatura-logo.png"
+									alt="Signatura identity mark"
+									width={290}
+									height={340}
+									priority
+									className="h-[78%] w-[78%] object-contain drop-shadow-[0_0_34px_rgba(248,35,35,0.45)]"
+								/>
+							</div>
 						</div>
 					</div>
 					<div className="absolute right-0 top-16 hidden w-60 rounded-[1.75rem] border border-red-500/60 bg-red-500/5 p-6 shadow-[0_0_55px_rgba(248,35,35,0.2)] sm:block">
@@ -356,7 +385,9 @@ export default function Home() {
 							<CheckItem>Issue digital documents</CheckItem>
 							<CheckItem>Add QR verification</CheckItem>
 							<CheckItem>Anchor hashes to private blockchain</CheckItem>
-							<CheckItem>Store sensitive private fields as encrypted envelopes</CheckItem>
+							<CheckItem>
+								Store sensitive private fields as encrypted envelopes
+							</CheckItem>
 							<CheckItem>Allow third parties to verify authenticity</CheckItem>
 							<CheckItem>Log important access and status changes</CheckItem>
 						</ul>
@@ -380,117 +411,147 @@ export default function Home() {
 			</section>
 
 			<section
-				id="security"
-				className="w-full px-4 py-16 sm:px-6 lg:px-10 2xl:px-14">
-				<h2 className="text-center text-3xl font-black">
-					Security Built for <span className="text-red-500">Trust</span>
-				</h2>
-				<div className="mx-auto mt-3 h-1 w-16 rounded-full bg-red-500" />
-				<div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-					{securityItems.map((item) => (
-						<article
-							key={item.title}
-							className="border-white/10 px-6 lg:border-l first:lg:border-l-0">
-							<div className="mb-6 grid h-20 w-20 place-items-center rounded-full border border-red-500 bg-red-500/10 text-slate-100 shadow-[0_0_30px_rgba(248,35,35,0.24)]">
-								<Icon name={item.icon} className="h-10 w-10" />
-							</div>
-							<h3 className="text-lg font-bold">{item.title}</h3>
-							<p className="mt-3 text-sm leading-6 text-slate-300">
-								{item.text}
-							</p>
-						</article>
-					))}
+				id="security-items"
+				className="bg-[#061120] px-6 py-20 text-white">
+				<div className="mx-auto max-w-7xl">
+					<div className="mb-14 text-center">
+						<h2 className="text-3xl font-bold">
+							Security Built for <span className="text-[#ff3347]">Trust</span>
+						</h2>
+						<div className="mx-auto mt-4 h-1 w-16 rounded-full bg-[#ff3347]" />
+					</div>
+
+					<div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-4">
+						{securityItems.map((item, index) => {
+							const Icon = item.icon;
+
+							return (
+								<div
+									key={item.title}
+									className={`relative px-2 ${
+										index !== 0 ? 'lg:border-l lg:border-white/10 lg:pl-8' : ''
+									}`}>
+									<div className="mb-8 flex h-20 w-20 items-center justify-center rounded-full border border-[#ff3347] bg-[#170b1a]">
+										<Icon className="h-9 w-9 text-white" strokeWidth={2} />
+									</div>
+
+									<h3 className="mb-4 text-lg font-bold text-white">
+										{item.title}
+									</h3>
+
+									<p className="max-w-sm text-sm leading-7 text-slate-300">
+										{item.description}
+									</p>
+								</div>
+							);
+						})}
+					</div>
 				</div>
 			</section>
 
-			<section
-				id="issuers"
-				className="grid w-full gap-px overflow-hidden border-y border-white/10 bg-white/10 px-px md:grid-cols-2">
-				<div className="bg-[#071224] p-8 lg:p-10">
-					<h2 className="text-2xl font-black text-red-500">For Issuers</h2>
-					<p className="mt-2 text-lg">Protect your reputation. Take control.</p>
-					<div className="mt-7 grid gap-7 sm:grid-cols-[86px_1fr]">
-						<div className="grid h-20 w-20 place-items-center rounded-full border border-red-500 bg-red-500/10">
-							<Icon name="bank" className="h-11 w-11" />
-						</div>
-						<ul className="grid gap-3 sm:grid-cols-2">
-							{issuerBenefits.map((benefit) => (
-								<CheckItem key={benefit}>{benefit}</CheckItem>
-							))}
-						</ul>
-					</div>
-				</div>
+			<section className="border-y border-white/10 bg-[#061120] text-white">
+				<div className="grid grid-cols-1 lg:grid-cols-2">
+					<div
+						id="issuers"
+						className="border-b border-white/10 px-6 py-12 lg:border-b-0 lg:border-r lg:px-10">
+						<h2 className="text-2xl font-bold text-[#ff3347]">For Issuers</h2>
+						<p className="mt-3 text-lg text-slate-100">
+							Protect your reputation. Control every verified record.
+						</p>
 
-				<div id="users" className="bg-[#071224] p-8 lg:p-10">
-					<h2 className="text-2xl font-black text-red-500">For Users</h2>
-					<p className="mt-2 text-lg">Your documents. Always trusted.</p>
-					<div className="mt-7 grid gap-7 sm:grid-cols-[86px_1fr]">
-						<div className="grid h-20 w-20 place-items-center rounded-full border border-red-500 bg-red-500/10">
-							<Icon name="identity" className="h-11 w-11" />
+						<div className="mt-8 flex flex-col gap-8 md:flex-row md:items-center">
+							<div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-[#ff3347] bg-[#170b1a]">
+								<Building2 className="h-10 w-10 text-white" strokeWidth={2} />
+							</div>
+
+							<div className="grid flex-1 grid-cols-1 gap-x-12 gap-y-5 md:grid-cols-2">
+								{issuerBenefits.map((item) => (
+									<div key={item} className="flex items-start gap-3">
+										<CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#ff3347]" />
+										<span className="text-sm leading-6 text-slate-300">
+											{item}
+										</span>
+									</div>
+								))}
+							</div>
 						</div>
-						<ul className="grid gap-3 sm:grid-cols-2">
-							{userBenefits.map((benefit) => (
-								<CheckItem key={benefit}>{benefit}</CheckItem>
-							))}
-						</ul>
+					</div>
+
+					<div id="users" className="px-6 py-12 lg:px-10">
+						<h2 className="text-2xl font-bold text-[#ff3347]">For Users</h2>
+						<p className="mt-3 text-lg text-slate-100">
+							Your documents. Your approval. Always trusted.
+						</p>
+
+						<div className="mt-8 flex flex-col gap-8 md:flex-row md:items-center">
+							<div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-[#ff3347] bg-[#170b1a]">
+								<UserRound className="h-10 w-10 text-white" strokeWidth={2} />
+							</div>
+
+							<div className="grid flex-1 grid-cols-1 gap-x-12 gap-y-5 md:grid-cols-2">
+								{userBenefits.map((item) => (
+									<div key={item} className="flex items-start gap-3">
+										<CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#ff3347]" />
+										<span className="text-sm leading-6 text-slate-300">
+											{item}
+										</span>
+									</div>
+								))}
+							</div>
+						</div>
 					</div>
 				</div>
 			</section>
 
 			<section
 				id="how-it-works"
-				className="w-full px-4 py-16 sm:px-6 lg:px-10 2xl:px-14">
-				<div className="w-full overflow-hidden rounded-2xl border border-white/10 bg-white/3.5">
-					<div className="p-8 lg:p-10">
-						<h2 className="text-center text-3xl font-black">
-							How <span className="text-red-500">Signatura</span> Works
+				className="w-full bg-[#0b1624] px-6 py-10 text-white">
+				<div className="mx-auto max-w-7xl">
+					<div className="mb-10 text-center">
+						<h2 className="text-2xl font-bold md:text-3xl">
+							Signatura Zero Trust Level 2 Flow
 						</h2>
-						<div className="mt-12 grid gap-8 md:grid-cols-4 lg:grid-cols-7">
-							{workSteps.map(([icon, text], index) => (
-								<div key={text} className="relative text-center">
-									<div className="mx-auto grid h-20 w-20 place-items-center rounded-full border border-red-500 bg-slate-950 text-slate-100">
-										<Icon name={icon} className="h-10 w-10" />
-									</div>
-									<div className="mx-auto -mt-3 grid h-6 w-6 place-items-center rounded-full bg-red-500 text-xs font-black">
-										{index + 1}
-									</div>
-									<p className="mt-4 text-sm leading-6 text-slate-300">
-										{text}
-									</p>
-								</div>
-							))}
-						</div>
+						<p className="mt-3 text-sm text-slate-300 md:text-base">
+							Provider operates the system, but private data access requires
+							encryption, owner consent, trusted-device approval, and audit
+							logs.
+						</p>
 					</div>
-					<div className="border-t border-white/10 px-8 py-6 lg:px-10">
-						<div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-							<div className="flex items-center gap-4">
-								<Image
-									src="/signatura-logo.png"
-									alt=""
-									width={70}
-									height={82}
-									className="h-14 w-auto object-contain"
-								/>
-								<div>
-									<h3 className="text-2xl font-black">
-										Signatura{' '}
-										<span className="text-red-500">Does Not Replace</span> the
-										Issuer
-									</h3>
-									<p className="mt-1 text-slate-300">
-										The issuer remains the official source. Signatura is the
-										secure digital document and verification layer.
+
+					<div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-9">
+						{steps.map((step, index) => {
+							const Icon = step.icon;
+
+							return (
+								<div
+									key={index}
+									className="relative flex flex-col items-center text-center">
+									<div className="relative flex h-20 w-20 items-center justify-center rounded-full border border-red-500 bg-[#0b1624]">
+										<Icon className="h-9 w-9 text-white" strokeWidth={2} />
+
+										<div className="absolute -bottom-3 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-sm font-bold text-white">
+											{index + 1}
+										</div>
+									</div>
+
+									<p className="mt-7 max-w-[150px] text-sm leading-6 text-slate-300">
+										{step.title}
 									</p>
+
+									{index < steps.length - 1 && (
+										<div className="absolute right-[-24px] top-10 hidden h-px w-12 bg-red-500/50 lg:block" />
+									)}
 								</div>
-							</div>
-							<div className="flex items-center gap-4 text-red-400">
-								<Icon name="bank" className="h-10 w-10" />
-								<span className="h-px w-12 bg-red-500/60" />
-								<Icon name="shield" className="h-10 w-10" />
-								<span className="h-px w-12 bg-red-500/60" />
-								<Icon name="identity" className="h-10 w-10" />
-							</div>
-						</div>
+							);
+						})}
+					</div>
+
+					<div className="mt-10 rounded-2xl border border-red-500/30 bg-white/5 p-5 text-center">
+						<p className="text-sm leading-6 text-slate-300 md:text-base">
+							<span className="font-semibold text-white">Zero Trust rule:</span>{' '}
+							No document or private field should be readable by the provider,
+							database admin, or system admin without authorized owner approval.
+						</p>
 					</div>
 				</div>
 			</section>
@@ -514,7 +575,9 @@ export default function Home() {
 			<footer
 				id="contact"
 				className="border-t border-white/10 bg-black/20 px-5 py-10 text-center text-sm text-slate-400">
-				<p>© 2026 Signatura. Secure digital documents, verified at the source.</p>
+				<p>
+					© 2026 Signatura. Secure digital documents, verified at the source.
+				</p>
 			</footer>
 		</main>
 	);

@@ -1,4 +1,8 @@
 import { PortalIcon } from '@/components/PortalIcon';
+import {
+	countPlatformAnchorPool,
+	countPlatformDocumentRecords,
+} from '@/lib/document-records';
 import { loadDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -40,28 +44,24 @@ function countToday(records, dateField = 'created_at') {
 	).length;
 }
 
-function getAdminSummary(db) {
-	const documents = db.document_records || [];
+async function getAdminSummary(db) {
 	const batches = db.merkle_batches || [];
-	const anchorPool = db.anchor_pool || [];
 	const apiLogs = db.api_logs || [];
+	const documentCounts = await countPlatformDocumentRecords(db);
+	const anchorPoolCounts = await countPlatformAnchorPool(db);
 
 	return {
 		totalIssuers: countRegisteredIssuers(db),
 		activeTenants: (db.tenants || []).filter(
 			(tenant) => tenant.status !== 'deleted',
 		).length,
-		documentsIssued: documents.length,
+		documentsIssued: documentCounts.total,
 		verificationsToday: countToday(
 			apiLogs.filter((log) => String(log.path || '').includes('/verify')),
 		),
-		pendingAnchors: anchorPool.filter((record) => record.status === 'pending')
-			.length,
-		batchedAnchors: anchorPool.filter((record) => record.status === 'batched')
-			.length,
-		anchoredDocuments: documents.filter(
-			(record) => record.anchor_status === 'published',
-		).length,
+		pendingAnchors: anchorPoolCounts.pending,
+		batchedAnchors: anchorPoolCounts.batched,
+		anchoredDocuments: documentCounts.anchored,
 		anchorPending: batches.filter(
 			(batch) =>
 				batch.status === 'timestamped_pending_confirmation' ||
@@ -70,14 +70,14 @@ function getAdminSummary(db) {
 		publishedBatches: batches.filter((batch) => batch.status === 'published')
 			.length,
 		failedAnchors:
-			anchorPool.filter((record) => record.status === 'failed').length +
+			anchorPoolCounts.failed +
 			batches.filter((batch) => batch.status === 'failed').length,
 	};
 }
 
 export default async function AdminDashboard() {
 	const db = await loadDb();
-	const summary = getAdminSummary(db);
+	const summary = await getAdminSummary(db);
 	const overviewCards = [
 		{ icon: 'bank', label: 'Total Issuers', value: summary.totalIssuers },
 		{ icon: 'shield', label: 'Active Tenants', value: summary.activeTenants },

@@ -5,28 +5,28 @@ const securityActions = [
 	{
 		icon: 'identity',
 		title: 'Trusted devices',
-		href: '/security/devices',
+		href: '/signatura/trusted-devices',
 		description:
 			'View every browser or device trusted for your Signatura account.',
 	},
 	{
 		icon: 'shield',
 		title: 'Register device',
-		href: '/security/add-device',
+		href: '/signatura/trusted-devices/add',
 		description:
 			'Add this phone, tablet, or browser as a new trusted device.',
 	},
 	{
 		icon: 'lock',
 		title: 'Add passkey',
-		href: '/security/add-passkey',
+		href: '/signatura/trusted-devices/add-passkey',
 		description:
 			'Register another passkey for biometric or device PIN approval.',
 	},
 	{
 		icon: 'document',
 		title: 'Recovery codes',
-		href: '/security/recovery-codes',
+		href: '/signatura/settings/recovery-codes',
 		description:
 			'View status or rotate recovery codes after passkey re-verification.',
 	},

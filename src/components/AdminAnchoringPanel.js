@@ -11,6 +11,8 @@ function shortValue(value) {
 function AdminAnchoringPanel() {
 	const [data, setData] = useState({
 		pendingAnchorCount: 0,
+		batchedAnchorCount: 0,
+		anchoredCount: 0,
 		failedAnchorCount: 0,
 		latestBatches: [],
 	});
@@ -104,10 +106,18 @@ function AdminAnchoringPanel() {
 
 	return (
 		<div className="space-y-6">
-			<section className="grid gap-4 sm:grid-cols-3">
+			<section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
 				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
 					<p className="text-sm text-slate-400">Pending anchors</p>
 					<p className="mt-2 text-3xl font-bold text-white">{data.pendingAnchorCount}</p>
+				</div>
+				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+					<p className="text-sm text-slate-400">Batched anchors</p>
+					<p className="mt-2 text-3xl font-bold text-white">{data.batchedAnchorCount}</p>
+				</div>
+				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+					<p className="text-sm text-slate-400">Anchored</p>
+					<p className="mt-2 text-3xl font-bold text-white">{data.anchoredCount}</p>
 				</div>
 				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
 					<p className="text-sm text-slate-400">Failed anchors</p>
@@ -191,9 +201,23 @@ function AdminAnchoringPanel() {
 									</td>
 									<td className="px-4 py-3 text-slate-300">{batch.publishMethod}</td>
 									<td className="px-4 py-3">
-										<span className="rounded-full border border-white/10 bg-slate-950/60 px-2 py-1 text-xs font-bold uppercase text-slate-200">
-											{batch.status}
-										</span>
+										<div className="space-y-1">
+											<span
+												className={`rounded-full border px-2 py-1 text-xs font-bold uppercase ${
+													batch.status === 'failed'
+														? 'border-red-400/40 bg-red-500/15 text-red-100'
+														: batch.status === 'published'
+															? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
+															: 'border-white/10 bg-slate-950/60 text-slate-200'
+												}`}>
+												{batch.status}
+											</span>
+											{batch.status === 'failed' && batch.errorMessage ? (
+												<p className="max-w-xs text-xs text-red-200/90">
+													{batch.errorMessage}
+												</p>
+											) : null}
+										</div>
 									</td>
 									<td className="px-4 py-3 text-xs text-slate-300">
 										{batch.transactionId

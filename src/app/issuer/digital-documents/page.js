@@ -236,7 +236,7 @@ export default async function DigitalDocumentsPage() {
 								))}
 							</div>
 							<Link
-								href="/issuer-portal/templates"
+								href="/issuer/templates"
 								className="mt-6 inline-flex rounded-lg bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-600">
 								Create template
 							</Link>

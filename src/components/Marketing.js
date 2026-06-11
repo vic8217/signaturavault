@@ -4,13 +4,13 @@ import Link from 'next/link';
 const navItems = [
 	['Security', '/security'],
 	['Issuers', '/issuers'],
-	['Owners', '/document-owners'],
+	['Owners', '/users'],
 	['Pricing', '/pricing'],
 	['Contact', '/contact'],
 ];
 
 const portalRoles = [
-	['DOCUMENT_OWNER', 'Document Owner', 'Open wallet'],
+	['DOCUMENT_OWNER', 'Document Owner', 'Open owner portal'],
 	['ISSUER_ADMIN', 'Issuer Admin', 'Open issuer portal'],
 	['ISSUER_STAFF', 'Issuer Staff', 'Open issuer portal'],
 	['SIGNATURA_ADMIN', 'Signatura Admin', 'Open admin console'],
@@ -207,37 +207,6 @@ function SecurityPage() {
 	);
 }
 
-function IssuersPage() {
-	return (
-		<>
-			<PageHero
-				eyebrow="For issuers"
-				title="Issue official records without replacing your source system."
-				text="Universities, agencies, employers, and professional bodies can add Signatura as a secure verification layer beside their existing workflows."
-			/>
-			<FeatureGrid
-				items={[
-					{
-						kicker: 'Tenant portal',
-						title: 'Operate issuance workflows',
-						text: 'Manage templates, manual issuance, bulk uploads, API clients, revocations, and audit trails.',
-					},
-					{
-						kicker: 'APIs',
-						title: 'Connect existing systems',
-						text: 'Use tenant-scoped endpoints and webhooks to issue, hash, revoke, and verify records programmatically.',
-					},
-					{
-						kicker: 'Reputation',
-						title: 'Reduce fake document risk',
-						text: 'Verifiers can confirm documents against the issuer rather than trusting screenshots or editable PDFs.',
-					},
-				]}
-			/>
-		</>
-	);
-}
-
 function DocumentOwnersPage() {
 	return (
 		<>
@@ -337,7 +306,6 @@ function ContactPage() {
 export {
 	ContactPage,
 	DocumentOwnersPage,
-	IssuersPage,
 	MarketingHome,
 	PricingPage,
 	PublicMarketingLayout,

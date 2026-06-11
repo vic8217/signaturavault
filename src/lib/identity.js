@@ -11,7 +11,8 @@ function normalizeSignaturaId(value) {
 }
 
 function generateSignaturaId() {
-	return `${SIGNATURA_ID_PREFIX}${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+	const token = crypto.randomBytes(4).toString('hex').toUpperCase();
+	return `${SIGNATURA_ID_PREFIX}${token.slice(0, 4)}-${token.slice(4)}`;
 }
 
 async function createUniqueSignaturaId(prisma) {

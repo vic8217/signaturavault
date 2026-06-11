@@ -88,20 +88,22 @@ function SummaryTile({ icon, label, value, tone = 'slate' }) {
 	);
 }
 
-export function IssuerDocumentSummary() {
-	const [data, setData] = useState({
-		summary: {
-			totalIssued: 0,
-			valid: 0,
-			revoked: 0,
-			pendingAnchor: 0,
-			timestampPending: 0,
-			published: 0,
-			failed: 0,
-		},
-		filteredCount: 0,
-		documents: [],
-	});
+const emptyPayload = {
+	summary: {
+		totalIssued: 0,
+		valid: 0,
+		revoked: 0,
+		pendingAnchor: 0,
+		timestampPending: 0,
+		published: 0,
+		failed: 0,
+	},
+	filteredCount: 0,
+	documents: [],
+};
+
+export function IssuerDocumentSummary({ initialPayload = null }) {
+	const [data, setData] = useState(initialPayload || emptyPayload);
 	const [search, setSearch] = useState('');
 	const [documentStatus, setDocumentStatus] = useState('all');
 	const [anchorPublishStatus, setAnchorPublishStatus] = useState('all');
@@ -116,7 +118,17 @@ export function IssuerDocumentSummary() {
 		return params.toString();
 	}, [search, documentStatus, anchorPublishStatus]);
 
+	const hasDefaultFilters =
+		!search.trim() && documentStatus === 'all' && anchorPublishStatus === 'all';
+
 	useEffect(() => {
+		if (initialPayload && hasDefaultFilters) {
+			setData(initialPayload);
+			setIsLoading(false);
+			setError('');
+			return undefined;
+		}
+
 		let ignore = false;
 
 		async function loadDocuments() {
@@ -138,7 +150,7 @@ export function IssuerDocumentSummary() {
 		return () => {
 			ignore = true;
 		};
-	}, [query]);
+	}, [query, initialPayload, hasDefaultFilters]);
 
 	const summary = data.summary;
 

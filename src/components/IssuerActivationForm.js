@@ -81,7 +81,7 @@ function IssuerActivationForm({ token }) {
 
 			setStatus('Activation complete. Opening issuer portal...');
 			setIsActivated(true);
-			window.location.href = finishData.next || '/issuer-portal';
+			window.location.href = finishData.next || '/issuer';
 		} catch (activationError) {
 			setError(activationError.message);
 			setStatus('');
@@ -129,12 +129,12 @@ function IssuerActivationForm({ token }) {
 			{isActivated ? (
 				<div className="mt-5 flex flex-col gap-3 sm:flex-row">
 					<Link
-						href="/issuer-portal"
+						href="/issuer"
 						className="rounded-xl bg-red-500 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-400">
 						Open issuer portal
 					</Link>
 					<Link
-						href="/login?next=/issuer-portal"
+						href="/login?next=/issuer"
 						className="rounded-xl border border-white/15 px-5 py-3 text-center text-sm font-bold text-slate-200 transition hover:border-red-400 hover:text-white">
 						Go to issuer login
 					</Link>

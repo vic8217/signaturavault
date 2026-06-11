@@ -11,13 +11,13 @@ const channels = [
 ];
 
 function IssuerInvitationForm() {
-		const [form, setForm] = useState({
-			tenantId: '',
-			issuerId: '',
-			role: 'ISSUER_STAFF',
-			deliveryChannel: 'SECURE_ENTERPRISE_CHANNEL',
-			expiresInHours: '72',
-		});
+	const [form, setForm] = useState({
+		tenantId: '',
+		issuerId: '',
+		role: 'ISSUER_STAFF',
+		deliveryChannel: 'SECURE_ENTERPRISE_CHANNEL',
+		expiresInHours: '72',
+	});
 	const [result, setResult] = useState(null);
 	const [error, setError] = useState('');
 
@@ -48,61 +48,56 @@ function IssuerInvitationForm() {
 	}
 
 	return (
-		<div className="rounded-2xl border border-slate-200 bg-white p-8">
-			<h2 className="text-xl font-bold text-slate-900">
-				Invite issuer user
-			</h2>
-			<p className="mt-3 text-sm leading-7 text-slate-600">
-				Messaging apps are delivery channels only. They are not proof of
-				identity. Send only the activation link, never permanent passwords or
-				recovery codes.
+		<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-8">
+			<h2 className="text-xl font-bold text-white">Invite issuer user</h2>
+			<p className="mt-3 text-sm leading-7 text-slate-300">
+				Messaging apps are delivery channels only. They are not proof of identity.
+				Send only the activation link to /issuer/activate, never permanent
+				passwords or recovery codes.
 			</p>
 
 			<form onSubmit={submit} className="mt-6 grid gap-4">
 				<div className="grid gap-4 md:grid-cols-2">
-					<label className="grid gap-2 text-sm font-semibold text-slate-700">
+					<label className="grid gap-2 text-sm font-semibold text-slate-200">
 						<span>Tenant ID</span>
 						<input
 							name="tenantId"
 							required
 							value={form.tenantId}
 							onChange={updateField}
-							className="rounded-xl border border-slate-300 px-4 py-3 outline-none ring-red-500 focus:ring-2"
+							className="rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none ring-red-500 transition focus:ring-2"
 						/>
 					</label>
-					<label className="grid gap-2 text-sm font-semibold text-slate-700">
+					<label className="grid gap-2 text-sm font-semibold text-slate-200">
 						<span>Issuer ID</span>
 						<input
 							name="issuerId"
 							value={form.issuerId}
 							onChange={updateField}
-							className="rounded-xl border border-slate-300 px-4 py-3 outline-none ring-red-500 focus:ring-2"
+							className="rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none ring-red-500 transition focus:ring-2"
 						/>
 					</label>
 				</div>
 
 				<div className="grid gap-4 md:grid-cols-2">
-						<label className="grid gap-2 text-sm font-semibold text-slate-700">
-							<span>Role</span>
+					<label className="grid gap-2 text-sm font-semibold text-slate-200">
+						<span>Role</span>
 						<select
 							name="role"
 							value={form.role}
 							onChange={updateField}
-							className="rounded-xl border border-slate-300 px-4 py-3 outline-none ring-red-500 focus:ring-2">
+							className="rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none ring-red-500 transition focus:ring-2">
 							<option value="ISSUER_ADMIN">Issuer Admin</option>
 							<option value="ISSUER_STAFF">Issuer Staff</option>
 						</select>
 					</label>
-				</div>
-
-				<div className="grid gap-4 md:grid-cols-2">
-					<label className="grid gap-2 text-sm font-semibold text-slate-700">
+					<label className="grid gap-2 text-sm font-semibold text-slate-200">
 						<span>Delivery channel</span>
 						<select
 							name="deliveryChannel"
 							value={form.deliveryChannel}
 							onChange={updateField}
-							className="rounded-xl border border-slate-300 px-4 py-3 outline-none ring-red-500 focus:ring-2">
+							className="rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none ring-red-500 transition focus:ring-2">
 							{channels.map(([value, label]) => (
 								<option key={value} value={value}>
 									{label}
@@ -110,9 +105,9 @@ function IssuerInvitationForm() {
 							))}
 						</select>
 					</label>
-					</div>
+				</div>
 
-				<label className="grid gap-2 text-sm font-semibold text-slate-700">
+				<label className="grid gap-2 text-sm font-semibold text-slate-200">
 					<span>Expires in hours</span>
 					<input
 						name="expiresInHours"
@@ -121,7 +116,7 @@ function IssuerInvitationForm() {
 						max="168"
 						value={form.expiresInHours}
 						onChange={updateField}
-						className="rounded-xl border border-slate-300 px-4 py-3 outline-none ring-red-500 focus:ring-2"
+						className="rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none ring-red-500 transition focus:ring-2"
 					/>
 				</label>
 
@@ -130,16 +125,17 @@ function IssuerInvitationForm() {
 				</button>
 			</form>
 
-			{error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+			{error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}
 
 			{result ? (
-				<div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4">
-					<p className="font-bold text-amber-950">Activation link created</p>
-					<p className="mt-2 text-sm leading-6 text-amber-900">
+				<div className="mt-6 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4">
+					<p className="font-bold text-amber-100">Activation link created</p>
+					<p className="mt-2 text-sm leading-6 text-amber-50/90">
 						Send this link only through {result.deliveryChannel}. The token is
-						single-use, expires, and is stored hashed.
+						single-use, expires, and is stored hashed. After activation, sign in
+						at /login?next=/issuer.
 					</p>
-					<code className="mt-3 block break-all rounded-lg bg-white p-3 text-xs text-slate-900">
+					<code className="mt-3 block break-all rounded-lg border border-white/10 bg-slate-950 p-3 text-xs text-slate-100">
 						{result.activationUrl}
 					</code>
 				</div>

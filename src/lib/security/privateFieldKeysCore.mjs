@@ -15,6 +15,7 @@ const SUPPORTED_PURPOSES = new Set([
 ]);
 const PURPOSE_ALIASES = new Map([
 	['read_encrypted_payload', 'decrypt_private_record'],
+	['authorize_decrypt', 'decrypt_private_record'],
 	['encrypt_payload', 'encrypt_private_record'],
 	['export_payload', 'export_private_data'],
 ]);

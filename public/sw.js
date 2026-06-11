@@ -1,8 +1,10 @@
-const CACHE_VERSION = 'signatura-v4';
+const CACHE_VERSION = 'signatura-v6';
 const ASSETS_TO_CACHE = [
 	'/manifest.json',
 	'/offline.html',
 	'/signatura-logo.png',
+	'/signatura-icon-192.png',
+	'/signatura-icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -38,7 +40,9 @@ self.addEventListener('fetch', (event) => {
 		'/_next',
 		'/admin',
 		'/api',
+		'/issuer',
 		'/issuer-portal',
+		'/signatura',
 		'/wallet',
 	].some((path) => url.pathname === path || url.pathname.startsWith(`${path}/`));
 

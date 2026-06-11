@@ -182,7 +182,7 @@ export default async function UseCaseDetailPage({ params }) {
 							Use Cases
 						</Link>
 						<Link
-							href="/issuer-portal/onboarding"
+							href="/issuer/onboarding"
 							className="hidden rounded-xl bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-400 sm:inline-block">
 							Request Demo
 						</Link>
@@ -315,7 +315,7 @@ export default async function UseCaseDetailPage({ params }) {
 							</p>
 						</div>
 						<Link
-							href="/issuer-portal/onboarding"
+							href="/issuer/onboarding"
 							className="inline-flex items-center justify-center gap-3 rounded-xl bg-red-500 px-6 py-4 text-sm font-bold text-white transition hover:bg-red-400">
 							Request Demo
 							<Icon name="arrow" className="h-4 w-4" />

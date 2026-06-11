@@ -264,7 +264,7 @@ export async function POST(req: Request) {
 
 		const responseJson = NextResponse.json({
 			ok: true,
-			next: '/issuer-portal',
+			next: '/issuer',
 			user: userPublicIdentity(user),
 			tenantId: invitation.tenantId,
 			issuerId: invitation.issuerId,

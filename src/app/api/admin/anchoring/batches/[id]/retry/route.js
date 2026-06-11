@@ -1,6 +1,6 @@
-import { withDb } from '@/lib/db';
+import { loadDb } from '@/lib/db';
 import { requireAdminRole } from '@/lib/admin-auth';
-import { publishMerkleBatch } from '@/lib/anchoring/batchService';
+import { retryMerkleBatchPublish } from '@/lib/anchoring/batchService';
 
 export async function POST(req, { params }) {
 	const auth = await requireAdminRole();
@@ -9,17 +9,16 @@ export async function POST(req, { params }) {
 	const { id } = await params;
 	const body = await req.json().catch(() => ({}));
 
-	return withDb(async (db) => {
-		try {
-			const batch = await publishMerkleBatch(db, id, {
-				publishMethod: body.publishMethod,
-			});
-			return Response.json({ batch });
-		} catch (error) {
-			return Response.json(
-				{ error: error instanceof Error ? error.message : 'Unable to retry batch' },
-				{ status: 500 },
-			);
-		}
-	});
+	try {
+		const db = await loadDb();
+		const batch = await retryMerkleBatchPublish(id, db, {
+			publishMethod: body.publishMethod,
+		});
+		return Response.json({ batch });
+	} catch (error) {
+		return Response.json(
+			{ error: error instanceof Error ? error.message : 'Unable to retry batch' },
+			{ status: 500 },
+		);
+	}
 }

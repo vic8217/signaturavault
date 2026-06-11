@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { normalizeLoginNextPath } from '@/lib/portalRoutes';
 
 const recoveryMethods = [
 	{
@@ -9,17 +10,17 @@ const recoveryMethods = [
 		href: 'login',
 	},
 	{
-		title: 'Use a recovery code',
+		title: 'Use your recovery phrase',
 		description:
-			'Enter one unused recovery code from onboarding. After access is restored, register a new trusted device immediately.',
-		action: 'Use recovery code',
+			'Enter the recovery phrase saved during registration. After access is restored, register a new trusted device immediately.',
+		action: 'Use recovery phrase',
 		href: 'recovery-code',
 	},
 	{
-		title: 'Request manual identity recovery',
+		title: 'Last-resort identity recovery',
 		description:
-			'Issuer and admin accounts require organization approval and security review before access is restored.',
-		action: 'Request manual recovery',
+			'Verified email, handphone, selfie/liveness review, and a cooldown period before access may be restored.',
+		action: 'Request identity recovery',
 		href: 'manual',
 	},
 ];
@@ -27,10 +28,11 @@ const recoveryMethods = [
 export default async function AccountRecoveryPage({ searchParams }) {
 	const params = await searchParams;
 	const email = typeof params?.email === 'string' ? params.email : '';
-	const nextPath =
+	const nextPath = normalizeLoginNextPath(
 		typeof params?.next === 'string' && params.next.startsWith('/')
 			? params.next
-			: '/wallet';
+			: '/signatura/dashboard',
+	);
 
 	return (
 		<main className="min-h-screen bg-[radial-gradient(circle_at_80%_10%,rgba(239,68,68,0.18),transparent_30%),linear-gradient(180deg,#020617,#071224)] px-4 py-10 text-white">
@@ -73,7 +75,7 @@ export default async function AccountRecoveryPage({ searchParams }) {
 									? `/account-recovery/recovery-code?next=${encodeURIComponent(
 											nextPath,
 										)}${email ? `&email=${encodeURIComponent(email)}` : ''}`
-									: '/contact';
+									: `/account-recovery/manual?next=${encodeURIComponent(nextPath)}`;
 
 						return (
 							<Link

@@ -175,7 +175,20 @@ async function enrollPrivateFieldKeyReference({
 			status: 'active',
 		},
 	});
-	if (activeKey) return { ...publicKeyMetadata(activeKey), alreadyEnrolled: true };
+	if (activeKey) {
+		try {
+			verifyUnlockProof({
+				unlockProof,
+				unlockProofSalt: activeKey.unlockProofSalt,
+				expectedHash: activeKey.unlockProofHash,
+			});
+		} catch {
+			throw new Error(
+				'HOA encryption key does not match the enrolled key reference. Import the original HOA key on this device.',
+			);
+		}
+		return { ...publicKeyMetadata(activeKey), alreadyEnrolled: true };
+	}
 
 	const keyRef = createKeyRef(normalizedTenantId, Number(version || 1));
 	const keyReference = await prisma.privateFieldKeyReference.create({

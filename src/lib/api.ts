@@ -10,6 +10,9 @@ function safeApiErrorMessage(error: unknown, fallback: string) {
 	}
 
 	const message = error.message;
+	if (message.includes('ECONNREFUSED') || message.includes("Can't reach database server")) {
+		return `${fallback}. PostgreSQL is not running or is not reachable at DATABASE_URL.`;
+	}
 	const databaseFragments = [
 		'Prisma',
 		'database',

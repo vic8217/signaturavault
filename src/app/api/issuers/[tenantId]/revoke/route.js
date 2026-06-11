@@ -1,6 +1,5 @@
 import { authenticateApiRequest } from '@/lib/auth';
-import { withDb, generateId, now } from '@/lib/db';
-import { redactForLog, safeApiLogEntry } from '@/lib/security';
+import { revokeDocumentRecord } from '@/lib/document-records';
 
 export async function POST(req, { params }) {
 	const { tenantId } = await params;
@@ -19,46 +18,25 @@ export async function POST(req, { params }) {
 		});
 	}
 
-	return withDb(async (db) => {
-		const record = db.document_records.find(
-			(doc) => doc.id === documentId && doc.tenant_id === tenantId,
-		);
-		if (!record) {
-			return new Response(JSON.stringify({ error: 'Document not found' }), {
-				status: 404,
-			});
-		}
+	const result = await revokeDocumentRecord({
+		tenantId,
+		documentId,
+		reason,
+		userId: auth.key.id,
+		auditContext: {
+			apiClientId: auth.client.id,
+			path: `/api/issuers/${tenantId}/revoke`,
+			method: 'POST',
+		},
+	});
 
-		record.status = 'revoked';
-		record.updated_at = now();
-
-		db.audit_logs.push({
-			id: generateId('audit'),
-			tenant_id: tenantId,
-			issuer_id: record.tenant_id,
-			user_id: auth.key.id,
-			action: 'document_revoked',
-			target: documentId,
-			details: redactForLog({ reason: reason || 'manual revocation' }),
-			created_at: now(),
+	if (result.error) {
+		return new Response(JSON.stringify({ error: result.error }), {
+			status: result.status || 404,
 		});
+	}
 
-		db.api_logs.push(
-			safeApiLogEntry({
-				id: generateId('apilog'),
-				tenantId,
-				apiClientId: auth.client.id,
-				req,
-				status: 200,
-				requestBody: { action: 'document_revoked', documentId },
-				responseBody: { message: 'document revoked' },
-				createdAt: now(),
-			}),
-		);
-
-		return new Response(
-			JSON.stringify({ message: 'document revoked', status: 'revoked' }),
-			{ status: 200 },
-		);
+	return new Response(JSON.stringify(result.body), {
+		status: result.status || 200,
 	});
 }

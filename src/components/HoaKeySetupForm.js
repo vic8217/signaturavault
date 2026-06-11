@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { reverifyPasskey } from '@/lib/passkey-client';
+import { storeHoaKeyInDeviceVault } from '@/lib/hoaKeyDeviceVault';
 
 const MIN_KEY_LENGTH = 16;
 
@@ -81,6 +82,15 @@ async function buildWrappedEnvelope(hoaKey, hoaId) {
 	};
 }
 
+function isSameOriginReturn(returnTo) {
+	try {
+		const parsed = new URL(returnTo, window.location.origin);
+		return parsed.origin === window.location.origin;
+	} catch {
+		return false;
+	}
+}
+
 function safeReturnTo(value) {
 	try {
 		const parsed = new URL(value);
@@ -109,6 +119,7 @@ export function HoaKeySetupForm({ hoaId, tenantId, returnTo }) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [needsVerification, setNeedsVerification] = useState(false);
 	const [isVerifying, setIsVerifying] = useState(false);
+	const [vaultCredentialId, setVaultCredentialId] = useState(null);
 	const normalizedReturnTo = useMemo(() => safeReturnTo(returnTo), [returnTo]);
 	const canEnroll = hoaKey.trim().length >= MIN_KEY_LENGTH && saved && understood && !isSubmitting;
 
@@ -128,7 +139,8 @@ export function HoaKeySetupForm({ hoaId, tenantId, returnTo }) {
 		setError('');
 		setStatus('Approve passkey verification on this device.');
 		try {
-			await reverifyPasskey();
+			const result = await reverifyPasskey();
+			setVaultCredentialId(result.credentialId || null);
 			setNeedsVerification(false);
 			setStatus('Passkey verified. Press Enroll key reference again to continue.');
 		} catch (verifyError) {
@@ -147,6 +159,15 @@ export function HoaKeySetupForm({ hoaId, tenantId, returnTo }) {
 		setError('');
 		setNeedsVerification(false);
 		try {
+			let credentialId = vaultCredentialId;
+			if (!credentialId) {
+				setStatus('Verify with passkey before enrolling this trusted device...');
+				const reauth = await reverifyPasskey();
+				credentialId = reauth.credentialId;
+				setVaultCredentialId(credentialId || null);
+			}
+			if (!credentialId) throw new Error('Trusted device credential was not returned.');
+
 			const unlockProof = await sha256Hex(trimmedKey);
 			const envelope = await buildWrappedEnvelope(trimmedKey, tenantId || hoaId);
 			const response = await fetch('/api/hoa-key/setup/enroll', {
@@ -161,21 +182,43 @@ export function HoaKeySetupForm({ hoaId, tenantId, returnTo }) {
 			const keyRef = body.key?.keyRef;
 			if (!keyRef) throw new Error('Signatura did not return a key reference.');
 			if (body.key?.alreadyEnrolled) {
-				setStatus('An HOA key is already enrolled. Returning to HavenxSig to unlock with the saved key...');
-				if (normalizedReturnTo) {
-					window.location.href = havenKeyEntryUrl(normalizedReturnTo);
+				await storeHoaKeyInDeviceVault({
+					tenantId: tenantId || hoaId,
+					credentialId,
+					hoaKey: trimmedKey,
+					keyRef,
+				});
+				setStatus('An HOA key is already enrolled on this device.');
+				if (normalizedReturnTo && isSameOriginReturn(normalizedReturnTo)) {
+					window.location.href = normalizedReturnTo;
+				} else if (normalizedReturnTo) {
+					const destination = new URL(normalizedReturnTo);
+					destination.searchParams.set('remoteUnlockReady', '1');
+					destination.searchParams.set('keyRef', keyRef);
+					window.location.href = destination.toString();
 				} else {
-					setStatus('An HOA key is already enrolled. Return to HavenxSig and unlock with the saved key.');
+					setStatus('An HOA key is already enrolled. Return to HavenxSig and unlock with Signatura on this device.');
 				}
 				return;
 			}
-			setStatus('Key reference enrolled. Returning to HavenxSig...');
+			await storeHoaKeyInDeviceVault({
+				tenantId: tenantId || hoaId,
+				credentialId,
+				hoaKey: trimmedKey,
+				keyRef,
+			});
+			setStatus('Key reference enrolled and saved on this trusted device.');
+			if (normalizedReturnTo && isSameOriginReturn(normalizedReturnTo)) {
+				window.location.href = normalizedReturnTo;
+				return;
+			}
 			if (normalizedReturnTo) {
 				const destination = new URL(normalizedReturnTo);
-				destination.hash = new URLSearchParams({ hoaKey: trimmedKey, keyRef }).toString();
+				destination.searchParams.set('remoteUnlockReady', '1');
+				destination.searchParams.set('keyRef', keyRef);
 				window.location.href = destination.toString();
 			} else {
-				setStatus('Key reference enrolled. Return to HavenxSig and unlock with the saved key.');
+				setStatus('Key reference enrolled on this device. Return to HavenxSig and use Unlock with Signatura.');
 			}
 		} catch (setupError) {
 			const message = setupError instanceof Error ? setupError.message : 'Unable to enroll HOA key.';

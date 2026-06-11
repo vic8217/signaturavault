@@ -41,7 +41,7 @@ export default async function WalletIssuerDocumentsPage({ params }) {
 	return (
 		<div className="space-y-6">
 			<Link
-				href="/wallet/issuers"
+				href="/signatura/documents/issuers"
 				className="inline-flex rounded-lg border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-400 hover:text-red-200">
 				Back to issuers
 			</Link>

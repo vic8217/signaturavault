@@ -1,13 +1,15 @@
 import Link from 'next/link';
 import { LoginPasskeyForm } from '@/components/LoginPasskeyForm';
+import { normalizeLoginNextPath } from '@/lib/portalRoutes';
 
 export default async function LoginPage({ searchParams }) {
 	const params = await searchParams;
 	const requestedNext = params?.next || '';
-	const nextPath =
+	const nextPath = normalizeLoginNextPath(
 		typeof requestedNext === 'string' && requestedNext.startsWith('/')
 			? requestedNext
-			: '/wallet';
+			: '/signatura/dashboard',
+	);
 
 	return (
 		<main className="min-h-screen bg-[radial-gradient(circle_at_80%_10%,rgba(239,68,68,0.18),transparent_30%),linear-gradient(180deg,#020617,#071224)] px-4 py-10">

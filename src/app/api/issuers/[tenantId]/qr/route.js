@@ -1,6 +1,5 @@
 import { authenticateApiRequest } from '@/lib/auth';
-import { withDb, generateId, now } from '@/lib/db';
-import { safeApiLogEntry } from '@/lib/security';
+import { rotateDocumentQrToken } from '@/lib/document-records';
 
 export async function POST(req, { params }) {
 	const { tenantId } = await params;
@@ -20,39 +19,24 @@ export async function POST(req, { params }) {
 		});
 	}
 
-	return withDb(async (db) => {
-		const record = db.document_records.find(
-			(doc) => doc.id === documentId && doc.tenant_id === tenantId,
-		);
-		if (!record) {
-			return new Response(JSON.stringify({ error: 'Document not found' }), {
-				status: 404,
-			});
-		}
-
-		const qrToken = generateId('qr');
-		record.qr_token = qrToken;
-		record.updated_at = now();
-
-		db.api_logs.push(
-			safeApiLogEntry({
-				id: generateId('apilog'),
-				tenantId,
-				apiClientId: auth.client.id,
-				req,
-				status: 200,
-				requestBody: { action: 'document_qr_rotated', documentId },
-				responseBody: { message: 'qr rotated' },
-				createdAt: now(),
-			}),
-		);
-
-		return new Response(
-			JSON.stringify({
-				qrToken,
-				qrUrl: `/api/issuers/${tenantId}/verify?token=${qrToken}`,
-			}),
-			{ status: 200 },
-		);
+	const result = await rotateDocumentQrToken({
+		tenantId,
+		documentId,
+		auditContext: {
+			apiClientId: auth.client.id,
+			path: `/api/issuers/${tenantId}/qr`,
+			method: 'POST',
+		},
 	});
+
+	if (result.error) {
+		return new Response(JSON.stringify({ error: result.error }), {
+			status: result.status || 404,
+		});
+	}
+
+	return new Response(
+		JSON.stringify(result.body),
+		{ status: result.status || 200 },
+	);
 }

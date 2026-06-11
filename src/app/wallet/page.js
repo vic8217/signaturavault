@@ -1,43 +1,45 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { PortalIcon } from '@/components/PortalIcon';
+import { RegisterTrustedDevicePrompt } from '@/components/RegisterTrustedDevicePrompt';
 
 const walletCards = [
 	{
 		icon: 'document',
 		title: 'My Credentials',
-		href: '/wallet/credentials',
+		href: '/signatura/documents',
 		description:
 			'View all your issued documents, diplomas, certificates, and credentials.',
 	},
 	{
 		icon: 'qr',
 		title: 'Shared Documents',
-		href: '/wallet/shared',
+		href: '/signatura/documents',
 		description: 'Manage documents you have shared with others using secure links.',
 	},
 	{
 		icon: 'upload',
 		title: 'Share & Export',
-		href: '/wallet/export',
+		href: '/signatura/documents',
 		description:
 			'Generate shareable QR codes or export credential proof for applications.',
 	},
 	{
 		icon: 'audit',
 		title: 'Verification History',
-		href: '/wallet/history',
+		href: '/signatura/documents',
 		description: 'Track every time your credentials have been verified or requested.',
 	},
 	{
 		icon: 'lock',
 		title: 'Settings',
-		href: '/wallet/settings',
+		href: '/signatura/settings',
 		description: 'Manage your wallet preferences, privacy settings, and notifications.',
 	},
 	{
 		icon: 'shield',
 		title: 'Privacy & Backup',
-		href: '/wallet/backup',
+		href: '/signatura/settings/security',
 		description: 'Back up your wallet, manage recovery codes, and export all data.',
 	},
 ];
@@ -45,6 +47,9 @@ const walletCards = [
 export default function WalletHome() {
 	return (
 		<div className="space-y-8">
+			<Suspense fallback={null}>
+				<RegisterTrustedDevicePrompt />
+			</Suspense>
 			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_0_70px_rgba(15,23,42,0.42)]">
 				<div className="max-w-3xl">
 					<p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">

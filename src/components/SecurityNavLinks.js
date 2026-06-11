@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
 const links = [
-	['Devices', '/security/devices'],
-	['Add Device', '/security/add-device'],
-	['Add Passkey', '/security/add-passkey'],
-	['Recovery Codes', '/security/recovery-codes'],
+	['Devices', '/signatura/trusted-devices'],
+	['Add Device', '/signatura/trusted-devices/add'],
+	['Add Passkey', '/signatura/trusted-devices/add-passkey'],
+	['Recovery Codes', '/signatura/settings/recovery-codes'],
 ];
 
 function hrefWithNext(href, nextPath) {

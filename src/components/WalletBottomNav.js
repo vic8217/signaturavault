@@ -5,23 +5,23 @@ import { usePathname } from 'next/navigation';
 import { PortalIcon } from '@/components/PortalIcon';
 
 const navItems = [
-	{ label: 'Main', href: '/wallet', icon: 'dashboard' },
-	{ label: 'Wallet', href: '/wallet/credentials', icon: 'document' },
-	{ label: 'Scan', href: '/wallet/scan', icon: 'scanner' },
-	{ label: 'Issuers', href: '/wallet/issuers', icon: 'bank' },
-	{ label: 'Others', href: '/wallet/profile', icon: 'more' },
+	{ label: 'Main', href: '/signatura/dashboard', icon: 'dashboard' },
+	{ label: 'Wallet', href: '/signatura/documents', icon: 'document' },
+	{ label: 'Scan', href: '/signatura/documents/scan', icon: 'scanner' },
+	{ label: 'Issuers', href: '/signatura/documents/issuers', icon: 'bank' },
+	{ label: 'Security', href: '/signatura/trusted-devices', icon: 'shield' },
 ];
 
 function isActive(pathname, href) {
-	if (href === '/wallet') {
-		return pathname === '/wallet';
+	if (href === '/signatura/dashboard') {
+		return pathname === '/signatura/dashboard';
 	}
 
-	if (href === '/wallet/profile') {
+	if (href === '/signatura/trusted-devices') {
 		return (
-			pathname === href ||
-			pathname === '/wallet/settings' ||
-			pathname.startsWith('/security/')
+			pathname.startsWith('/signatura/trusted-devices') ||
+			pathname === '/signatura/settings/security' ||
+			pathname.startsWith('/signatura/settings/')
 		);
 	}
 

@@ -7,26 +7,74 @@ datasource db {
 }
 
 model User {
-  id               String   @id
-  signaturaId      String   @unique @map("signatura_id")
-  email            String?  @unique
-  name             String?
-  emailLookupHash  String?  @unique @map("email_lookup_hash")
-  mobileLookupHash String?  @unique @map("mobile_lookup_hash")
-  accountStatus    String   @default("active") @map("account_status")
-  trustLevel       Int      @default(1) @map("trust_level")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-
-  credentials       WebAuthnCredential[]
-  trustedDevices    TrustedDevice[]
+  id                String               @id
+  signaturaId       String               @unique @map("signatura_id")
+  email             String?              @unique
+  name              String?
+  emailLookupHash   String?              @unique @map("email_lookup_hash")
+  mobileLookupHash  String?              @unique @map("mobile_lookup_hash")
+  accountStatus     String               @default("active") @map("account_status")
+  trustLevel        Int                  @default(1) @map("trust_level")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
   authChallenges    AuthChallenge[]
+  consents          Consent[]
   recoveryCodes     RecoveryCode[]
   securityEventLogs SecurityEventLog[]
-  consents          Consent[]
   signaturaSessions SignaturaSession[]
+  trustedDevices              TrustedDevice[]
+  credentials                 WebAuthnCredential[]
+  trustedDeviceLoginChallenges TrustedDeviceLoginChallenge[]
+  accountRecoveryRequests      AccountRecoveryRequest[]
 
   @@map("users")
+}
+
+model AccountRecoveryRequest {
+  id               String    @id @default(cuid())
+  userId           String?   @map("user_id")
+  signaturaId      String?   @map("signatura_id")
+  emailLookupHash  String?   @map("email_lookup_hash")
+  mobileLookupHash String?   @map("mobile_lookup_hash")
+  status           String    @default("PENDING")
+  cooldownUntil    DateTime? @map("cooldown_until")
+  livenessStatus   String?   @map("liveness_status")
+  ipAddress        String?   @map("ip_address")
+  userAgent        String?   @map("user_agent")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  user             User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([signaturaId])
+  @@index([emailLookupHash])
+  @@index([mobileLookupHash])
+  @@index([status])
+  @@index([cooldownUntil])
+  @@map("account_recovery_requests")
+}
+
+model TrustedDeviceLoginChallenge {
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  shortCode             String    @map("short_code")
+  browserSecretHash     String    @map("browser_secret_hash")
+  status                String    @default("PENDING")
+  approvalTokenHash     String?   @map("approval_token_hash")
+  approvingDeviceId     String?   @map("approving_device_id")
+  approvingCredentialId String?   @map("approving_credential_id")
+  browserUserAgent      String?   @map("browser_user_agent")
+  nextPath              String?   @map("next_path")
+  approvedAt            DateTime? @map("approved_at")
+  consumedAt            DateTime? @map("consumed_at")
+  expiresAt             DateTime  @map("expires_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([shortCode, status])
+  @@index([userId, status])
+  @@index([expiresAt])
+  @@map("trusted_device_login_challenges")
 }
 
 model WebAuthnCredential {
@@ -41,8 +89,7 @@ model WebAuthnCredential {
   createdAt    DateTime  @default(now()) @map("created_at")
   lastUsedAt   DateTime? @map("last_used_at")
   isTrusted    Boolean   @default(true) @map("is_trusted")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("webauthn_credentials")
@@ -53,15 +100,14 @@ model TrustedDevice {
   userId       String    @map("user_id")
   credentialId String?   @map("credential_id")
   deviceName   String?   @map("device_name")
-  deviceHash   String    @unique @map("device_hash")
-  status       String    @default("active")
   userAgent    String?   @map("user_agent")
   createdAt    DateTime  @default(now()) @map("created_at")
   lastUsedAt   DateTime? @map("last_used_at")
   isTrusted    Boolean   @default(true) @map("is_trusted")
   removedAt    DateTime? @map("removed_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceHash   String    @unique @map("device_hash")
+  status       String    @default("active")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([credentialId])
@@ -79,8 +125,7 @@ model AuthChallenge {
   expiresAt          DateTime  @map("expires_at")
   usedAt             DateTime? @map("used_at")
   createdAt          DateTime  @default(now()) @map("created_at")
-
-  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([issuerInvitationId])
@@ -95,8 +140,7 @@ model RecoveryCode {
   codePrefix String    @map("code_prefix")
   createdAt  DateTime  @default(now()) @map("created_at")
   usedAt     DateTime? @map("used_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("recovery_codes")
@@ -110,8 +154,7 @@ model SecurityEventLog {
   userAgent String?  @map("user_agent")
   details   Json?
   createdAt DateTime @default(now()) @map("created_at")
-
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user      User?    @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([event])
@@ -146,27 +189,26 @@ model Tenant {
 }
 
 model PrivateFieldKeyReference {
-  id              String    @id @default(cuid())
-  tenantId        String    @map("tenant_id")
-  hoaId           String?   @map("hoa_id")
-  keyRef          String    @unique @map("key_ref")
+  id              String                         @id @default(cuid())
+  tenantId        String                         @map("tenant_id")
+  hoaId           String?                        @map("hoa_id")
+  keyRef          String                         @unique @map("key_ref")
   algorithm       String
-  wrappedKey      String    @map("wrapped_key")
+  wrappedKey      String                         @map("wrapped_key")
   salt            String
   iv              String
   tag             String
-  kdfName         String    @map("kdf_name")
-  kdfParams       Json      @map("kdf_params")
-  unlockProofSalt String    @map("unlock_proof_salt")
-  unlockProofHash String    @map("unlock_proof_hash")
-  version         Int       @default(1)
-  status          String    @default("active")
-  createdByUserId String    @map("created_by_user_id")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  rotatedAt       DateTime? @map("rotated_at")
-
-  authorizations PrivateFieldKeyAuthorization[]
-  privateFields EncryptedPrivateField[]
+  kdfName         String                         @map("kdf_name")
+  kdfParams       Json                           @map("kdf_params")
+  unlockProofSalt String                         @map("unlock_proof_salt")
+  unlockProofHash String                         @map("unlock_proof_hash")
+  version         Int                            @default(1)
+  status          String                         @default("active")
+  createdByUserId String                         @map("created_by_user_id")
+  createdAt       DateTime                       @default(now()) @map("created_at")
+  rotatedAt       DateTime?                      @map("rotated_at")
+  authorizations  PrivateFieldKeyAuthorization[]
+  privateFields   EncryptedPrivateField[]
 
   @@index([tenantId])
   @@index([hoaId])
@@ -175,20 +217,19 @@ model PrivateFieldKeyReference {
 }
 
 model PrivateFieldKeyAuthorization {
-  id                 String    @id @default(cuid())
-  tenantId           String    @map("tenant_id")
-  hoaId              String?   @map("hoa_id")
-  keyRef             String    @map("key_ref")
-  userId             String    @map("user_id")
-  credentialId       String?   @map("credential_id")
-  purpose            String
-  authorizationHash  String    @unique @map("authorization_hash")
-  status             String    @default("authorized")
-  expiresAt          DateTime  @map("expires_at")
-  consumedAt         DateTime? @map("consumed_at")
-  createdAt          DateTime  @default(now()) @map("created_at")
-
-  keyReference PrivateFieldKeyReference @relation(fields: [keyRef], references: [keyRef], onDelete: Cascade)
+  id                String                   @id @default(cuid())
+  tenantId          String                   @map("tenant_id")
+  hoaId             String?                  @map("hoa_id")
+  keyRef            String                   @map("key_ref")
+  userId            String                   @map("user_id")
+  credentialId      String?                  @map("credential_id")
+  purpose           String
+  authorizationHash String                   @unique @map("authorization_hash")
+  status            String                   @default("authorized")
+  expiresAt         DateTime                 @map("expires_at")
+  consumedAt        DateTime?                @map("consumed_at")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  keyReference      PrivateFieldKeyReference @relation(fields: [keyRef], references: [keyRef], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([hoaId])
@@ -199,24 +240,23 @@ model PrivateFieldKeyAuthorization {
 }
 
 model EncryptedPrivateField {
-  id          String   @id @default(cuid())
-  tenantId    String   @map("tenant_id")
-  hoaId       String?  @map("hoa_id")
-  ownerUserId String?  @map("owner_user_id")
-  recordType  String   @map("record_type")
-  recordId    String   @map("record_id")
-  fieldKey    String   @map("field_key")
-  keyRef      String   @map("key_ref")
-  algorithm   String
-  iv          String
-  tag         String
-  ciphertext  String
-  aad         String?
-  version     Int      @default(1)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  keyReference PrivateFieldKeyReference @relation(fields: [keyRef], references: [keyRef], onDelete: Restrict)
+  id           String                   @id @default(cuid())
+  tenantId     String                   @map("tenant_id")
+  hoaId        String?                  @map("hoa_id")
+  ownerUserId  String?                  @map("owner_user_id")
+  recordType   String                   @map("record_type")
+  recordId     String                   @map("record_id")
+  fieldKey     String                   @map("field_key")
+  keyRef       String                   @map("key_ref")
+  algorithm    String
+  iv           String
+  tag          String
+  ciphertext   String
+  aad          String?
+  version      Int                      @default(1)
+  createdAt    DateTime                 @default(now()) @map("created_at")
+  updatedAt    DateTime                 @updatedAt @map("updated_at")
+  keyReference PrivateFieldKeyReference @relation(fields: [keyRef], references: [keyRef])
 
   @@unique([tenantId, recordType, recordId, fieldKey])
   @@index([tenantId])
@@ -236,11 +276,64 @@ model Issuer {
   registrationNumber String?   @map("registration_number")
   registrationDate   DateTime? @map("registration_date")
   status             String    @default("active")
+  acceptsRequests    Boolean   @default(false) @map("accepts_requests")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@index([tenantId])
+  @@index([acceptsRequests, status])
   @@map("issuers")
+}
+
+model DocumentRequest {
+  id                     String    @id @default(cuid())
+  tenantId               String    @map("tenant_id")
+  issuerId               String    @map("issuer_id")
+  ownerUserId            String    @map("owner_user_id")
+  documentTypeId         String    @map("document_type_id")
+  documentTypeLabel      String?   @map("document_type_label")
+  documentTemplateId     String?   @map("document_template_id")
+  status                 String    @default("pending")
+  referenceCode          String    @unique @map("reference_code")
+  issuedDocumentRecordId String?   @map("issued_document_record_id")
+  walletDelivered        Boolean   @default(false) @map("wallet_delivered")
+  reviewedByUserId       String?   @map("reviewed_by_user_id")
+  reviewedAt             DateTime? @map("reviewed_at")
+  submittedAt            DateTime  @default(now()) @map("submitted_at")
+  issuedAt               DateTime? @map("issued_at")
+  cancelledAt            DateTime? @map("cancelled_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+  issuedLink             IssuedDocument?
+
+  @@index([tenantId, status])
+  @@index([issuerId, status])
+  @@index([ownerUserId, status])
+  @@index([ownerUserId, issuerId, documentTypeId, status])
+  @@map("document_requests")
+}
+
+model IssuedDocument {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  requestId       String   @unique @map("request_id")
+  documentId      String   @map("document_id")
+  issuerId        String   @map("issuer_id")
+  ownerId         String   @map("owner_id")
+  issuedAt        DateTime @map("issued_at")
+  deliveryStatus  String   @map("delivery_status")
+  linkageType     String   @map("linkage_type")
+  createdByUserId String?  @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  request DocumentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([ownerId])
+  @@index([issuerId])
+  @@index([documentId])
+  @@index([deliveryStatus])
+  @@map("issued_documents")
 }
 
 model IssuerUser {
@@ -334,8 +427,7 @@ model Consent {
   status    String    @default("approved")
   createdAt DateTime  @default(now()) @map("created_at")
   revokedAt DateTime? @map("revoked_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([clientId])
@@ -367,8 +459,7 @@ model SignaturaSession {
   tokenHash String   @unique @map("token_hash")
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
@@ -404,29 +495,28 @@ model DocumentType {
 }
 
 model DocumentTemplate {
-  id               String    @id
-  tenantId         String    @map("tenant_id")
-  issuerId         String?   @map("issuer_id")
-  documentTypeId   String?   @map("document_type_id")
+  id               String                  @id
+  tenantId         String                  @map("tenant_id")
+  documentTypeId   String?                 @map("document_type_id")
   name             String
-  documentType     String?   @map("document_type")
-  version          Int       @default(1)
-  status           String    @default("draft")
-  originalFileUrl  String?   @map("original_file_url")
-  previewImageUrl  String?   @map("preview_image_url")
   schema           Json?
   fields           Json?
-  createdBy        String?   @map("created_by")
-  publishedBy      String?   @map("published_by")
-  publishedAt      DateTime? @map("published_at")
-  sourceTemplateId String?   @map("source_template_id")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-
-  templateFields DocumentTemplateField[]
-  extractionLogs TemplateExtractionLog[]
-  auditLogs      TemplateAuditLog[]
-  versions       TemplateVersion[]
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+  issuerId         String?                 @map("issuer_id")
+  documentType     String?                 @map("document_type")
+  version          Int                     @default(1)
+  status           String                  @default("draft")
+  originalFileUrl  String?                 @map("original_file_url")
+  previewImageUrl  String?                 @map("preview_image_url")
+  createdBy        String?                 @map("created_by")
+  publishedBy      String?                 @map("published_by")
+  publishedAt      DateTime?               @map("published_at")
+  sourceTemplateId String?                 @map("source_template_id")
+  auditLogs        TemplateAuditLog[]
+  extractionLogs   TemplateExtractionLog[]
+  templateFields   DocumentTemplateField[]
+  versions         TemplateVersion[]
 
   @@index([tenantId])
   @@index([issuerId])
@@ -437,28 +527,27 @@ model DocumentTemplate {
 }
 
 model DocumentTemplateField {
-  id             String   @id
-  templateId     String   @map("template_id")
-  fieldLabel     String   @map("field_label")
-  fieldKey       String   @map("field_key")
-  fieldType      String   @map("field_type")
-  required       Boolean  @default(false)
-  encrypted      Boolean  @default(false)
-  publicVisible  Boolean  @default(false) @map("public_visible")
-  searchable     Boolean  @default(false)
-  validationRule String?  @map("validation_rule")
-  defaultValue   String?  @map("default_value")
-  optionsJson    Json?    @map("options_json")
-  xPosition      Float    @default(0) @map("x_position")
-  yPosition      Float    @default(0) @map("y_position")
-  width          Float    @default(20)
-  height         Float    @default(8)
-  pageNumber     Int      @default(1) @map("page_number")
-  sortOrder      Int      @default(0) @map("sort_order")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  id             String           @id
+  templateId     String           @map("template_id")
+  fieldLabel     String           @map("field_label")
+  fieldKey       String           @map("field_key")
+  fieldType      String           @map("field_type")
+  required       Boolean          @default(false)
+  encrypted      Boolean          @default(false)
+  publicVisible  Boolean          @default(false) @map("public_visible")
+  searchable     Boolean          @default(false)
+  validationRule String?          @map("validation_rule")
+  defaultValue   String?          @map("default_value")
+  optionsJson    Json?            @map("options_json")
+  xPosition      Float            @default(0) @map("x_position")
+  yPosition      Float            @default(0) @map("y_position")
+  width          Float            @default(20)
+  height         Float            @default(8)
+  pageNumber     Int              @default(1) @map("page_number")
+  sortOrder      Int              @default(0) @map("sort_order")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  template       DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
   @@index([fieldKey])
@@ -466,17 +555,16 @@ model DocumentTemplateField {
 }
 
 model TemplateVersion {
-  id           String   @id
-  templateId   String   @map("template_id")
+  id           String           @id
+  templateId   String           @map("template_id")
   version      Int
   status       String
-  schemaJson   Json?    @map("schema_json")
-  fieldsJson   Json?    @map("fields_json")
-  templateHash String?  @map("template_hash")
-  createdBy    String?  @map("created_by")
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  schemaJson   Json?            @map("schema_json")
+  fieldsJson   Json?            @map("fields_json")
+  templateHash String?          @map("template_hash")
+  createdBy    String?          @map("created_by")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  template     DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
   @@index([version])
@@ -484,16 +572,15 @@ model TemplateVersion {
 }
 
 model TemplateExtractionLog {
-  id                String   @id
-  templateId        String   @map("template_id")
-  extractionStatus  String   @map("extraction_status")
-  ocrProvider       String?  @map("ocr_provider")
-  rawOcrJson        Json?    @map("raw_ocr_json")
-  aiSuggestionsJson Json?    @map("ai_suggestions_json")
-  errorMessage      String?  @map("error_message")
-  createdAt         DateTime @default(now()) @map("created_at")
-
-  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  id                String           @id
+  templateId        String           @map("template_id")
+  extractionStatus  String           @map("extraction_status")
+  ocrProvider       String?          @map("ocr_provider")
+  rawOcrJson        Json?            @map("raw_ocr_json")
+  aiSuggestionsJson Json?            @map("ai_suggestions_json")
+  errorMessage      String?          @map("error_message")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  template          DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
   @@index([extractionStatus])
@@ -501,15 +588,14 @@ model TemplateExtractionLog {
 }
 
 model TemplateAuditLog {
-  id           String   @id
-  templateId   String   @map("template_id")
-  userId       String?  @map("user_id")
+  id           String           @id
+  templateId   String           @map("template_id")
+  userId       String?          @map("user_id")
   action       String
-  oldValueJson Json?    @map("old_value_json")
-  newValueJson Json?    @map("new_value_json")
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  oldValueJson Json?            @map("old_value_json")
+  newValueJson Json?            @map("new_value_json")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  template     DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
   @@index([userId])
@@ -518,29 +604,32 @@ model TemplateAuditLog {
 }
 
 model DocumentRecord {
-  id                 String   @id
-  tenantId           String   @map("tenant_id")
-  issuerId           String?  @map("issuer_id")
-  documentTemplateId String?  @map("document_template_id")
-  externalId         String   @map("external_id")
-  recipientName      String   @map("recipient_name")
-  issuedAt           DateTime @map("issued_at")
+  id                 String        @id
+  tenantId           String        @map("tenant_id")
+  documentTemplateId String?       @map("document_template_id")
+  externalId         String        @map("external_id")
+  recipientName      String        @map("recipient_name")
+  issuedAt           DateTime      @map("issued_at")
   hash               String
-  documentHash       String?  @map("document_hash")
-  status             String   @default("valid")
-  anchorStatus       String   @default("pending") @map("anchor_status")
-  anchorBatchId      String?  @map("anchor_batch_id")
-  verificationToken  String   @unique @map("verification_token")
-  qrToken            String   @unique @map("qr_token")
+  status             String        @default("valid")
+  verificationToken  String        @unique @map("verification_token")
+  qrToken            String        @unique @map("qr_token")
   metadata           Json?
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-
-  anchorPool   AnchorPool[]
-  merkleProofs MerkleProof[]
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  anchorBatchId      String?       @map("anchor_batch_id")
+  anchorStatus       String        @default("pending") @map("anchor_status")
+  documentHash       String?       @map("document_hash")
+  issuerId           String?       @map("issuer_id")
+  ownerUserId        String?       @map("owner_user_id")
+  documentRequestId  String?       @unique @map("document_request_id")
+  documentTypeLabel  String?       @map("document_type_label")
+  anchorPool         AnchorPool[]
+  merkleProofs       MerkleProof[]
 
   @@index([tenantId])
   @@index([issuerId])
+  @@index([ownerUserId])
   @@index([documentTemplateId])
   @@index([externalId])
   @@index([anchorStatus])
@@ -549,14 +638,13 @@ model DocumentRecord {
 }
 
 model AnchorPool {
-  id           String   @id
-  documentId   String   @map("document_id")
-  documentHash String   @map("document_hash")
-  status       String   @default("pending")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  document DocumentRecord @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  id           String         @id
+  documentId   String         @map("document_id")
+  documentHash String         @map("document_hash")
+  status       String         @default("pending")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  document     DocumentRecord @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([documentId])
   @@index([documentHash])
@@ -565,20 +653,20 @@ model AnchorPool {
 }
 
 model MerkleBatch {
-  id             String    @id
-  merkleRoot     String    @map("merkle_root")
-  batchSize      Int       @map("batch_size")
-  status         String    @default("created")
-  publishMethod  String    @map("publish_method")
+  id             String        @id
+  merkleRoot     String        @map("merkle_root")
+  batchSize      Int           @map("batch_size")
+  status         String        @default("created")
+  publishMethod  String        @map("publish_method")
   chain          String?
-  transactionId  String?   @map("transaction_id")
-  blockNumber    String?   @map("block_number")
-  timestampProof String?   @map("timestamp_proof")
-  publishedAt    DateTime? @map("published_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-
-  proofs MerkleProof[]
+  transactionId  String?       @map("transaction_id")
+  blockNumber    String?       @map("block_number")
+  timestampProof String?       @map("timestamp_proof")
+  errorMessage   String?       @map("error_message")
+  publishedAt    DateTime?     @map("published_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  proofs         MerkleProof[]
 
   @@index([status])
   @@index([publishMethod])
@@ -587,16 +675,15 @@ model MerkleBatch {
 }
 
 model MerkleProof {
-  id         String   @id
-  documentId String   @map("document_id")
-  batchId    String   @map("batch_id")
-  leafHash   String   @map("leaf_hash")
-  proofPath  Json     @map("proof_path")
-  proofIndex Int      @map("proof_index")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  document DocumentRecord @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  batch    MerkleBatch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  id         String         @id
+  documentId String         @map("document_id")
+  batchId    String         @map("batch_id")
+  leafHash   String         @map("leaf_hash")
+  proofPath  Json           @map("proof_path")
+  proofIndex Int            @map("proof_index")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  batch      MerkleBatch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  document   DocumentRecord @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([documentId])
   @@index([batchId])

@@ -185,7 +185,7 @@ export function WalletIssuerDirectory({ issuers = [], classifications = [] }) {
 				{filteredIssuers.map((issuer) => (
 					<Link
 						key={issuer.id}
-						href={`/wallet/issuers/issuer/${issuer.id}`}
+						href={`/signatura/documents/issuers/issuer/${issuer.id}`}
 						className="block rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:border-red-400 hover:bg-white/[0.06]">
 						<div className="flex gap-4">
 							<div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">

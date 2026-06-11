@@ -1,29 +1,64 @@
-import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
+import { logAuthAudit } from '@/lib/auth/authAudit';
+import {
+	enforceRateLimit,
+	rateLimitKey,
+	rateLimitResponse,
+} from '@/lib/auth/rateLimit';
+import {
+	hashRecoveryPhrase,
+	normalizeRecoveryPhrase,
+} from '@/lib/auth/recoveryPhrase';
 import { normalizeSignaturaId } from '@/lib/identity';
 import { prisma } from '@/lib/prisma';
-import { ROLE_COOKIE, ROLES } from '@/lib/roles';
+import { normalizeLoginNextPath } from '@/lib/portalRoutes';
+import {
+	ROLE_COOKIE,
+	ROLES,
+	isDocumentOwnerPath,
+	isIssuerPortalPath,
+} from '@/lib/roles';
 import { setSessionCookie } from '@/lib/session';
-import { getUserAgent, hashRecoveryCode } from '@/lib/webauthn';
+import { hashRecoveryCode } from '@/lib/webauthn';
 
-function normalizeRecoveryCode(code: string) {
-	return code.trim().toUpperCase().replace(/\s+/g, '');
+function normalizeRecoveryInput(code: string) {
+	const trimmed = String(code || '').trim();
+	if (trimmed.includes(' ')) {
+		return normalizeRecoveryPhrase(trimmed);
+	}
+	return trimmed.toUpperCase().replace(/\s+/g, '');
+}
+
+function hashRecoveryInput(code: string) {
+	const normalized = normalizeRecoveryInput(code);
+	if (normalized.includes(' ')) {
+		return hashRecoveryPhrase(normalized);
+	}
+	return hashRecoveryCode(normalized);
 }
 
 export async function POST(req: Request) {
 	try {
 		const body = await req.json();
 		const signaturaId = normalizeSignaturaId(body.signaturaId || body.userId);
-		const recoveryCode = normalizeRecoveryCode(String(body.recoveryCode || ''));
+		const recoveryInput = String(
+			body.recoveryPhrase || body.recoveryCode || '',
+		);
 		const requestedNext = String(body.next || '');
-		const nextPath = requestedNext.startsWith('/')
-			? requestedNext
-			: '/security/devices';
+		const nextPath = normalizeLoginNextPath(
+			requestedNext.startsWith('/') ? requestedNext : '/signatura/trusted-devices',
+		);
 
-		if (!signaturaId || !recoveryCode) {
-			return jsonError('Signatura ID and recovery code are required');
+		if (!signaturaId || !recoveryInput.trim()) {
+			return jsonError('Signatura ID and recovery phrase are required');
 		}
+
+		const limited = enforceRateLimit(
+			rateLimitKey(req, 'recovery_phrase_attempt', signaturaId),
+			{ max: 8, windowMs: 15 * 60 * 1000 },
+		);
+		if (limited) return rateLimitResponse(limited.retryAfterMs);
 
 		const user = await prisma.user.findUnique({
 			where: { signaturaId },
@@ -31,10 +66,14 @@ export async function POST(req: Request) {
 		});
 
 		if (!user) {
-			return jsonError('Recovery code is invalid or already used', 401);
+			await logAuthAudit(req, 'recovery_phrase_failed', {
+				result: 'denied',
+				details: { reason: 'unknown_signatura_id' },
+			});
+			return jsonError('Recovery phrase is invalid or already used', 401);
 		}
 
-		const codeHash = hashRecoveryCode(recoveryCode);
+		const codeHash = hashRecoveryInput(recoveryInput);
 		const recoveryCodeRecord = await prisma.recoveryCode.findFirst({
 			where: {
 				userId: user.id,
@@ -45,16 +84,12 @@ export async function POST(req: Request) {
 		});
 
 		if (!recoveryCodeRecord) {
-			await prisma.securityEventLog.create({
-				data: {
-					id: crypto.randomUUID(),
-					userId: user.id,
-					event: 'recovery_code_failed',
-					userAgent: getUserAgent(req),
-					details: { reason: 'invalid_or_used_code' },
-				},
+			await logAuthAudit(req, 'recovery_phrase_failed', {
+				userId: user.id,
+				result: 'denied',
+				details: { reason: 'invalid_or_used_phrase' },
 			});
-			return jsonError('Recovery code is invalid or already used', 401);
+			return jsonError('Recovery phrase is invalid or already used', 401);
 		}
 
 		const now = new Date();
@@ -68,25 +103,20 @@ export async function POST(req: Request) {
 			});
 
 			if (usedCode.count !== 1) {
-				throw new Error('Recovery code was already used');
+				throw new Error('Recovery phrase was already used');
 			}
+		});
 
-			await tx.securityEventLog.create({
-				data: {
-					id: crypto.randomUUID(),
-					userId: user.id,
-					event: 'recovery_code_succeeded',
-					userAgent: getUserAgent(req),
-					details: {
-						nextPath,
-						requiresNewTrustedDevice: true,
-					},
-				},
-			});
+		await logAuthAudit(req, 'recovery_phrase_succeeded', {
+			userId: user.id,
+			details: {
+				nextPath,
+				requiresNewTrustedDevice: true,
+			},
 		});
 
 		let portalRole = null;
-		if (nextPath === '/issuer-portal') {
+		if (isIssuerPortalPath(nextPath)) {
 			const issuerUser = await prisma.issuerUser.findFirst({
 				where: {
 					userId: user.id,
@@ -101,13 +131,13 @@ export async function POST(req: Request) {
 						? ROLES.ISSUER_ADMIN
 						: ROLES.ISSUER_STAFF;
 			}
-		} else if (nextPath === '/wallet' || nextPath.startsWith('/wallet/')) {
+		} else if (isDocumentOwnerPath(nextPath)) {
 			portalRole = ROLES.DOCUMENT_OWNER;
 		}
 
 		const response = NextResponse.json({
 			ok: true,
-			next: `/security/add-passkey?recovered=1&next=${encodeURIComponent(
+			next: `/signatura/trusted-devices/add-passkey?recovered=1&next=${encodeURIComponent(
 				nextPath,
 			)}`,
 		});
@@ -135,7 +165,7 @@ export async function POST(req: Request) {
 		return response;
 	} catch (error) {
 		return jsonError(
-			safeApiErrorMessage(error, 'Unable to verify recovery code'),
+			safeApiErrorMessage(error, 'Unable to verify recovery phrase'),
 			400,
 		);
 	}

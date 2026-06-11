@@ -21,6 +21,10 @@ import {
 	validateEncryptedFieldAccess,
 	validateEncryptedFieldMutation,
 } from '../src/lib/security/encryptedFieldsCore.mjs';
+import {
+	accountLookupHashes,
+	encryptedAccountContactFields,
+} from '../src/lib/account-private-fields.js';
 import { userPublicIdentity } from '../src/lib/identity.js';
 
 const VALID_IV = Buffer.alloc(12, 1).toString('base64url');
@@ -106,6 +110,48 @@ test('public user identity excludes legacy contact fields', () => {
 	});
 	assert.equal(Object.hasOwn(dto, 'email'), false);
 	assert.equal(Object.hasOwn(dto, 'name'), false);
+});
+
+test('account contact fields are encrypted before storage', () => {
+	const fields = encryptedAccountContactFields({
+		userId: 'user_1',
+		fullName: 'Ada Homeowner',
+		handphone: '+639170000000',
+		email: 'ada@example.test',
+	});
+	const serialized = JSON.stringify(fields);
+
+	assert.equal(fields.length, 3);
+	assert.equal(serialized.includes('Ada Homeowner'), false);
+	assert.equal(serialized.includes('+639170000000'), false);
+	assert.equal(serialized.includes('ada@example.test'), false);
+	assert.deepEqual(
+		fields.map((field) => field.fieldKey).sort(),
+		['email', 'full_name', 'handphone'],
+	);
+	for (const field of fields) {
+		assert.equal(field.recordType, 'user_contact');
+		assert.equal(field.ownerUserId, 'user_1');
+		assert.equal(field.algorithm, 'AES-256-GCM');
+		assert.ok(field.ciphertext);
+		assert.ok(field.iv);
+		assert.ok(field.tag);
+	}
+});
+
+test('account lookup hashes are normalized and do not reveal contact values', () => {
+	const first = accountLookupHashes({
+		email: 'Ada@Example.Test ',
+		handphone: '+63 917 000 0000',
+	});
+	const second = accountLookupHashes({
+		email: 'ada@example.test',
+		handphone: '+639170000000',
+	});
+
+	assert.deepEqual(first, second);
+	assert.notEqual(first.emailLookupHash, 'ada@example.test');
+	assert.notEqual(first.mobileLookupHash, '+639170000000');
 });
 
 test('private-field key envelopes reject raw key material', () => {

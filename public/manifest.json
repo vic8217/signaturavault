@@ -1,8 +1,9 @@
 {
+	"id": "/",
 	"name": "Signatura - Trust Every Document",
 	"short_name": "Signatura",
 	"description": "Zero Trust Level 2 digital document issuance, verification, and blockchain anchoring platform.",
-	"start_url": "/login?next=/wallet",
+	"start_url": "/signatura/dashboard",
 	"scope": "/",
 	"display": "standalone",
 	"display_override": ["standalone", "minimal-ui"],
@@ -11,14 +12,26 @@
 	"background_color": "#030914",
 	"icons": [
 		{
-			"src": "/signatura-logo.png",
-			"sizes": "any",
+			"src": "/signatura-icon-192.png",
+			"sizes": "192x192",
 			"type": "image/png",
 			"purpose": "any"
 		},
 		{
-			"src": "/signatura-logo.png",
-			"sizes": "any",
+			"src": "/signatura-icon-512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/signatura-icon-192.png",
+			"sizes": "192x192",
+			"type": "image/png",
+			"purpose": "maskable"
+		},
+		{
+			"src": "/signatura-icon-512.png",
+			"sizes": "512x512",
 			"type": "image/png",
 			"purpose": "maskable"
 		}
@@ -26,22 +39,22 @@
 	"categories": ["productivity", "business"],
 	"shortcuts": [
 		{
-			"name": "Issuer Portal",
-			"short_name": "Issue",
-			"url": "/issuer-portal",
-			"icons": [{ "src": "/signatura-logo.png", "sizes": "any" }]
+			"name": "Owner Portal",
+			"short_name": "Portal",
+			"url": "/signatura/dashboard",
+			"icons": [{ "src": "/signatura-icon-192.png", "sizes": "192x192" }]
 		},
 		{
-			"name": "Document Wallet",
-			"short_name": "Wallet",
-			"url": "/login?next=/wallet",
-			"icons": [{ "src": "/signatura-logo.png", "sizes": "any" }]
+			"name": "Issuer Portal",
+			"short_name": "Issue",
+			"url": "/issuer",
+			"icons": [{ "src": "/signatura-icon-192.png", "sizes": "192x192" }]
 		},
 		{
 			"name": "Verify Document",
 			"short_name": "Verify",
 			"url": "/verify",
-			"icons": [{ "src": "/signatura-logo.png", "sizes": "any" }]
+			"icons": [{ "src": "/signatura-icon-192.png", "sizes": "192x192" }]
 		}
 	]
 }

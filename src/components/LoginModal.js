@@ -1,11 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { PasskeyNotice } from './PasskeyNotice';
+import { useEffect, useState } from 'react';
 
-export function LoginModal() {
-	const [isOpen, setIsOpen] = useState(false);
+export function LoginModal({ defaultOpen = false }) {
+	const [isOpen, setIsOpen] = useState(defaultOpen);
+
+	useEffect(() => {
+		if (defaultOpen) {
+			setIsOpen(true);
+		}
+	}, [defaultOpen]);
 
 	return (
 		<>
@@ -44,7 +49,6 @@ export function LoginModal() {
 							</div>
 
 							<div className="grid gap-5 p-5">
-								<PasskeyNotice />
 								<div className="grid gap-3 sm:grid-cols-2">
 									<Link
 										href="/login"
@@ -53,7 +57,7 @@ export function LoginModal() {
 									</Link>
 									<Link
 										href="/register"
-										className="rounded-xl border border-white/20 px-5 py-4 text-center text-sm font-bold text-white transition hover:border-red-400 hover:text-red-300">
+										className="rounded-xl border border-red/15 px-5 py-4 text-center text-sm font-bold text-white transition hover:border-red-400 hover:text-red-400">
 										Create account
 									</Link>
 								</div>
@@ -63,7 +67,7 @@ export function LoginModal() {
 									</p>
 									<div className="mt-3 grid gap-3 sm:grid-cols-3">
 										<Link
-											href="/login?next=/wallet"
+											href="/login?next=/signatura/dashboard"
 											className="h-full w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-left transition hover:border-red-400 hover:bg-slate-800">
 											<span className="block text-sm font-bold text-white">
 												User Wallet
@@ -73,7 +77,7 @@ export function LoginModal() {
 											</span>
 										</Link>
 										<Link
-											href="/login?next=/issuer-portal"
+											href="/login?next=/issuer"
 											className="h-full w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-left transition hover:border-red-400 hover:bg-slate-800">
 											<span className="block text-sm font-bold text-white">
 												Issuer Admin
@@ -100,9 +104,10 @@ export function LoginModal() {
 									</div>
 								</div>
 								<p className="text-sm leading-6 text-slate-300">
-									Each browser or device is treated as a separate trusted device.
-									New devices must be approved by passkey verification, a trusted
-									device, QR approval, recovery code, or manual identity recovery.
+									Each browser or device is treated as a separate trusted
+									device. New devices must be approved by passkey verification,
+									a trusted device, QR approval, recovery code, or manual
+									identity recovery.
 								</p>
 							</div>
 						</div>

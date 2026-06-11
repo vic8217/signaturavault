@@ -23,7 +23,7 @@ function activationUrl(req: Request, token: string) {
 	const proto =
 		req.headers.get('x-forwarded-proto') ||
 		(host?.startsWith('localhost') ? 'http' : 'https');
-	return `${proto}://${host}/issuer-portal/activate?token=${token}`;
+	return `${proto}://${host}/issuer/activate?token=${token}`;
 }
 
 export async function POST(req: Request) {

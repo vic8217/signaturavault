@@ -6,15 +6,18 @@ import { jsonError, safeApiErrorMessage } from '@/lib/api';
 import { userPublicIdentity } from '@/lib/identity';
 import { setSessionCookie } from '@/lib/session';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
+import { logAuthAudit } from '@/lib/auth/authAudit';
+import {
+	hashRecoveryPhrase,
+	makeRecoveryPhrase,
+} from '@/lib/auth/recoveryPhrase';
 import {
 	assertSecureWebAuthnRequest,
 	consumeChallenge,
 	getOrigin,
 	getRpID,
 	getUserAgent,
-	hashRecoveryCode,
 	logSecurityEvent,
-	makeRecoveryCodes,
 } from '@/lib/webauthn';
 
 export async function POST(req: Request) {
@@ -63,7 +66,7 @@ export async function POST(req: Request) {
 		}
 
 		const { credential } = verification.registrationInfo;
-		const recoveryCodes = makeRecoveryCodes();
+		const recoveryPhrase = makeRecoveryPhrase();
 		const userAgent = getUserAgent(req);
 
 		const result = await prisma.$transaction(async (tx) => {
@@ -101,13 +104,13 @@ export async function POST(req: Request) {
 				},
 			});
 
-			await tx.recoveryCode.createMany({
-				data: recoveryCodes.map((code) => ({
+			await tx.recoveryCode.create({
+				data: {
 					id: crypto.randomUUID(),
 					userId,
-					codeHash: hashRecoveryCode(code),
-					codePrefix: code.slice(0, 8),
-				})),
+					codeHash: hashRecoveryPhrase(recoveryPhrase),
+					codePrefix: 'phrase',
+				},
 			});
 
 			await tx.securityEventLog.create({
@@ -119,18 +122,39 @@ export async function POST(req: Request) {
 					details: {
 						deviceName,
 						credentialId: credential.id,
-						notice: 'Recovery codes were shown once during onboarding',
+						notice: 'Recovery phrase was shown once during onboarding',
 					},
 				},
 			});
 
-			return user;
+			await tx.user.update({
+				where: { id: userId },
+				data: { accountStatus: 'active', trustLevel: 2 },
+			});
+			await tx.authChallenge.updateMany({
+				where: {
+					userId,
+					type: 'REGISTER_ACCOUNT',
+					usedAt: null,
+				},
+				data: { usedAt: new Date() },
+			});
+
+			return { ...user, accountStatus: 'active', trustLevel: 2 };
+		});
+
+		await logAuthAudit(req, 'trusted_device_registered', {
+			userId: result.id,
+			details: {
+				deviceName,
+				firstTrustedDevice: true,
+			},
 		});
 
 		const responseJson = NextResponse.json({
 			ok: true,
 			user: userPublicIdentity(result),
-			recoveryCodes,
+			recoveryPhrase,
 		});
 		setSessionCookie(responseJson, req, {
 			userId: result.id,

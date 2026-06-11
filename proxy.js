@@ -6,9 +6,10 @@ export function proxy(request) {
 
 export const config = {
 	matcher: [
+		'/signatura/:path*',
 		'/wallet/:path*',
+		'/issuer/:path*',
 		'/issuer-portal/:path*',
 		'/admin/:path*',
-		'/issuer/:path*',
 	],
 };

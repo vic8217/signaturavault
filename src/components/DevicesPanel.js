@@ -21,8 +21,8 @@ function DevicesPanel({ returnPath = '' }) {
 		? `/login?next=${encodeURIComponent(returnPath)}`
 		: '';
 	const addDeviceHref = returnPath
-		? `/security/add-device?next=${encodeURIComponent(returnPath)}`
-		: '/security/add-device';
+		? `/signatura/trusted-devices/add?next=${encodeURIComponent(returnPath)}`
+		: '/signatura/trusted-devices/add';
 
 	async function loadDevices() {
 		const response = await fetch('/api/security/devices');

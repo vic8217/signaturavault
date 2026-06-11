@@ -1,5 +1,5 @@
-import { IssuersPage } from '@/components/Marketing';
+import { IssuersMarketingPage } from '@/components/IssuersMarketingPage';
 
 export default function Issuers() {
-	return <IssuersPage />;
+	return <IssuersMarketingPage />;
 }

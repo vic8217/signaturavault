@@ -25,7 +25,7 @@ async function readJsonResponse(response) {
 function AddPasskeyPanel({
 	mode = 'device',
 	approvalMethod = 'trusted-device',
-	nextPath = '/wallet',
+	nextPath = '/signatura/dashboard',
 }) {
 	const [deviceName, setDeviceName] = useState('');
 	const [status, setStatus] = useState('');
@@ -33,7 +33,7 @@ function AddPasskeyPanel({
 	const [recoveryCodes, setRecoveryCodes] = useState([]);
 	const [isComplete, setIsComplete] = useState(false);
 	const isRecoveryFlow = approvalMethod === 'recovery-code';
-	const trustedDevicesHref = `/security/devices?next=${encodeURIComponent(nextPath)}`;
+	const trustedDevicesHref = `/signatura/trusted-devices?next=${encodeURIComponent(nextPath)}`;
 
 	async function submit(event) {
 		event.preventDefault();
@@ -168,7 +168,7 @@ function AddPasskeyPanel({
 			{isComplete ? (
 				<div className="mt-6 flex flex-col gap-3 sm:flex-row">
 					<Link
-						href={nextPath || '/security/devices'}
+						href={nextPath || '/signatura/trusted-devices'}
 						className="rounded-xl bg-red-500 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-400">
 						Open main dashboard
 					</Link>

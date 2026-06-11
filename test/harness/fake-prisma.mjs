@@ -105,9 +105,10 @@ function applyOrderBy(records, orderBy) {
 	return sorted;
 }
 
-function createModel(compositeKeyNames = []) {
+function createModel(compositeKeyNames = [], uniqueFieldNames = []) {
 	const rows = [];
 	const compositeKeys = new Set(compositeKeyNames);
+	const uniqueFields = new Set(uniqueFieldNames);
 
 	function clone(record) {
 		return record ? { ...record } : record;
@@ -150,6 +151,14 @@ function createModel(compositeKeyNames = []) {
 		async create({ data, select } = {}) {
 			const record = { id: data.id ?? crypto.randomUUID(), ...data };
 			if (record.createdAt === undefined) record.createdAt = new Date();
+			for (const field of uniqueFields) {
+				const value = record[field];
+				if (value === null || value === undefined || value === '') continue;
+				const existing = rows.find((row) => row[field] === value);
+				if (existing) {
+					throw new Error(`Unique constraint failed on the field: ${field}`);
+				}
+			}
 			rows.push(record);
 			return applySelect(clone(record), select);
 		},
@@ -200,8 +209,20 @@ function createModel(compositeKeyNames = []) {
 export function createFakePrisma() {
 	const models = {
 		user: createModel(),
+		issuer: createModel(),
 		issuerUser: createModel(),
+		documentType: createModel(),
+		documentTemplate: createModel(),
+		documentRequest: createModel(),
+		issuedDocument: createModel([], ['requestId']),
+		documentRecord: createModel([], ['documentRequestId']),
+		verificationToken: createModel(),
+		anchorPool: createModel(),
+		merkleProof: createModel(),
+		merkleBatch: createModel(),
+		apiLog: createModel(),
 		trustedDevice: createModel(),
+		trustedDeviceLoginChallenge: createModel(),
 		consent: createModel(),
 		privateFieldKeyReference: createModel(),
 		privateFieldKeyAuthorization: createModel(),
@@ -216,6 +237,24 @@ export function createFakePrisma() {
 
 	return {
 		...models,
+		async $transaction(callback) {
+			const snapshots = {};
+			for (const [name, model] of Object.entries(models)) {
+				snapshots[name] = model.__rows.map((row) => ({ ...row }));
+			}
+
+			try {
+				return await callback(this);
+			} catch (error) {
+				for (const [name, model] of Object.entries(models)) {
+					model.__clear();
+					for (const row of snapshots[name]) {
+						model.__rows.push({ ...row });
+					}
+				}
+				throw error;
+			}
+		},
 		__reset() {
 			for (const model of Object.values(models)) {
 				model.__clear();

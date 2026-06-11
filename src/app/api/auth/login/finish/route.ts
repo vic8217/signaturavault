@@ -5,7 +5,9 @@ import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
 import { userPublicIdentity } from '@/lib/identity';
 import { setSessionCookie } from '@/lib/session';
-import { ROLE_COOKIE, ROLES } from '@/lib/roles';
+import { normalizeLoginNextPath } from '@/lib/portalRoutes';
+import { ROLE_COOKIE } from '@/lib/roles';
+import { resolvePortalRole } from '@/lib/auth/loginSession';
 import {
 	assertSecureWebAuthnRequest,
 	consumeChallenge,
@@ -103,34 +105,27 @@ export async function POST(req: Request) {
 			}),
 		]);
 
-		let allowedNext = nextPath.startsWith('/') ? nextPath : '/wallet';
+		const allowedNext = normalizeLoginNextPath(
+			nextPath.startsWith('/') ? nextPath : '/signatura/dashboard',
+		);
 		let portalRole = null;
 
-		if (
-			allowedNext === '/issuer-portal' ||
-			allowedNext.startsWith('/issuer-portal/')
-		) {
-			const issuerUser = await prisma.issuerUser.findFirst({
-				where: {
-					userId: credential.user.id,
-					status: 'active',
-				},
-				orderBy: { activatedAt: 'desc' },
-			});
-
-			if (!issuerUser) {
-				return jsonError(
-					'This account is not activated as an issuer. Open the issuer activation invite from Dev Admin first.',
-					403,
-				);
-			} else {
-				portalRole =
-					issuerUser.role === ROLES.ISSUER_ADMIN
-						? ROLES.ISSUER_ADMIN
-						: ROLES.ISSUER_STAFF;
-			}
-		} else if (allowedNext === '/wallet' || allowedNext.startsWith('/wallet/')) {
-			portalRole = ROLES.DOCUMENT_OWNER;
+		try {
+			portalRole = await resolvePortalRole(credential.user.id, allowedNext);
+		} catch (roleError) {
+			const status =
+				typeof roleError === 'object' &&
+				roleError !== null &&
+				'status' in roleError &&
+				typeof roleError.status === 'number'
+					? roleError.status
+					: 403;
+			return jsonError(
+				roleError instanceof Error
+					? roleError.message
+					: 'Unable to resolve portal role',
+				status,
+			);
 		}
 
 		const responseJson = NextResponse.json({

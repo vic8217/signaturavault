@@ -27,7 +27,10 @@ async function reverifyPasskey() {
 	const finishData = await finishResponse.json();
 	if (!finishResponse.ok) throw new Error(finishData.error);
 
-	return finishData;
+	return {
+		...finishData,
+		credentialId: assertion.id,
+	};
 }
 
 async function registerAdditionalPasskey(deviceName) {

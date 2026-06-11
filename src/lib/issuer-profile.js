@@ -18,6 +18,9 @@ function profileFromIssuer(issuer, source = 'prisma') {
 			type: issuer.type || '',
 			registrationDate: issuer.registrationDate || issuer.registration_date || '',
 		status: issuer.status || 'active',
+		acceptsRequests: Boolean(
+			issuer.acceptsRequests ?? issuer.accepts_requests ?? false,
+		),
 		logoUrl: issuer.logoUrl || issuer.logo_url || issuer.logo || '',
 		website: issuer.website || '',
 		description: issuer.description || '',
@@ -112,14 +115,26 @@ async function updateActiveIssuerProfile(input) {
 	if (context.error) return context;
 
 	const profile = context.profile;
-		const patch = {
-			name: String(input.name || profile.name || '').trim(),
-			type: String(input.type || '').trim(),
-			registrationDate: String(input.registrationDate || '').trim(),
+	const patch = {
+		name: String(input.name || profile.name || '').trim(),
+		type: String(input.type || '').trim(),
+		registrationDate: String(input.registrationDate || '').trim(),
 		logoUrl: String(input.logoUrl || '').trim(),
 		website: String(input.website || '').trim(),
 		description: String(input.description || '').trim(),
 	};
+
+	if (typeof input.acceptsRequests === 'boolean') {
+		if (context.role !== ROLES.ISSUER_ADMIN) {
+			return {
+				error: Response.json(
+					{ error: 'Only issuer admins can change document request settings' },
+					{ status: 403 },
+				),
+			};
+		}
+		patch.acceptsRequests = input.acceptsRequests;
+	}
 
 	if (!patch.name) {
 		return {
@@ -131,12 +146,15 @@ async function updateActiveIssuerProfile(input) {
 		try {
 			await prisma.issuer.update({
 				where: { id: profile.id },
-					data: {
-						name: patch.name,
-						type: patch.type || null,
-						registrationDate: patch.registrationDate
+				data: {
+					name: patch.name,
+					type: patch.type || null,
+					registrationDate: patch.registrationDate
 						? new Date(patch.registrationDate)
 						: null,
+					...(typeof patch.acceptsRequests === 'boolean'
+						? { acceptsRequests: patch.acceptsRequests }
+						: {}),
 				},
 			});
 		} catch {
@@ -151,13 +169,16 @@ async function updateActiveIssuerProfile(input) {
 		);
 		if (issuerIndex >= 0) {
 			db.issuers[issuerIndex] = {
-					...db.issuers[issuerIndex],
-					name: patch.name,
-					type: patch.type || null,
-					registration_date: patch.registrationDate || null,
+				...db.issuers[issuerIndex],
+				name: patch.name,
+				type: patch.type || null,
+				registration_date: patch.registrationDate || null,
 				logo_url: patch.logoUrl || null,
 				website: patch.website || null,
 				description: patch.description || null,
+				...(typeof patch.acceptsRequests === 'boolean'
+					? { accepts_requests: patch.acceptsRequests }
+					: {}),
 				updated_at: new Date().toISOString(),
 			};
 			await saveDb(db);
@@ -168,6 +189,10 @@ async function updateActiveIssuerProfile(input) {
 		profile: {
 			...profile,
 			...patch,
+			acceptsRequests:
+				typeof patch.acceptsRequests === 'boolean'
+					? patch.acceptsRequests
+					: profile.acceptsRequests,
 		},
 	};
 }

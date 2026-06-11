@@ -1,6 +1,5 @@
 import { authenticateApiRequest } from '@/lib/auth';
-import { withDb, generateId, now } from '@/lib/db';
-import { safeApiLogEntry } from '@/lib/security';
+import { updateDocumentRecordHash } from '@/lib/document-records';
 
 export async function POST(req, { params }) {
 	const { tenantId } = await params;
@@ -21,60 +20,31 @@ export async function POST(req, { params }) {
 		);
 	}
 
-	return withDb(async (db) => {
-		const record = db.document_records.find(
-			(doc) => doc.id === documentId && doc.tenant_id === tenantId,
-		);
-		if (!record) {
-			return new Response(JSON.stringify({ error: 'Document not found' }), {
-				status: 404,
+	try {
+		const result = await updateDocumentRecordHash({
+			tenantId,
+			documentId,
+			documentHash,
+			auditContext: {
+				apiClientId: auth.client.id,
+				path: `/api/issuers/${tenantId}/hashes`,
+				method: 'POST',
+			},
+		});
+
+		if (result.error) {
+			return new Response(JSON.stringify({ error: result.error }), {
+				status: result.status || 400,
 			});
 		}
-		if (record.anchor_status === 'published') {
-			return new Response(
-				JSON.stringify({
-					error:
-						'Published document hashes cannot be edited. Create a corrected document version instead.',
-				}),
-				{ status: 409 },
-			);
-		}
-		record.hash = documentHash;
-		record.document_hash = documentHash;
-		record.anchor_status = 'pending';
-		record.anchor_batch_id = null;
-		record.updated_at = now();
 
-		db.anchor_pool = db.anchor_pool.filter(
-			(poolRecord) => poolRecord.document_id !== documentId,
-		);
-		db.merkle_proofs = db.merkle_proofs.filter(
-			(proof) => proof.document_id !== documentId,
-		);
-		db.anchor_pool.push({
-			id: generateId('pool'),
-			document_id: documentId,
-			document_hash: documentHash,
-			status: 'pending',
-			created_at: now(),
-			updated_at: now(),
+		return new Response(JSON.stringify(result.body), {
+			status: result.status || 200,
 		});
-
-		db.api_logs.push(
-			safeApiLogEntry({
-				id: generateId('apilog'),
-				tenantId,
-				apiClientId: auth.client.id,
-				req,
-				status: 200,
-				requestBody: { action: 'document_hash_submitted', documentId },
-				responseBody: { message: 'hash submitted' },
-				createdAt: now(),
-			}),
+	} catch (error) {
+		return new Response(
+			JSON.stringify({ error: error.message || 'Unable to submit hash' }),
+			{ status: 400 },
 		);
-
-		return new Response(JSON.stringify({ message: 'hash submitted' }), {
-			status: 200,
-		});
-	});
+	}
 }

@@ -2,7 +2,6 @@ import { generateRegistrationOptions } from '@simplewebauthn/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
-import { createUniqueSignaturaId } from '@/lib/identity';
 import {
 	RP_NAME,
 	assertSecureWebAuthnRequest,
@@ -17,18 +16,32 @@ export async function POST(req: Request) {
 	try {
 		assertSecureWebAuthnRequest(req);
 		const body = await req.json();
+		const userId = String(body.userId || '').trim();
+		const registrationToken = String(body.registrationToken || '').trim();
 		const deviceName = String(body.deviceName || '').trim() || 'Trusted device';
-		const signaturaId = await createUniqueSignaturaId(prisma);
-		const user = await prisma.user.create({
-			data: {
-				id: crypto.randomUUID(),
-				signaturaId,
-				email: null,
-				name: null,
-				accountStatus: 'active',
-				trustLevel: 1,
+
+		if (!userId || !registrationToken) {
+			return jsonError('userId and registrationToken are required');
+		}
+
+		const accountChallenge = await prisma.authChallenge.findFirst({
+			where: {
+				userId,
+				type: 'REGISTER_ACCOUNT',
+				challenge: registrationToken,
+				usedAt: null,
+				expiresAt: { gt: new Date() },
 			},
 		});
+		if (!accountChallenge) {
+			return jsonError('Account creation token expired or already used', 400);
+		}
+
+		const user = await prisma.user.findUnique({
+			where: { id: userId },
+			select: { id: true, signaturaId: true, accountStatus: true },
+		});
+		if (!user) return jsonError('Account not found', 404);
 
 		const options = await generateRegistrationOptions({
 			rpName: RP_NAME,
@@ -59,6 +72,7 @@ export async function POST(req: Request) {
 		await logSecurityEvent(req, 'registration_challenge_created', user.id, {
 			origin: getOrigin(req),
 			deviceName,
+			accountStatus: user.accountStatus,
 		});
 
 		return Response.json({ userId: user.id, signaturaId: user.signaturaId, options });

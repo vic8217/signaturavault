@@ -1,4 +1,5 @@
 import { PortalIcon } from '@/components/PortalIcon';
+import { QrCodeScanner } from '@/components/QrCodeScanner';
 
 export default function WalletScanPage() {
 	return (
@@ -8,26 +9,25 @@ export default function WalletScanPage() {
 					QR scanner
 				</p>
 				<h1 className="mt-3 text-3xl font-bold text-white">
-					Scan a document QR
+					Scan a Signatura QR
 				</h1>
 				<p className="mt-4 text-sm leading-6 text-slate-300">
-					Use this page to scan a Signatura QR code and verify document
-					authenticity, status, issuer, and expiry.
+					Scan a document verification QR or a remote unlock QR from a desktop
+					browser session.
 				</p>
 			</section>
 
-			<section className="rounded-2xl border border-dashed border-red-500/40 bg-red-500/10 p-8 text-center">
-				<div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-red-500/40 bg-slate-950 text-red-300">
-					<PortalIcon name="scanner" className="h-8 w-8" />
+			<section className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4">
+				<div className="flex items-center gap-3 text-sm text-red-50">
+					<PortalIcon name="scanner" className="h-5 w-5 shrink-0 text-red-300" />
+					<p>
+						Camera access works on HTTPS origins such as your ngrok URL. If a
+						browser blocks camera QR decoding, paste the QR link below.
+					</p>
 				</div>
-				<h2 className="mt-5 text-xl font-bold text-white">
-					Camera scanner coming next
-				</h2>
-				<p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-300">
-					The mobile scanner tab is ready. Camera permissions and QR decoding
-					can be connected here without changing the wallet navigation.
-				</p>
 			</section>
+
+			<QrCodeScanner />
 		</div>
 	);
 }
