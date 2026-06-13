@@ -7,10 +7,14 @@ export default async function RegisterPage({ searchParams }) {
 	const requestedNext = params?.next || '';
 	const requestedSignaturaId = params?.signaturaId || '';
 	const setupMode = params?.setup === 'device' ? 'device' : '';
+	const requestedAccountType =
+		typeof params?.accountType === 'string' ? params.accountType : '';
+	const accountType = requestedAccountType === 'issuer' ? 'issuer' : 'user';
+	const defaultNext = accountType === 'issuer' ? '/issuer' : '/signatura/dashboard';
 	const nextPath = normalizeLoginNextPath(
 		typeof requestedNext === 'string' && requestedNext.startsWith('/')
 			? requestedNext
-			: '/signatura/dashboard',
+			: defaultNext,
 	);
 	const initialSignaturaId =
 		typeof requestedSignaturaId === 'string' ? requestedSignaturaId : '';
@@ -25,6 +29,8 @@ export default async function RegisterPage({ searchParams }) {
 			<RegisterPasskeyForm
 				nextPath={nextPath}
 				initialSignaturaId={initialSignaturaId}
+				initialAccountType={accountType}
+				showIssuerRegistrationLink={accountType === 'user' && !setupMode}
 				setupMode={setupMode}
 			/>
 		</main>

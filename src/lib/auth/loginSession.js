@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { logAuthAudit } from '@/lib/auth/authAudit';
-import { userPublicIdentity } from '@/lib/identity';
+import {
+	SIGNATURA_ACCOUNT_TYPES,
+	getSignaturaAccountType,
+	userPublicIdentity,
+} from '@/lib/identity';
 import { prisma } from '@/lib/prisma';
 import { normalizeLoginNextPath } from '@/lib/portalRoutes';
 import {
@@ -14,11 +18,22 @@ import { setSessionCookie } from '@/lib/session';
 async function resolvePortalRole(userId, nextPath) {
 	let portalRole = null;
 	if (isIssuerPortalPath(nextPath)) {
+		const user = await prisma.user.findUnique({
+			where: { id: userId },
+			select: { signaturaId: true },
+		});
+		const accountType = getSignaturaAccountType(user?.signaturaId);
 		const issuerUser = await prisma.issuerUser.findFirst({
 			where: { userId, status: 'active' },
 			orderBy: { activatedAt: 'desc' },
 		});
 		if (!issuerUser) {
+			if (
+				accountType === SIGNATURA_ACCOUNT_TYPES.ISSUER &&
+				process.env.NODE_ENV !== 'production'
+			) {
+				return ROLES.ISSUER_ADMIN;
+			}
 			const error = new Error(
 				'This account is not activated as an issuer. Open the issuer activation invite from Dev Admin first.',
 			);
@@ -29,6 +44,19 @@ async function resolvePortalRole(userId, nextPath) {
 			issuerUser.role === ROLES.ISSUER_ADMIN
 				? ROLES.ISSUER_ADMIN
 				: ROLES.ISSUER_STAFF;
+	} else if (nextPath.startsWith('/admin')) {
+		const user = await prisma.user.findUnique({
+			where: { id: userId },
+			select: { signaturaId: true },
+		});
+		const accountType = getSignaturaAccountType(user?.signaturaId);
+		if (accountType === SIGNATURA_ACCOUNT_TYPES.ADMIN) {
+			portalRole = ROLES.SIGNATURA_ADMIN;
+		} else {
+			const error = new Error('This Signatura ID is not provisioned for admin access.');
+			error.status = 403;
+			throw error;
+		}
 	} else if (isDocumentOwnerPath(nextPath)) {
 		portalRole = ROLES.DOCUMENT_OWNER;
 	} else if (nextPath.startsWith('/hoa-key/')) {

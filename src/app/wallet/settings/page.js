@@ -31,7 +31,7 @@ const securityLinks = [
 export default function WalletSettings() {
 	return (
 		<div className="space-y-8">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_0_70px_rgba(15,23,42,0.42)]">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-7 shadow-[0_0_70px_rgba(15,23,42,0.42)]">
 				<div className="mb-5 grid h-12 w-12 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 					<PortalIcon name="lock" className="h-6 w-6" />
 				</div>
@@ -46,7 +46,7 @@ export default function WalletSettings() {
 					<Link
 						key={link.href}
 						href={link.href}
-						className="group rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:border-red-400 hover:bg-white/[0.06]">
+						className="group rounded-2xl border border-white/10 bg-white/4 p-5 transition hover:border-red-400 hover:bg-white/6">
 						<div className="mb-4 grid h-11 w-11 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 							<PortalIcon name={link.icon} className="h-5 w-5" />
 						</div>
@@ -60,7 +60,7 @@ export default function WalletSettings() {
 				))}
 			</section>
 
-			<div className="max-w-2xl rounded-2xl border border-white/10 bg-white/[0.04] p-8">
+			<div className="max-w-2xl rounded-2xl border border-white/10 bg-white/4 p-8">
 				<h2 className="mb-6 text-xl font-bold text-white">Privacy & sharing</h2>
 				<div className="space-y-4">
 					<label className="flex cursor-pointer items-center gap-3">

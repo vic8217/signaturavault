@@ -84,6 +84,59 @@ ACTIVATION_TOKEN_SECRET="replace-with-a-long-random-activation-token-secret"
 If you already have a PostgreSQL database, replace the value with that
 connection string before running `npm run db:migrate`.
 
+### Protected issuer presentation deck
+
+The invited-viewer deck is available at:
+
+```text
+/presentation/signatura-issuers?token=...
+```
+
+Access links are server-validated against `presentation_access_links`. Tokens are
+generated with secure random bytes and only token hashes are stored. Successful
+views are recorded in `presentation_access_views` with timestamp, IP address
+when available, and user agent when available.
+
+Admin management:
+
+```text
+/admin/presentations/signatura-issuers
+```
+
+Local setup:
+
+```bash
+npm run db:migrate
+npm run db:generate
+npm run demo:presentation-token
+```
+
+If the local database user cannot create Prisma shadow databases, apply checked-in
+migrations with:
+
+```bash
+npx prisma migrate deploy
+```
+
+The slide PNGs live in:
+
+```text
+public/presentations/signatura-issuers/
+```
+
+Replace the placeholder files with final 4:3 PNG exports using the exact names:
+
+```text
+slide-01.png
+slide-02.png
+...
+slide-15.png
+```
+
+Keep the files as PNGs. The viewer expects 15 slides and displays one slide at a
+time with previous/next controls, fullscreen support, keyboard navigation, and
+right-click disabled on the slide image.
+
 ### Passkey authentication
 
 The user security flow uses WebAuthn/passkeys through `@simplewebauthn/server`

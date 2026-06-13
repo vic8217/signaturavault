@@ -131,6 +131,7 @@ function DocumentRequestsPanel() {
 
 	useEffect(() => {
 		if (!selectedRequestId && requests.length) {
+			// eslint-disable-next-line react-hooks/set-state-in-effect
 			setSelectedRequestId(requests[0].requestId);
 		}
 		if (selectedRequestId && !requests.some((item) => item.requestId === selectedRequestId)) {
@@ -139,6 +140,7 @@ function DocumentRequestsPanel() {
 	}, [requests, selectedRequestId]);
 
 	useEffect(() => {
+		// eslint-disable-next-line react-hooks/set-state-in-effect
 		loadRequestDetail(selectedRequestId);
 	}, [loadRequestDetail, selectedRequestId]);
 
@@ -298,7 +300,7 @@ function DocumentRequestsPanel() {
 
 	return (
 		<div className="space-y-8">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_0_70px_rgba(15,23,42,0.42)]">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-7 shadow-[0_0_70px_rgba(15,23,42,0.42)]">
 				<div className="mb-5 grid h-12 w-12 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 					<PortalIcon name="document" className="h-6 w-6" />
 				</div>
@@ -323,7 +325,7 @@ function DocumentRequestsPanel() {
 				</div>
 			</section>
 
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 				<h2 className="text-2xl font-bold text-white">My Credentials</h2>
 				<p className="mt-2 text-sm text-slate-300">
 					Digital copies delivered to your Signatura wallet after issuer approval.
@@ -376,7 +378,7 @@ function DocumentRequestsPanel() {
 			</section>
 
 			{showRequestForm ? (
-				<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+				<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 					<h2 className="text-2xl font-bold text-white">Request a digital copy</h2>
 					<p className="mt-2 text-sm text-slate-300">
 						Choose an issuer, select a document type, and submit encrypted request
@@ -475,7 +477,7 @@ function DocumentRequestsPanel() {
 				</section>
 			) : null}
 
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 				<h2 className="text-2xl font-bold text-white">My Requests</h2>
 				<p className="mt-2 text-sm text-slate-300">
 					Track pending, approved, denied, issued, and cancelled requests.

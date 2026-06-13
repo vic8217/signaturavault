@@ -61,7 +61,7 @@ export default async function AccountRecoveryPage({ searchParams }) {
 				</p>
 
 				{email ? (
-					<div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
+					<div className="mt-5 rounded-xl border border-white/10 bg-white/4 px-4 py-3 text-sm text-slate-200">
 						Recovery account: <span className="font-semibold">{email}</span>
 					</div>
 				) : null}
@@ -81,7 +81,7 @@ export default async function AccountRecoveryPage({ searchParams }) {
 							<Link
 							key={method.title}
 							href={href}
-							className="rounded-xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-red-400/60 hover:bg-red-500/10">
+							className="rounded-xl border border-white/10 bg-white/4 p-4 transition hover:border-red-400/60 hover:bg-red-500/10">
 							<div className="flex gap-3">
 								<div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-red-500/40 bg-red-500/10 text-sm font-black text-red-200">
 									{index + 1}

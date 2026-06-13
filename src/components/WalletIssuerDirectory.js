@@ -93,7 +93,7 @@ export function WalletIssuerDirectory({ issuers = [], classifications = [] }) {
 
 	return (
 		<div className="space-y-6">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_0_70px_rgba(15,23,42,0.42)]">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-6 shadow-[0_0_70px_rgba(15,23,42,0.42)]">
 				<p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
 					Issuers
 				</p>
@@ -106,7 +106,7 @@ export function WalletIssuerDirectory({ issuers = [], classifications = [] }) {
 				</p>
 			</section>
 
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-5">
 				<div className="grid gap-3 lg:grid-cols-[1fr_240px_auto]">
 					<label className="block">
 						<span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
@@ -186,7 +186,7 @@ export function WalletIssuerDirectory({ issuers = [], classifications = [] }) {
 					<Link
 						key={issuer.id}
 						href={`/signatura/documents/issuers/issuer/${issuer.id}`}
-						className="block rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:border-red-400 hover:bg-white/[0.06]">
+						className="block rounded-2xl border border-white/10 bg-white/4 p-5 transition hover:border-red-400 hover:bg-white/6">
 						<div className="flex gap-4">
 							<div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 								<PortalIcon name="bank" className="h-6 w-6" />
@@ -220,7 +220,7 @@ export function WalletIssuerDirectory({ issuers = [], classifications = [] }) {
 				))}
 
 				{filteredIssuers.length === 0 ? (
-					<article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+					<article className="rounded-2xl border border-white/10 bg-white/4 p-5">
 						<div className="flex gap-4">
 							<div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 								<PortalIcon name="bank" className="h-5 w-5" />

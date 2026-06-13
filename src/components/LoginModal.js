@@ -8,6 +8,7 @@ export function LoginModal({ defaultOpen = false }) {
 
 	useEffect(() => {
 		if (defaultOpen) {
+			// eslint-disable-next-line react-hooks/set-state-in-effect
 			setIsOpen(true);
 		}
 	}, [defaultOpen]);
@@ -61,53 +62,11 @@ export function LoginModal({ defaultOpen = false }) {
 										Create account
 									</Link>
 								</div>
-								<div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
-									<p className="text-xs font-bold uppercase tracking-[0.18em] text-red-300">
-										Portal access
-									</p>
-									<div className="mt-3 grid gap-3 sm:grid-cols-3">
-										<Link
-											href="/login?next=/signatura/dashboard"
-											className="h-full w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-left transition hover:border-red-400 hover:bg-slate-800">
-											<span className="block text-sm font-bold text-white">
-												User Wallet
-											</span>
-											<span className="mt-1 block text-xs text-slate-400">
-												Secure wallet sign-in
-											</span>
-										</Link>
-										<Link
-											href="/login?next=/issuer"
-											className="h-full w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-left transition hover:border-red-400 hover:bg-slate-800">
-											<span className="block text-sm font-bold text-white">
-												Issuer Admin
-											</span>
-											<span className="mt-1 block text-xs text-slate-400">
-												Secure issuer sign-in
-											</span>
-										</Link>
-										<form action="/api/auth/session" method="post">
-											<input
-												type="hidden"
-												name="role"
-												value="SIGNATURA_ADMIN"
-											/>
-											<button className="h-full w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-left transition hover:border-red-400 hover:bg-slate-800">
-												<span className="block text-sm font-bold text-white">
-													Dev Admin
-												</span>
-												<span className="mt-1 block text-xs text-slate-400">
-													Open Admin Console
-												</span>
-											</button>
-										</form>
-									</div>
-								</div>
 								<p className="text-sm leading-6 text-slate-300">
-									Each browser or device is treated as a separate trusted
-									device. New devices must be approved by passkey verification,
-									a trusted device, QR approval, recovery code, or manual
-									identity recovery.
+									Open the user, issuer, or admin URL you need, then sign in with
+									the matching Signatura ID prefix. New devices must be approved by
+									passkey verification, trusted-device QR approval, recovery code,
+									or manual identity recovery.
 								</p>
 							</div>
 						</div>

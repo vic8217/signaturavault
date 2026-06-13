@@ -4,7 +4,7 @@ import { QrCodeScanner } from '@/components/QrCodeScanner';
 export default function WalletScanPage() {
 	return (
 		<div className="space-y-6">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 				<p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
 					QR scanner
 				</p>

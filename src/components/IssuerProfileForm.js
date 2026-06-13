@@ -75,7 +75,7 @@ function IssuerProfileForm() {
 	return (
 		<form
 			onSubmit={saveProfile}
-			className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+			className="rounded-2xl border border-white/10 bg-white/4 p-6">
 			<div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
 				<div>
 					<p className="text-sm font-semibold uppercase tracking-[0.24em] text-red-300">

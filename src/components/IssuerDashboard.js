@@ -37,11 +37,11 @@ function MetricTile({ icon, label, value, hint, tone = 'slate' }) {
 		red: 'border-red-400/30 bg-red-500/10 text-red-200',
 		amber: 'border-amber-300/30 bg-amber-300/10 text-amber-100',
 		emerald: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-100',
-		slate: 'border-white/10 bg-white/[0.04] text-slate-200',
+		slate: 'border-white/10 bg-white/4 text-slate-200',
 	};
 
 	return (
-		<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+		<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 			<div
 				className={`grid h-10 w-10 place-items-center rounded-xl border ${tones[tone]}`}>
 				<PortalIcon name={icon} className="h-5 w-5" />
@@ -95,7 +95,7 @@ export function IssuerDashboard() {
 
 	return (
 		<div className="space-y-8">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-8 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-8 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
 				<div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
 					<div className="max-w-3xl">
 						<p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
@@ -165,8 +165,8 @@ export function IssuerDashboard() {
 					}
 					tone="red"
 				/>
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-					<div className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-200">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
+					<div className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/4 text-slate-200">
 						<PortalIcon name="template" className="h-5 w-5" />
 					</div>
 					<p className="mt-4 text-sm text-slate-400">Active templates</p>
@@ -204,7 +204,7 @@ export function IssuerDashboard() {
 			</section>
 
 			<section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-6">
 					<p className="text-sm font-semibold uppercase tracking-[0.28em] text-red-300">
 						Quick actions
 					</p>
@@ -257,7 +257,7 @@ export function IssuerDashboard() {
 					</div>
 				</div>
 
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-6">
 					<p className="text-sm font-semibold uppercase tracking-[0.28em] text-red-300">
 						Recent activity
 					</p>
@@ -271,9 +271,9 @@ export function IssuerDashboard() {
 								template to populate this feed.
 							</p>
 						) : null}
-						{data?.recentActivity?.map((item) => (
+						{data?.recentActivity?.map((item, index) => (
 							<div
-								key={item.id}
+								key={`${item.kind || 'activity'}-${item.id || index}`}
 								className="rounded-xl border border-white/10 bg-slate-950/50 px-4 py-3">
 								<div className="flex items-start justify-between gap-3">
 									<div>

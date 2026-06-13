@@ -11,8 +11,8 @@ model User {
   signaturaId       String               @unique @map("signatura_id")
   email             String?              @unique
   name              String?
-  emailLookupHash   String?              @unique @map("email_lookup_hash")
-  mobileLookupHash  String?              @unique @map("mobile_lookup_hash")
+  emailLookupHash   String?              @map("email_lookup_hash")
+  mobileLookupHash  String?              @map("mobile_lookup_hash")
   accountStatus     String               @default("active") @map("account_status")
   trustLevel        Int                  @default(1) @map("trust_level")
   createdAt         DateTime             @default(now()) @map("created_at")
@@ -27,6 +27,8 @@ model User {
   trustedDeviceLoginChallenges TrustedDeviceLoginChallenge[]
   accountRecoveryRequests      AccountRecoveryRequest[]
 
+  @@index([emailLookupHash])
+  @@index([mobileLookupHash])
   @@map("users")
 }
 
@@ -176,6 +178,44 @@ model SecurityAuditLog {
   @@index([userId])
   @@index([action])
   @@map("security_audit_logs")
+}
+
+model PresentationAccessLink {
+  id               String                     @id @default(cuid())
+  tokenHash        String                     @unique @map("token_hash")
+  tokenCipher      String?                    @map("token_cipher")
+  tokenPrefix      String                     @map("token_prefix")
+  presentationSlug String                     @map("presentation_slug")
+  viewerName       String?                    @map("viewer_name")
+  viewerEmail      String?                    @map("viewer_email")
+  expiresAt        DateTime                   @map("expires_at")
+  usedAt           DateTime?                  @map("used_at")
+  maxViews         Int?                       @map("max_views")
+  viewCount        Int                        @default(0) @map("view_count")
+  isRevoked        Boolean                    @default(false) @map("is_revoked")
+  createdAt        DateTime                   @default(now()) @map("created_at")
+  updatedAt        DateTime                   @updatedAt @map("updated_at")
+  views            PresentationAccessView[]
+
+  @@index([presentationSlug])
+  @@index([expiresAt])
+  @@index([isRevoked])
+  @@map("presentation_access_links")
+}
+
+model PresentationAccessView {
+  id               String                 @id @default(cuid())
+  tokenId          String                 @map("token_id")
+  presentationSlug String                 @map("presentation_slug")
+  viewedAt         DateTime               @default(now()) @map("viewed_at")
+  ipAddress        String?                @map("ip_address")
+  userAgent        String?                @map("user_agent")
+  token            PresentationAccessLink @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@index([tokenId])
+  @@index([presentationSlug])
+  @@index([viewedAt])
+  @@map("presentation_access_views")
 }
 
 model Tenant {

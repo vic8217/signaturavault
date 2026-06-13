@@ -150,7 +150,7 @@ export function AdminDigitizationDashboard() {
 
 	return (
 		<div className="space-y-8">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-10 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-10 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
 				<p className="text-sm font-bold uppercase tracking-[0.3em] text-red-400">
 					Digitization Support
 				</p>
@@ -191,7 +191,7 @@ export function AdminDigitizationDashboard() {
 				].map(([icon, label, value]) => (
 					<div
 						key={label}
-						className="rounded-xl border border-white/10 bg-white/[0.04] p-5">
+						className="rounded-xl border border-white/10 bg-white/4 p-5">
 						<div className="mb-4 grid h-10 w-10 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 							<PortalIcon name={icon} className="h-5 w-5" />
 						</div>
@@ -202,7 +202,7 @@ export function AdminDigitizationDashboard() {
 			</div>
 
 			{status ? (
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-300">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5 text-sm text-slate-300">
 					{status}
 				</div>
 			) : null}
@@ -212,7 +212,7 @@ export function AdminDigitizationDashboard() {
 				</div>
 			) : null}
 
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 				<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
 					<div>
 						<p className="text-sm font-bold uppercase tracking-[0.2em] text-red-300">
@@ -303,7 +303,7 @@ export function AdminDigitizationDashboard() {
 				</div>
 			</section>
 
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 				<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
 					<div>
 						<p className="text-sm font-bold uppercase tracking-[0.2em] text-red-300">

@@ -10,6 +10,7 @@ export function PwaInstallHint() {
 			window.matchMedia('(display-mode: standalone)').matches ||
 			window.navigator.standalone === true;
 
+		// eslint-disable-next-line react-hooks/set-state-in-effect
 		setVisible(!isStandalone);
 	}, []);
 

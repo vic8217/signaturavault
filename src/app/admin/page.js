@@ -121,7 +121,7 @@ export default async function AdminDashboard() {
 
 	return (
 		<div className="space-y-8">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-10 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-10 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
 				<p className="text-sm font-bold uppercase tracking-[0.3em] text-red-400">
 					Dev Admin
 				</p>
@@ -136,7 +136,7 @@ export default async function AdminDashboard() {
 				{overviewCards.map((card) => (
 					<div
 						key={card.label}
-						className="rounded-xl border border-white/10 bg-white/[0.04] p-6">
+						className="rounded-xl border border-white/10 bg-white/4 p-6">
 						<div className="mb-5 grid h-11 w-11 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 							<PortalIcon name={card.icon} className="h-5 w-5" />
 						</div>
@@ -148,7 +148,7 @@ export default async function AdminDashboard() {
 				))}
 			</div>
 
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-8">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-8">
 				<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
 					<div>
 						<p className="text-sm font-bold uppercase tracking-[0.3em] text-red-300">
@@ -184,7 +184,7 @@ export default async function AdminDashboard() {
 			</section>
 
 			<div className="grid md:grid-cols-2 gap-6">
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-8">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-8">
 					<div className="mb-5 grid h-11 w-11 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 						<PortalIcon name="audit" className="h-5 w-5" />
 					</div>
@@ -194,7 +194,7 @@ export default async function AdminDashboard() {
 					<p className="text-slate-300">No recent activity to display.</p>
 				</div>
 
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-8">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-8">
 					<div className="mb-5 grid h-11 w-11 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 						<PortalIcon name="system" className="h-5 w-5" />
 					</div>

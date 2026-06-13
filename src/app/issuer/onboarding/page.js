@@ -23,7 +23,7 @@ const steps = [
 export default function IssuerOnboarding() {
 	return (
 		<div className="space-y-8">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-8 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-8 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
 				<p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
 					Issuer onboarding
 				</p>
@@ -63,7 +63,7 @@ export default function IssuerOnboarding() {
 			</section>
 
 			<section className="grid gap-6 lg:grid-cols-2">
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-6">
 					<h2 className="text-xl font-bold text-white">Tenant registration</h2>
 					<p className="mt-3 text-sm leading-7 text-slate-300">
 						Collect issuer name, contact email, and tenant metadata so each

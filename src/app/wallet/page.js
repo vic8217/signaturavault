@@ -50,7 +50,7 @@ export default function WalletHome() {
 			<Suspense fallback={null}>
 				<RegisterTrustedDevicePrompt />
 			</Suspense>
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_0_70px_rgba(15,23,42,0.42)]">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-7 shadow-[0_0_70px_rgba(15,23,42,0.42)]">
 				<div className="max-w-3xl">
 					<p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
 						Document Wallet
@@ -69,9 +69,9 @@ export default function WalletHome() {
 			<section className="grid gap-4 sm:grid-cols-2">
 				{walletCards.map((card) => (
 					<Link
-						key={card.href}
+						key={card.title}
 						href={card.href}
-						className="group rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:border-red-400 hover:bg-white/[0.06]">
+						className="group rounded-2xl border border-white/10 bg-white/4 p-5 transition hover:border-red-400 hover:bg-white/6">
 						<div className="mb-4 grid h-11 w-11 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 							<PortalIcon name={card.icon} className="h-5 w-5" />
 						</div>

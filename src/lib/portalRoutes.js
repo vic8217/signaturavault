@@ -12,7 +12,11 @@ import {
 export * from './portalRoutesCore.js';
 
 function evaluatePortalAccess({ pathname, search = '', role }) {
-	if (pathname === '/issuer/activate' || pathname === '/issuer/onboarding') {
+	if (
+		pathname === '/issuer/activate' ||
+		pathname === '/issuer/onboarding' ||
+		pathname === '/admin/register'
+	) {
 		return { action: 'allow' };
 	}
 

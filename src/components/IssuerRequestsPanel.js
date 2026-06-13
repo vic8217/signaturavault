@@ -28,7 +28,7 @@ function StatusBadge({ status }) {
 	return (
 		<span
 			className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${
-				STATUS_STYLES[status] || 'border-white/10 bg-white/[0.04] text-slate-200'
+				STATUS_STYLES[status] || 'border-white/10 bg-white/4 text-slate-200'
 			}`}>
 			{status}
 		</span>
@@ -124,6 +124,7 @@ export function IssuerRequestsPanel() {
 
 	useEffect(() => {
 		if (!selectedId && filteredRequests.length) {
+			// eslint-disable-next-line react-hooks/set-state-in-effect
 			setSelectedId(filteredRequests[0].requestId);
 		}
 		if (selectedId && !filteredRequests.some((item) => item.requestId === selectedId)) {
@@ -132,6 +133,7 @@ export function IssuerRequestsPanel() {
 	}, [filteredRequests, selectedId]);
 
 	useEffect(() => {
+		// eslint-disable-next-line react-hooks/set-state-in-effect
 		loadDetail(selectedId);
 	}, [loadDetail, selectedId]);
 
@@ -244,7 +246,7 @@ export function IssuerRequestsPanel() {
 						className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
 							statusFilter === filter.value
 								? 'border-red-400/40 bg-red-500/15 text-red-100'
-								: 'border-white/10 bg-white/[0.04] text-slate-300 hover:border-white/20'
+								: 'border-white/10 bg-white/4 text-slate-300 hover:border-white/20'
 						}`}>
 						{filter.label}
 					</button>

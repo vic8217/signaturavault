@@ -12,16 +12,27 @@ const UNREGISTERED_PASSKEY_ERROR = 'No passkey is registered for this account';
 const PASSKEY_DOMAIN_MISMATCH_ERROR =
 	'No usable passkey was found for this site. If this SIGNATURA ID was created on localhost or a different ngrok URL, register this phone as a trusted device for the current URL.';
 
+function accountTypeForNextPath(nextPath) {
+	if (nextPath === '/admin' || nextPath.startsWith('/admin/')) return 'admin';
+	if (nextPath === '/issuer' || nextPath.startsWith('/issuer/')) return 'issuer';
+	return 'user';
+}
+
 function LoginPasskeyForm({ nextPath = '/signatura/dashboard' }) {
 	const [signaturaId, setSignaturaId] = useState('');
 	const [step, setStep] = useState('id');
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [showLocalPasskey, setShowLocalPasskey] = useState(false);
 	const [canRegisterDevice, setCanRegisterDevice] = useState(false);
 	const normalizedSignaturaId = signaturaId.trim();
-	const createAccountHref = `/register?next=${encodeURIComponent(nextPath)}`;
+	const loginAccountType = accountTypeForNextPath(nextPath);
+	const createAccountHref =
+		loginAccountType === 'admin'
+			? `/admin/register?next=${encodeURIComponent(nextPath)}`
+			: `/register?next=${encodeURIComponent(nextPath)}${
+					loginAccountType === 'issuer' ? '&accountType=issuer' : ''
+				}`;
 	const registerDeviceHref = `/register?next=${encodeURIComponent(nextPath)}&signaturaId=${encodeURIComponent(normalizedSignaturaId)}&setup=device`;
 	const recoveryPhraseHref = `/account-recovery/recovery-code?next=${encodeURIComponent(nextPath)}`;
 	const accountRecoveryHref = `/account-recovery/manual?next=${encodeURIComponent(nextPath)}`;
@@ -44,23 +55,22 @@ function LoginPasskeyForm({ nextPath = '/signatura/dashboard' }) {
 
 	function updateSignaturaId(value) {
 		setSignaturaId(value);
-		if (!value.trim() && step === 'qr') {
+		if (!value.trim() && step !== 'id') {
 			setStep('id');
 		}
 	}
 
-	function continueToQrLogin() {
+	function continueToMethods() {
 		if (!normalizedSignaturaId) {
 			setError('Enter your Signatura ID to continue.');
 			return;
 		}
 		setError('');
 		setStatus('');
-		setStep('qr');
+		setStep('methods');
 	}
 
-	async function submitLocalPasskey(event) {
-		event.preventDefault();
+	async function startLocalPasskeyLogin() {
 		if (isSubmitting) return;
 		setError('');
 		setCanRegisterDevice(false);
@@ -146,7 +156,9 @@ function LoginPasskeyForm({ nextPath = '/signatura/dashboard' }) {
 					Zero Trust Level 2 sign-in
 				</p>
 				<h1 className="mt-2 text-3xl font-black">
-					{nextPath === '/issuer' || nextPath.startsWith('/issuer/')
+					{nextPath === '/admin' || nextPath.startsWith('/admin/')
+						? 'Admin secure sign-in'
+						: nextPath === '/issuer' || nextPath.startsWith('/issuer/')
 						? 'Issuer secure sign-in'
 						: 'Sign in to Signatura'}
 				</h1>
@@ -168,13 +180,19 @@ function LoginPasskeyForm({ nextPath = '/signatura/dashboard' }) {
 							onChange={(event) => updateSignaturaId(event.target.value)}
 							onInput={(event) => updateSignaturaId(event.currentTarget.value)}
 							autoComplete="username"
-							placeholder="SIG-8FD2A91C"
+							placeholder={
+								loginAccountType === 'admin'
+									? 'SIG-A-8FD2-A91C'
+									: loginAccountType === 'issuer'
+										? 'SIG-I-8FD2-A91C'
+										: 'SIG-U-8FD2-A91C'
+							}
 							className="rounded-xl border border-white/10 bg-white px-4 py-3 text-slate-950 outline-none ring-red-500 transition focus:ring-2"
 						/>
 					</label>
 					<button
 						type="button"
-						onClick={continueToQrLogin}
+						onClick={continueToMethods}
 						disabled={isSubmitting || !normalizedSignaturaId}
 						className="rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
 						Continue
@@ -187,6 +205,48 @@ function LoginPasskeyForm({ nextPath = '/signatura/dashboard' }) {
 							Register new Signatura account
 						</Link>
 					</p>
+				</div>
+			) : null}
+
+			{step === 'methods' && normalizedSignaturaId ? (
+				<div className="mt-6 grid gap-4">
+					<div className="flex items-center justify-between gap-3">
+						<div>
+							<p className="text-sm font-bold uppercase tracking-[0.18em] text-red-300">
+								Trusted device
+							</p>
+							<p className="mt-1 text-sm text-slate-300">
+								Use the trusted passkey registered on this browser for{' '}
+								<span className="font-mono text-white">
+									{normalizedSignaturaId}
+								</span>
+								.
+							</p>
+						</div>
+						<button
+							type="button"
+							onClick={() => setStep('id')}
+							className="text-xs font-semibold text-red-200 transition hover:text-white">
+							Change ID
+						</button>
+					</div>
+					<button
+						type="button"
+						onClick={startLocalPasskeyLogin}
+						disabled={isSubmitting}
+						className="rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
+						{isSubmitting ? 'Preparing passkey...' : 'Sign in with this device passkey'}
+					</button>
+					<button
+						type="button"
+						onClick={() => {
+							setError('');
+							setStatus('');
+							setStep('qr');
+						}}
+						className="rounded-xl border border-white/15 px-5 py-3 text-sm font-bold text-red-100 transition hover:border-red-300 hover:text-white">
+						Use another trusted device (QR)
+					</button>
 				</div>
 			) : null}
 
@@ -236,53 +296,8 @@ function LoginPasskeyForm({ nextPath = '/signatura/dashboard' }) {
 				</Link>
 			</div>
 
-			<div className="mt-6 border-t border-white/10 pt-5">
-				<button
-					type="button"
-					onClick={() => setShowLocalPasskey((current) => !current)}
-					className="text-sm font-semibold text-slate-300 transition hover:text-white">
-					{showLocalPasskey
-						? 'Hide passkey on this device'
-						: 'Sign in with passkey on this device (secondary)'}
-				</button>
-				{showLocalPasskey ? (
-					<form onSubmit={submitLocalPasskey} className="mt-4 grid gap-3">
-						<p className="text-xs leading-5 text-slate-400">
-							Use this only when the current browser already has a registered
-							passkey for your Signatura ID.
-						</p>
-						<button
-							disabled={isSubmitting || !normalizedSignaturaId}
-							className="rounded-xl border border-red-400/40 bg-red-500/10 px-5 py-3 text-sm font-bold text-red-100 transition hover:border-red-300 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50">
-							{isSubmitting ? 'Preparing passkey...' : 'Sign in with passkey'}
-						</button>
-						{normalizedSignaturaId ? (
-							<Link
-								href={registerDeviceHref}
-								className="text-center text-sm font-semibold text-red-200 transition hover:text-white">
-								Register this device for this Signatura ID
-							</Link>
-						) : null}
-					</form>
-				) : null}
-			</div>
-
 			{status ? <p className="mt-4 text-sm text-slate-200">{status}</p> : null}
 			{error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}
-			{nextPath !== '/issuer' && !nextPath.startsWith('/issuer/') ? (
-				<div className="mt-6 border-t border-white/10 pt-5">
-					<Link
-						href="/login?next=/issuer"
-						className="text-sm font-semibold text-slate-300 transition hover:text-white">
-						Sign in as issuer
-					</Link>
-					<p className="mt-2 text-xs leading-5 text-slate-500">
-						Issuer staff authenticate with trusted-device approval and open /issuer
-						after sign-in.
-					</p>
-				</div>
-			) : null}
-
 			{showDeviceRegistration ? (
 				<div className="mt-4 rounded-xl border border-red-400/40 bg-red-500/10 p-4">
 					<p className="text-sm leading-6 text-red-50">

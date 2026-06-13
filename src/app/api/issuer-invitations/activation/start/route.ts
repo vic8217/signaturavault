@@ -51,7 +51,7 @@ export async function POST(req: Request) {
 			: await prisma.user.create({
 					data: {
 						id: crypto.randomUUID(),
-						signaturaId: await createUniqueSignaturaId(prisma),
+						signaturaId: await createUniqueSignaturaId(prisma, 'issuer'),
 						email: null,
 						name: null,
 						accountStatus: 'active',

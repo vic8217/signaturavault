@@ -3,7 +3,7 @@ import { IssuerProfileForm } from '@/components/IssuerProfileForm';
 export default function IssuerProfilePage() {
 	return (
 		<div className="space-y-8">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-10 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-10 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
 				<div className="max-w-3xl">
 					<p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
 						Profile

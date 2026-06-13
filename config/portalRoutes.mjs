@@ -9,6 +9,7 @@ const PUBLIC_ROUTES = [
 	'/pricing',
 	'/login',
 	'/register',
+	'/admin/register',
 	'/verify',
 	'/account-recovery',
 	'/consent',

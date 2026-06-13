@@ -35,7 +35,7 @@ const securityActions = [
 export default function WalletProfilePage() {
 	return (
 		<div className="space-y-6">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 				<p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
 					Profile
 				</p>
@@ -53,7 +53,7 @@ export default function WalletProfilePage() {
 					<Link
 						key={action.href}
 						href={action.href}
-						className="group rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:border-red-400 hover:bg-white/[0.06]">
+						className="group rounded-2xl border border-white/10 bg-white/4 p-5 transition hover:border-red-400 hover:bg-white/6">
 						<div className="mb-4 grid h-11 w-11 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 							<PortalIcon name={action.icon} className="h-5 w-5" />
 						</div>

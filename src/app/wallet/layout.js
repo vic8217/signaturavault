@@ -25,25 +25,25 @@ export default function WalletLayout({ children }) {
 					</Link>
 					<nav className="hidden gap-2 text-xs font-bold text-slate-200 lg:flex">
 						<Link
-							className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 transition hover:border-red-400"
+							className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/4 px-3 py-2 transition hover:border-red-400"
 							href="/signatura/dashboard">
 							<PortalIcon name="identity" className="h-4 w-4 text-red-400" />
 							Home
 						</Link>
 						<Link
-							className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 transition hover:border-red-400"
+							className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/4 px-3 py-2 transition hover:border-red-400"
 							href="/signatura/settings">
 							<PortalIcon name="lock" className="h-4 w-4 text-red-400" />
 							Settings
 						</Link>
 						<Link
-							className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 transition hover:border-red-400"
+							className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/4 px-3 py-2 transition hover:border-red-400"
 							href="/signatura/settings/security">
 							<PortalIcon name="identity" className="h-4 w-4 text-red-400" />
 							Profile
 						</Link>
 						<Link
-							className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 transition hover:border-red-400"
+							className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/4 px-3 py-2 transition hover:border-red-400"
 							href="/signatura/documents/issuers">
 							<PortalIcon name="bank" className="h-4 w-4 text-red-400" />
 							Issuers

@@ -205,7 +205,7 @@ export default async function UseCaseDetailPage({ params }) {
 
 					<div className="relative min-h-[430px]">
 						<div className="absolute inset-x-10 top-12 h-64 rounded-full bg-red-500/10 blur-3xl" />
-						<div className="relative mx-auto grid max-w-3xl gap-4 rounded-4xl border border-white/10 bg-white/[0.04] p-5 shadow-[0_0_80px_rgba(15,23,42,0.7)] sm:grid-cols-2">
+						<div className="relative mx-auto grid max-w-3xl gap-4 rounded-4xl border border-white/10 bg-white/4 p-5 shadow-[0_0_80px_rgba(15,23,42,0.7)] sm:grid-cols-2">
 							<div className="rounded-2xl border border-white/10 bg-[#071224] p-5">
 								<div className="flex items-center justify-between">
 									<span className="text-sm font-bold text-slate-300">Source</span>

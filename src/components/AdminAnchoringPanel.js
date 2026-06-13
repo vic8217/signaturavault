@@ -107,29 +107,29 @@ function AdminAnchoringPanel() {
 	return (
 		<div className="space-y-6">
 			<section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 					<p className="text-sm text-slate-400">Pending anchors</p>
 					<p className="mt-2 text-3xl font-bold text-white">{data.pendingAnchorCount}</p>
 				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 					<p className="text-sm text-slate-400">Batched anchors</p>
 					<p className="mt-2 text-3xl font-bold text-white">{data.batchedAnchorCount}</p>
 				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 					<p className="text-sm text-slate-400">Anchored</p>
 					<p className="mt-2 text-3xl font-bold text-white">{data.anchoredCount}</p>
 				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 					<p className="text-sm text-slate-400">Failed anchors</p>
 					<p className="mt-2 text-3xl font-bold text-white">{data.failedAnchorCount}</p>
 				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 					<p className="text-sm text-slate-400">Latest batches</p>
 					<p className="mt-2 text-3xl font-bold text-white">{data.latestBatches.length}</p>
 				</div>
 			</section>
 
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 					<div>
 						<h2 className="text-xl font-bold text-white">Merkle batch controls</h2>
@@ -167,7 +167,7 @@ function AdminAnchoringPanel() {
 				) : null}
 			</section>
 
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 				<div className="flex items-end justify-between gap-3">
 					<div>
 						<p className="text-sm font-semibold uppercase tracking-[0.2em] text-red-300">

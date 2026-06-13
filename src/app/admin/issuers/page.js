@@ -153,7 +153,7 @@ export default function AdminIssuers() {
 
 	return (
 		<div className="space-y-8">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-10">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-10">
 				<div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
 					<div>
 						<div className="mb-5 grid h-12 w-12 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
@@ -169,7 +169,7 @@ export default function AdminIssuers() {
 			</section>
 
 			{status ? (
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-300">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5 text-sm text-slate-300">
 					{status}
 				</div>
 			) : null}
@@ -248,7 +248,7 @@ export default function AdminIssuers() {
 			) : null}
 
 			{issuers.length > 0 ? (
-				<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+				<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 					<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
 						<div>
 							<p className="text-sm font-bold uppercase tracking-[0.18em] text-red-300">

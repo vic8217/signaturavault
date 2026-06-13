@@ -73,11 +73,11 @@ function SummaryTile({ icon, label, value, tone = 'slate' }) {
 		red: 'border-red-400/30 bg-red-500/10 text-red-200',
 		amber: 'border-amber-300/30 bg-amber-300/10 text-amber-100',
 		emerald: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-100',
-		slate: 'border-white/10 bg-white/[0.04] text-slate-200',
+		slate: 'border-white/10 bg-white/4 text-slate-200',
 	};
 
 	return (
-		<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+		<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 			<div
 				className={`grid h-10 w-10 place-items-center rounded-xl border ${tones[tone]}`}>
 				<PortalIcon name={icon} className="h-5 w-5" />
@@ -123,6 +123,7 @@ export function IssuerDocumentSummary({ initialPayload = null }) {
 
 	useEffect(() => {
 		if (initialPayload && hasDefaultFilters) {
+			// eslint-disable-next-line react-hooks/set-state-in-effect
 			setData(initialPayload);
 			setIsLoading(false);
 			setError('');
@@ -193,7 +194,7 @@ export function IssuerDocumentSummary({ initialPayload = null }) {
 				<SummaryTile icon="audit" label="Failed" value={summary.failed} tone="red" />
 			</div>
 
-			<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+			<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 				<div className="grid gap-3 lg:grid-cols-[1fr_220px_240px]">
 					<label className="block">
 						<span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
@@ -260,8 +261,8 @@ export function IssuerDocumentSummary({ initialPayload = null }) {
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-white/10">
-								{data.documents.map((document) => (
-									<tr key={document.id}>
+								{data.documents.map((document, index) => (
+									<tr key={`${document.source || 'document'}-${document.id || index}`}>
 										<td className="px-4 py-4">
 											<p className="font-semibold text-white">
 												{document.externalId || shortValue(document.id)}

@@ -69,7 +69,7 @@ export default function UseCasesPage() {
 					<Link
 						key={useCase.slug}
 						href={`/use-cases/${useCase.slug}`}
-						className="group min-h-72 rounded-2xl border border-white/10 bg-white/[0.035] p-6 transition hover:border-red-500 hover:bg-white/[0.06]">
+						className="group min-h-72 rounded-2xl border border-white/10 bg-white/[0.035] p-6 transition hover:border-red-500 hover:bg-white/6">
 						<div className="flex items-center justify-between gap-4">
 							<span className="rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-red-300">
 								{useCase.sector}

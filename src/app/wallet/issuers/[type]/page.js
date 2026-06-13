@@ -35,7 +35,7 @@ export default async function WalletIssuerTypePage({ params }) {
 
 	return (
 		<div className="space-y-6">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 				<Link
 					href="/signatura/documents/issuers"
 					className="text-sm font-semibold text-red-300 transition hover:text-white">
@@ -57,7 +57,7 @@ export default async function WalletIssuerTypePage({ params }) {
 					issuers.map((issuer) => (
 						<article
 							key={issuer.id}
-							className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+							className="rounded-2xl border border-white/10 bg-white/4 p-5">
 							<div className="flex gap-4">
 								<div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 									<PortalIcon name="bank" className="h-5 w-5" />
@@ -86,7 +86,7 @@ export default async function WalletIssuerTypePage({ params }) {
 						</article>
 					))
 				) : (
-					<article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+					<article className="rounded-2xl border border-white/10 bg-white/4 p-5">
 						<div className="flex gap-4">
 							<div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 								<PortalIcon name="bank" className="h-5 w-5" />

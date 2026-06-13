@@ -45,7 +45,7 @@ export function WalletBottomNav() {
 							className={`grid min-h-14 place-items-center gap-1 rounded-xl px-1 py-2 text-[0.68rem] font-bold transition ${
 								active
 									? 'bg-red-500 text-white'
-									: 'text-slate-400 hover:bg-white/[0.04] hover:text-white'
+									: 'text-slate-400 hover:bg-white/4 hover:text-white'
 							}`}>
 							<PortalIcon
 								name={item.icon}

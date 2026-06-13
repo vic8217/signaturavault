@@ -18,6 +18,7 @@ const PUBLIC_ROUTE_CASES = [
 	'/contact',
 	'/login',
 	'/register',
+	'/admin/register',
 	'/verify',
 ];
 
@@ -108,6 +109,16 @@ test('/security marketing page is public and not treated as legacy', () => {
 	assert.equal(
 		evaluatePortalAccess({ pathname: '/security', role: undefined }).action,
 		'allow',
+	);
+});
+
+test('/admin/register remains accessible while signed in as a user', () => {
+	assert.deepEqual(
+		evaluatePortalAccess({
+			pathname: '/admin/register',
+			role: 'DOCUMENT_OWNER',
+		}),
+		{ action: 'allow' },
 	);
 });
 

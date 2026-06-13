@@ -6,7 +6,7 @@ export default function AdminSystem() {
 
 	return (
 		<div className="space-y-8">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-10">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-10">
 				<div className="mb-5 grid h-12 w-12 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 					<PortalIcon name="system" className="h-6 w-6" />
 				</div>
@@ -19,7 +19,7 @@ export default function AdminSystem() {
 			</section>
 
 			<div className="grid md:grid-cols-2 gap-6">
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-8">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-8">
 					<div className="mb-5 grid h-11 w-11 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 						<PortalIcon name="api" className="h-5 w-5" />
 					</div>
@@ -33,7 +33,7 @@ export default function AdminSystem() {
 					</ul>
 				</div>
 
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-8">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-8">
 					<div className="mb-5 grid h-11 w-11 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 						<PortalIcon name="shield" className="h-5 w-5" />
 					</div>

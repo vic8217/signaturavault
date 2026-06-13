@@ -31,7 +31,7 @@ function IssuerTemplateIssuancePanel() {
 	);
 
 	return (
-		<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+		<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
 				<div>
 					<h2 className="text-xl font-bold text-white">

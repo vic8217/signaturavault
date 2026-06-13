@@ -48,7 +48,7 @@ function IssuerInvitationForm() {
 	}
 
 	return (
-		<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-8">
+		<div className="rounded-2xl border border-white/10 bg-white/4 p-8">
 			<h2 className="text-xl font-bold text-white">Invite issuer user</h2>
 			<p className="mt-3 text-sm leading-7 text-slate-300">
 				Messaging apps are delivery channels only. They are not proof of identity.

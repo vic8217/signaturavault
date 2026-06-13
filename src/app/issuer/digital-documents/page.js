@@ -103,7 +103,7 @@ function RedactedDocumentPreview({ template }) {
 
 function TemplatePreview({ template }) {
 	return (
-		<article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+		<article className="rounded-2xl border border-white/10 bg-white/4 p-5">
 			<div className="flex items-start justify-between gap-4">
 				<div>
 					<p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-300">
@@ -161,7 +161,7 @@ export default async function DigitalDocumentsPage() {
 
 	return (
 		<div className="space-y-8">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-10 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-10 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
 				<div className="max-w-3xl">
 					<p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
 						Digital Documents
@@ -177,15 +177,15 @@ export default async function DigitalDocumentsPage() {
 			</section>
 
 			<section className="grid gap-4 sm:grid-cols-3">
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 					<p className="text-sm text-slate-400">Published</p>
 					<p className="mt-2 text-3xl font-bold text-white">{published.length}</p>
 				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 					<p className="text-sm text-slate-400">Drafts</p>
 					<p className="mt-2 text-3xl font-bold text-white">{drafts.length}</p>
 				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 					<p className="text-sm text-slate-400">Total fields</p>
 					<p className="mt-2 text-3xl font-bold text-white">
 						{templates.reduce((sum, template) => sum + template.fields.length, 0)}
@@ -202,7 +202,7 @@ export default async function DigitalDocumentsPage() {
 			{featured ? (
 				<TemplatePreview template={featured} />
 			) : (
-				<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+				<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
 					<div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
 						<div className="rounded-xl border border-white/10 bg-slate-950/70 p-5">
 							<div className="aspect-[1.58] rounded-lg border border-slate-300 bg-white p-5 shadow-inner">

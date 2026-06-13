@@ -11,6 +11,8 @@ npm run demo:seed-signatura
 npm run dev:lan:https       # HTTPS recommended for passkeys / camera QR
 ```
 
+**HOA + HavenxSig integration (Signatura ID, HOA key unlock):** see [`TEST_HOA_SIGNATURA_INTEGRATION.md`](TEST_HOA_SIGNATURA_INTEGRATION.md).
+
 **Full database wipe (optional):**
 
 ```bash

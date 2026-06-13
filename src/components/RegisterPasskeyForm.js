@@ -13,6 +13,8 @@ import { PasskeyNotice } from './PasskeyNotice';
 function RegisterPasskeyForm({
 	nextPath = '/signatura/dashboard',
 	initialSignaturaId = '',
+	initialAccountType = 'user',
+	showIssuerRegistrationLink = false,
 	setupMode = '',
 }) {
 	const router = useRouter();
@@ -24,6 +26,9 @@ function RegisterPasskeyForm({
 		email: '',
 		deviceName: '',
 	});
+	const accountType = ['issuer', 'admin'].includes(initialAccountType)
+		? initialAccountType
+		: 'user';
 	const [step, setStep] = useState(isDeviceSetup ? 'resume' : 'account');
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
@@ -32,6 +37,13 @@ function RegisterPasskeyForm({
 	const [createdAccount, setCreatedAccount] = useState(null);
 	const [registrationToken, setRegistrationToken] = useState('');
 	const trustedDevicesHref = `/signatura/trusted-devices?next=${encodeURIComponent(nextPath)}`;
+	const issuerRegisterHref = `/register?next=${encodeURIComponent('/issuer')}&accountType=issuer`;
+	const accountTypeLabel =
+		accountType === 'admin'
+			? 'Admin account'
+			: accountType === 'issuer'
+				? 'Issuer account'
+				: 'Document owner account';
 
 	function returnToLoginModal() {
 		const canonicalNext = normalizeLoginNextPath(nextPath);
@@ -58,14 +70,23 @@ function RegisterPasskeyForm({
 					fullName: form.fullName,
 					handphone: form.handphone,
 					email: form.email,
+					accountType,
 				}),
 			});
 			const data = await response.json();
 			if (!response.ok) throw new Error(data.error);
-			setStatus('Your SIGNATURA ID has been created. Returning to login...');
-			window.setTimeout(() => {
-				returnToLoginModal();
-			}, 1200);
+			setCreatedAccount(data.user);
+			setRegistrationToken(data.registrationToken || '');
+			setForm((current) => ({
+				...current,
+				signaturaId: data.user?.signaturaId || current.signaturaId,
+			}));
+			setRecoveryPhrase('');
+			setRecoveryPhraseSaved(false);
+			setStatus(
+				'Your SIGNATURA ID has been created. Register this device to finish setup and receive your recovery phrase.',
+			);
+			setStep('device');
 		} catch (accountError) {
 			setError(
 				accountError instanceof Error
@@ -184,7 +205,7 @@ function RegisterPasskeyForm({
 		<div className="mx-auto w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-950/90 p-6 text-white shadow-2xl">
 			<div className="mb-6">
 				<p className="text-sm font-bold uppercase tracking-[0.18em] text-red-300">
-					{isDeviceSetup ? 'Trusted device setup' : 'Document owner account'}
+					{isDeviceSetup ? 'Trusted device setup' : accountTypeLabel}
 				</p>
 				<h1 className="mt-2 text-3xl font-black">
 					{isDeviceSetup
@@ -194,7 +215,11 @@ function RegisterPasskeyForm({
 				<p className="mt-3 text-sm leading-6 text-slate-300">
 					{isDeviceSetup
 						? 'Verify your SIGNATURA ID with the same email and handphone number used during account creation, then register this device.'
-						: 'Enter your details to generate your SIGNATURA ID. Your private contact information is encrypted before it is saved.'}
+						: accountType === 'issuer'
+							? 'Enter your issuer details to generate an issuer SIGNATURA ID. Your private contact information is encrypted before it is saved.'
+							: accountType === 'admin'
+								? 'Enter authorized administrator details to generate an admin SIGNATURA ID. Your private contact information is encrypted before it is saved.'
+								: 'Enter your details to generate your SIGNATURA ID. Your private contact information is encrypted before it is saved.'}
 				</p>
 				{!isDeviceSetup ? (
 					<div className="mt-4 rounded-xl border border-red-300/20 bg-red-500/10 p-4 text-sm leading-6 text-red-50/90">
@@ -208,6 +233,20 @@ function RegisterPasskeyForm({
 
 			{step === 'account' ? (
 				<form onSubmit={createAccount} className="mt-6 grid gap-4">
+					{accountType !== 'user' ? (
+						<div className="rounded-xl border border-red-300/20 bg-red-500/10 p-4 text-sm leading-6 text-red-50/90">
+							<p className="font-bold">
+								{accountType === 'admin'
+									? 'Admin Signatura ID'
+									: 'Issuer Signatura ID'}
+							</p>
+							<p className="mt-1">
+								{accountType === 'admin'
+									? 'Admin IDs are provisioned from the admin URL only. Production blocks public admin self-registration.'
+									: 'Issuer IDs use the SIG-I prefix. Issuer portal access still requires an active issuer tenant or invitation.'}
+							</p>
+						</div>
+					) : null}
 					<label className="grid gap-2 text-sm font-semibold">
 						<span>Full name</span>
 						<input
@@ -423,11 +462,26 @@ function RegisterPasskeyForm({
 
 			{!isDeviceSetup ? (
 				<div className="mt-6 border-t border-white/10 pt-5">
-					<Link
-						href="/login?next=/issuer"
-						className="text-sm font-semibold text-slate-300 transition hover:text-white">
-						Already an issuer? Sign in to /issuer
-					</Link>
+					{showIssuerRegistrationLink ? (
+						<Link
+							href={issuerRegisterHref}
+							className="mb-3 inline-flex w-full items-center justify-center rounded-xl border border-white/15 px-5 py-3 text-sm font-bold text-red-100 transition hover:border-red-300 hover:text-white">
+							Create issuer Signatura ID
+						</Link>
+					) : null}
+					{accountType === 'admin' ? (
+						<Link
+							href="/login?next=/admin"
+							className="text-sm font-semibold text-slate-300 transition hover:text-white">
+							Already an admin? Sign in to /admin
+						</Link>
+					) : (
+						<Link
+							href="/login?next=/issuer"
+							className="text-sm font-semibold text-slate-300 transition hover:text-white">
+							Already an issuer? Sign in to /issuer
+						</Link>
+					)}
 				</div>
 			) : null}
 		</div>

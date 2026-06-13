@@ -102,7 +102,7 @@ function FeatureGrid({ items }) {
 function RoleAccessPanel() {
 	return (
 		<section className="px-4 pb-20 sm:px-6 lg:px-8">
-			<div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+			<div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-white/4 p-6">
 				<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
 					<div>
 						<p className="text-sm font-bold uppercase tracking-[0.18em] text-red-300">
@@ -280,7 +280,7 @@ function ContactPage() {
 				text="Tell us about your issuer program, document types, and verification needs. We will help map the right portal, wallet, and API setup."
 			/>
 			<section className="px-4 pb-20 sm:px-6 lg:px-8">
-				<form className="mx-auto grid max-w-3xl gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+				<form className="mx-auto grid max-w-3xl gap-4 rounded-2xl border border-white/10 bg-white/4 p-6">
 					<input
 						className="rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white placeholder-slate-500 focus:border-red-500 focus:outline-none"
 						placeholder="Work email"

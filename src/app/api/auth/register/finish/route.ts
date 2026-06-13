@@ -3,7 +3,11 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
-import { userPublicIdentity } from '@/lib/identity';
+import {
+	SIGNATURA_ACCOUNT_TYPES,
+	getSignaturaAccountType,
+	userPublicIdentity,
+} from '@/lib/identity';
 import { setSessionCookie } from '@/lib/session';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
 import { logAuthAudit } from '@/lib/auth/authAudit';
@@ -151,6 +155,18 @@ export async function POST(req: Request) {
 			},
 		});
 
+		const accountType = getSignaturaAccountType(result.signaturaId);
+		let portalRole = ROLES.DOCUMENT_OWNER;
+		if (
+			accountType === SIGNATURA_ACCOUNT_TYPES.ISSUER &&
+			process.env.NODE_ENV !== 'production'
+		) {
+			portalRole = ROLES.ISSUER_ADMIN;
+		}
+		if (accountType === SIGNATURA_ACCOUNT_TYPES.ADMIN) {
+			portalRole = ROLES.SIGNATURA_ADMIN;
+		}
+
 		const responseJson = NextResponse.json({
 			ok: true,
 			user: userPublicIdentity(result),
@@ -159,13 +175,13 @@ export async function POST(req: Request) {
 		setSessionCookie(responseJson, req, {
 			userId: result.id,
 			signaturaId: result.signaturaId,
-			role: ROLES.DOCUMENT_OWNER,
+			role: portalRole,
 			trustLevel: result.trustLevel,
 			iat: Date.now(),
 			createdAt: Date.now(),
 			reauthenticatedAt: Date.now(),
 		});
-		responseJson.cookies.set(ROLE_COOKIE, ROLES.DOCUMENT_OWNER, {
+		responseJson.cookies.set(ROLE_COOKIE, portalRole, {
 			httpOnly: true,
 			sameSite: 'lax',
 			secure: process.env.NODE_ENV === 'production',

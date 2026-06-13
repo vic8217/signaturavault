@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { useCases } from '@/lib/use-cases';
-import { PublicMarketingLayout } from '@/components/Marketing';
 
 const audiences = [
 	'Schools',
@@ -148,7 +147,7 @@ function DashboardPreview() {
 				].map(([label, value]) => (
 					<div
 						key={label}
-						className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3">
+						className="rounded-xl border border-white/10 bg-white/4 px-3 py-3">
 						<p className="text-xs text-slate-400">{label}</p>
 						<p className="mt-1 text-xl font-bold text-white">{value}</p>
 					</div>
@@ -193,7 +192,7 @@ function DashboardPreview() {
 
 function IssuersMarketingPage() {
 	return (
-		<PublicMarketingLayout>
+		<>
 			<section className="relative isolate overflow-hidden px-4 py-20 sm:px-6 lg:px-8">
 				<div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_75%_20%,rgba(255,45,45,0.18),transparent_28%),radial-gradient(circle_at_20%_8%,rgba(38,92,150,0.24),transparent_32%),linear-gradient(180deg,#030914_0%,#071224_58%,#030914_100%)]" />
 				<div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
@@ -214,7 +213,7 @@ function IssuersMarketingPage() {
 							{audiences.map((label) => (
 								<span
 									key={label}
-									className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-200">
+									className="rounded-full border border-white/10 bg-white/4 px-3 py-1 text-xs font-semibold text-slate-200">
 									{label}
 								</span>
 							))}
@@ -266,7 +265,7 @@ function IssuersMarketingPage() {
 					{issuanceSteps.map((item) => (
 						<article
 							key={item.step}
-							className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+							className="rounded-2xl border border-white/10 bg-white/4 p-6">
 							<p className="text-sm font-black text-red-400">{item.step}</p>
 							<h3 className="mt-3 text-lg font-bold text-white">{item.title}</h3>
 							<p className="mt-3 text-sm leading-6 text-slate-300">{item.text}</p>
@@ -363,7 +362,7 @@ function IssuersMarketingPage() {
 					</div>
 				</div>
 			</section>
-		</PublicMarketingLayout>
+		</>
 	);
 }
 

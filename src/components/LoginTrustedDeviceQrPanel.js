@@ -1,9 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 
 const POLL_INTERVAL_MS = 2000;
+const NO_TRUSTED_DEVICE_MESSAGE =
+	'No trusted device is registered for this Signatura ID. Register a trusted device first.';
 
 function formatCode(value) {
 	return String(value || '')
@@ -167,6 +170,7 @@ export function LoginTrustedDeviceQrPanel({
 
 	useEffect(() => {
 		if (!signaturaId.trim()) return;
+		// eslint-disable-next-line react-hooks/set-state-in-effect
 		startRemoteLogin();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
@@ -186,9 +190,12 @@ export function LoginTrustedDeviceQrPanel({
 			{challenge ? (
 				<div className="mt-5 grid gap-5 md:grid-cols-[200px_1fr]">
 					{qrDataUrl ? (
-						<img
+						<Image
 							src={qrDataUrl}
 							alt="Trusted device login QR code"
+							width={200}
+							height={200}
+							unoptimized
 							className="mx-auto rounded-xl border border-white/10 bg-slate-950 p-2"
 						/>
 					) : null}
@@ -228,7 +235,18 @@ export function LoginTrustedDeviceQrPanel({
 				</div>
 			) : null}
 
-			{error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}
+			{error ? (
+				<div className="mt-4 rounded-xl border border-red-400/30 bg-red-500/10 p-4">
+					<p className="text-sm leading-6 text-red-50">{error}</p>
+					{error === NO_TRUSTED_DEVICE_MESSAGE ? (
+						<Link
+							href={registerDeviceHref}
+							className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400">
+							Register trusted device
+						</Link>
+					) : null}
+				</div>
+			) : null}
 			{submitting && !error ? (
 				<p className="mt-4 text-sm text-slate-300">
 					Waiting for approval on your trusted device...

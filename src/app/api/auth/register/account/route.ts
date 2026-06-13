@@ -1,7 +1,13 @@
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
-import { createUniqueSignaturaId, userPublicIdentity } from '@/lib/identity';
+import {
+	SIGNATURA_ACCOUNT_TYPES,
+	createUniqueSignaturaId,
+	getSignaturaAccountType,
+	normalizeSignaturaAccountType,
+	userPublicIdentity,
+} from '@/lib/identity';
 import {
 	accountLookupHashes,
 	encryptedAccountContactFields,
@@ -28,27 +34,37 @@ export async function POST(req: Request) {
 		const fullName = normalizeFullName(body.fullName);
 		const handphone = normalizeHandphone(body.handphone);
 		const email = normalizeEmail(body.email);
+		const accountType = normalizeSignaturaAccountType(body.accountType);
 
 		if (!fullName || fullName.length < 2) return jsonError('Full name is required');
 		if (!handphone || handphone.replace(/\D/g, '').length < 7) {
 			return jsonError('Handphone number is required');
 		}
 		if (!email || !validateEmail(email)) return jsonError('Valid email address is required');
+		if (
+			accountType === SIGNATURA_ACCOUNT_TYPES.ADMIN &&
+			process.env.NODE_ENV === 'production'
+		) {
+			return jsonError('Admin Signatura IDs must be provisioned internally', 403);
+		}
 
 		const { emailLookupHash, mobileLookupHash } = accountLookupHashes({
 			email,
 			handphone,
 		});
-		const existing = await prisma.user.findFirst({
+		const matchingContactUsers = await prisma.user.findMany({
 			where: {
 				OR: [{ emailLookupHash }, { mobileLookupHash }],
 			},
-			select: { id: true },
+			select: { id: true, signaturaId: true },
 		});
+		const existing = matchingContactUsers.find(
+			(user) => getSignaturaAccountType(user.signaturaId) === accountType,
+		);
 		if (existing) return jsonError('Account already exists', 409);
 
 		const userId = crypto.randomUUID();
-		const signaturaId = await createUniqueSignaturaId(prisma);
+		const signaturaId = await createUniqueSignaturaId(prisma, accountType);
 		const registrationToken = crypto.randomBytes(32).toString('base64url');
 		const encryptedFields = encryptedAccountContactFields({
 			userId,
@@ -87,6 +103,7 @@ export async function POST(req: Request) {
 
 		await logSecurityEvent(req, 'account_created_private_fields_encrypted', user.id, {
 			signaturaId: user.signaturaId,
+			accountType,
 			fields: ['full_name', 'handphone', 'email'],
 			plaintextStored: false,
 		});

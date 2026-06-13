@@ -34,7 +34,7 @@ function IssuerBrand({ issuer, compact = false }) {
 
 	return (
 		<div
-			className={`flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] ${
+			className={`flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 ${
 				compact ? 'px-3 py-2' : 'mt-6 px-4 py-3'
 			}`}>
 			{issuer.logoUrl ? (
@@ -66,7 +66,7 @@ function IssuerNavLink({ icon, label, href, compact = false }) {
 		<Link
 			className={`flex items-center gap-3 rounded-lg transition hover:bg-red-500/10 hover:text-red-300 ${
 				compact
-					? 'shrink-0 gap-2 border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-slate-200'
+					? 'shrink-0 gap-2 border border-white/10 bg-white/4 px-3 py-2 text-xs font-bold text-slate-200'
 					: 'px-4 py-3 text-sm font-medium text-slate-300'
 			}`}
 			href={href}>

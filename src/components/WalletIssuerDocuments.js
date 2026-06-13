@@ -27,7 +27,7 @@ export function WalletIssuerDocuments({ issuer, templates }) {
 
 	return (
 		<div className="space-y-6">
-			<section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_0_70px_rgba(15,23,42,0.42)]">
+			<section className="rounded-2xl border border-white/10 bg-white/4 p-6 shadow-[0_0_70px_rgba(15,23,42,0.42)]">
 				<p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
 					Issuer Documents
 				</p>
@@ -53,14 +53,14 @@ export function WalletIssuerDocuments({ issuer, templates }) {
 			) : null}
 
 			<section className="grid gap-4 sm:grid-cols-2">
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 					<div className="mb-4 grid h-10 w-10 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 						<PortalIcon name="document" className="h-5 w-5" />
 					</div>
 					<p className="text-sm text-slate-300">Available documents</p>
 					<p className="mt-2 text-3xl font-bold text-white">{templates.length}</p>
 				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
 					<div className="mb-4 grid h-10 w-10 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 						<PortalIcon name="shield" className="h-5 w-5" />
 					</div>
@@ -84,7 +84,7 @@ export function WalletIssuerDocuments({ issuer, templates }) {
 					return (
 						<article
 							key={template.id}
-							className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+							className="rounded-2xl border border-white/10 bg-white/4 p-5">
 							<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 								<div className="flex gap-4">
 									<div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
@@ -128,7 +128,7 @@ export function WalletIssuerDocuments({ issuer, templates }) {
 				})}
 
 				{templates.length === 0 ? (
-					<article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+					<article className="rounded-2xl border border-white/10 bg-white/4 p-5">
 						<div className="flex gap-4">
 							<div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
 								<PortalIcon name="document" className="h-5 w-5" />

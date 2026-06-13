@@ -248,7 +248,7 @@ export function QrCodeScanner() {
 
 			<form
 				onSubmit={submitManual}
-				className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+				className="rounded-2xl border border-white/10 bg-white/4 p-4">
 				<label className="grid gap-2 text-sm font-semibold text-white">
 					<span>Paste QR text or link</span>
 					<textarea
