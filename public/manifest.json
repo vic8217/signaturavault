@@ -1,60 +1,23 @@
 {
-	"id": "/",
-	"name": "Signatura - Trust Every Document",
+	"name": "Signatura",
 	"short_name": "Signatura",
-	"description": "Zero Trust Level 2 digital document issuance, verification, and blockchain anchoring platform.",
-	"start_url": "/signatura/dashboard",
+	"start_url": "/login",
 	"scope": "/",
 	"display": "standalone",
-	"display_override": ["standalone", "minimal-ui"],
-	"orientation": "portrait-primary",
-	"theme_color": "#0F172A",
-	"background_color": "#030914",
+	"background_color": "#020817",
+	"theme_color": "#020817",
 	"icons": [
 		{
-			"src": "/signatura-icon-192.png",
+			"src": "/icons/icon-192.png",
 			"sizes": "192x192",
 			"type": "image/png",
-			"purpose": "any"
+			"purpose": "any maskable"
 		},
 		{
-			"src": "/signatura-icon-512.png",
+			"src": "/icons/icon-512.png",
 			"sizes": "512x512",
 			"type": "image/png",
-			"purpose": "any"
-		},
-		{
-			"src": "/signatura-icon-192.png",
-			"sizes": "192x192",
-			"type": "image/png",
-			"purpose": "maskable"
-		},
-		{
-			"src": "/signatura-icon-512.png",
-			"sizes": "512x512",
-			"type": "image/png",
-			"purpose": "maskable"
-		}
-	],
-	"categories": ["productivity", "business"],
-	"shortcuts": [
-		{
-			"name": "Owner Portal",
-			"short_name": "Portal",
-			"url": "/signatura/dashboard",
-			"icons": [{ "src": "/signatura-icon-192.png", "sizes": "192x192" }]
-		},
-		{
-			"name": "Issuer Portal",
-			"short_name": "Issue",
-			"url": "/issuer",
-			"icons": [{ "src": "/signatura-icon-192.png", "sizes": "192x192" }]
-		},
-		{
-			"name": "Verify Document",
-			"short_name": "Verify",
-			"url": "/verify",
-			"icons": [{ "src": "/signatura-icon-192.png", "sizes": "192x192" }]
+			"purpose": "any maskable"
 		}
 	]
 }

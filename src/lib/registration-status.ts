@@ -1,0 +1,131 @@
+export const REGISTRATION_STATUSES = {
+	PENDING_ACCOUNT_DETAILS: 'pending_account_details',
+	PENDING_PASSKEY_CREATION: 'pending_passkey_creation',
+	PASSKEY_CREATED: 'passkey_created',
+	PENDING_TRUSTED_DEVICE_REGISTRATION: 'pending_trusted_device_registration',
+	TRUSTED_DEVICE_REGISTERED: 'trusted_device_registered',
+	PENDING_RECOVERY_PHRASE: 'pending_recovery_phrase',
+	PENDING_ACTIVATION: 'pending_activation',
+	COMPLETED: 'completed',
+	EXPIRED: 'expired',
+	CANCELLED: 'cancelled',
+} as const;
+
+export const PENDING_REGISTRATION_STATUSES = new Set<string>([
+	REGISTRATION_STATUSES.PENDING_ACCOUNT_DETAILS,
+	REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION,
+	REGISTRATION_STATUSES.PASSKEY_CREATED,
+	REGISTRATION_STATUSES.PENDING_TRUSTED_DEVICE_REGISTRATION,
+	REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED,
+	REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE,
+	REGISTRATION_STATUSES.PENDING_ACTIVATION,
+	REGISTRATION_STATUSES.EXPIRED,
+	REGISTRATION_STATUSES.CANCELLED,
+]);
+
+export const CANCELLABLE_REGISTRATION_STATUSES = [
+	REGISTRATION_STATUSES.PENDING_ACCOUNT_DETAILS,
+	REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION,
+	REGISTRATION_STATUSES.PASSKEY_CREATED,
+	REGISTRATION_STATUSES.PENDING_TRUSTED_DEVICE_REGISTRATION,
+	REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED,
+	REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE,
+	REGISTRATION_STATUSES.PENDING_ACTIVATION,
+	REGISTRATION_STATUSES.EXPIRED,
+];
+
+export function currentRegistrationStep(user: {
+	accountStatus?: string | null;
+	trustLevel?: number | null;
+}) {
+	if (user.accountStatus === REGISTRATION_STATUSES.CANCELLED) {
+		return REGISTRATION_STATUSES.CANCELLED;
+	}
+	if (user.accountStatus === REGISTRATION_STATUSES.EXPIRED) {
+		return REGISTRATION_STATUSES.EXPIRED;
+	}
+	if (
+		user.accountStatus &&
+		PENDING_REGISTRATION_STATUSES.has(user.accountStatus)
+	) {
+		return user.accountStatus;
+	}
+	if (user.accountStatus === 'active' || Number(user.trustLevel || 0) >= 2) {
+		return REGISTRATION_STATUSES.COMPLETED;
+	}
+	return REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION;
+}
+
+export function registrationStepForUi(currentStep: string) {
+	switch (currentStep) {
+		case REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION:
+			return 'passkey';
+		case REGISTRATION_STATUSES.PASSKEY_CREATED:
+			return 'passkey_success';
+		case REGISTRATION_STATUSES.PENDING_TRUSTED_DEVICE_REGISTRATION:
+			return 'trusted_device';
+		case REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED:
+			return 'trusted_device_success';
+		case REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE:
+		case REGISTRATION_STATUSES.PENDING_ACTIVATION:
+			return 'recovery';
+		case REGISTRATION_STATUSES.COMPLETED:
+			return 'complete';
+		default:
+			return 'account';
+	}
+}
+
+export function registrationStatusCardState(currentStep: string) {
+	const signaturaIdStatus =
+		currentStep === REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION ||
+		currentStep === REGISTRATION_STATUSES.PASSKEY_CREATED ||
+		currentStep === REGISTRATION_STATUSES.PENDING_TRUSTED_DEVICE_REGISTRATION ||
+		currentStep === REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED ||
+		currentStep === REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE ||
+		currentStep === REGISTRATION_STATUSES.PENDING_ACTIVATION ||
+		currentStep === REGISTRATION_STATUSES.COMPLETED
+			? 'Created'
+			: 'Pending';
+
+	const passkeyStatus =
+		currentStep === REGISTRATION_STATUSES.PASSKEY_CREATED ||
+		currentStep === REGISTRATION_STATUSES.PENDING_TRUSTED_DEVICE_REGISTRATION ||
+		currentStep === REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED ||
+		currentStep === REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE ||
+		currentStep === REGISTRATION_STATUSES.PENDING_ACTIVATION ||
+		currentStep === REGISTRATION_STATUSES.COMPLETED
+			? 'Active'
+			: currentStep === REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION
+				? 'Pending'
+				: 'Pending';
+
+	const trustedDeviceStatus =
+		currentStep === REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED ||
+		currentStep === REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE ||
+		currentStep === REGISTRATION_STATUSES.PENDING_ACTIVATION ||
+		currentStep === REGISTRATION_STATUSES.COMPLETED
+			? 'Active'
+			: currentStep === REGISTRATION_STATUSES.PENDING_TRUSTED_DEVICE_REGISTRATION
+				? 'Pending'
+				: 'Pending';
+
+	const recoveryPhraseStatus =
+		currentStep === REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE ||
+		currentStep === REGISTRATION_STATUSES.PENDING_ACTIVATION
+			? 'Pending'
+			: currentStep === REGISTRATION_STATUSES.COMPLETED
+				? 'Saved'
+				: 'Pending';
+
+	const accountStatus =
+		currentStep === REGISTRATION_STATUSES.COMPLETED ? 'Active' : 'In Setup';
+
+	return {
+		signaturaIdStatus,
+		passkeyStatus,
+		trustedDeviceStatus,
+		recoveryPhraseStatus,
+		accountStatus,
+	};
+}

@@ -16,6 +16,10 @@ function profileFromIssuer(issuer, source = 'prisma') {
 			tenantId: issuer.tenantId || issuer.tenant_id,
 			name: issuer.name,
 			type: issuer.type || '',
+			contactEmail: issuer.contactEmail || issuer.contact_email || '',
+			address: issuer.address || '',
+			registrationNumber:
+				issuer.registrationNumber || issuer.registration_number || '',
 			registrationDate: issuer.registrationDate || issuer.registration_date || '',
 		status: issuer.status || 'active',
 		acceptsRequests: Boolean(

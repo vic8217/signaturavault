@@ -168,6 +168,28 @@ Signatura never receives or stores fingerprint or face data. The device keeps
 biometrics locally and the app stores only credential IDs, public keys, counters,
 trusted-device metadata, recovery-code hashes, and security event logs.
 
+### ACCURA Zero Trust Level 2 introspection
+
+ACCURA must call Signatura introspection before accepting a Signatura login or
+granting ACCURA roles. Public app-link validation only confirms that a
+Signatura ID is linked to an ACCURA company/role; it is not trusted-device
+verification.
+
+Required ACCURA-side environment values:
+
+```bash
+SIGNATURA_INTROSPECTION_URL=
+SIGNATURA_CLIENT_ID=accura
+SIGNATURA_CLIENT_SECRET=
+```
+
+Signatura must have the matching client credentials configured. The trusted
+device QR URL is only a challenge reference and short code, not an approval
+token. Approval requires an authenticated Signatura session, an active trusted
+device, and WebAuthn/passkey user verification. ACCURA must treat the login as
+valid only after `POST /api/signatura/introspect` returns `active: true`,
+`trustedDevice: true`, `keyUnlocked: true`, and `assuranceLevel: "ZT-L2"`.
+
 Issuer onboarding invitations support Viber, Messenger, WhatsApp, SMS, and
 secure enterprise channels as delivery channels only. Activation links are
 single-use, expiring, and stored hashed. Activation still requires registering a

@@ -3,8 +3,8 @@ const ASSETS_TO_CACHE = [
 	'/manifest.json',
 	'/offline.html',
 	'/signatura-logo.png',
-	'/signatura-icon-192.png',
-	'/signatura-icon-512.png',
+	'/icons/icon-192.png',
+	'/icons/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {

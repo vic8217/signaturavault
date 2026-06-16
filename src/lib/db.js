@@ -27,6 +27,7 @@ function normalizeDb(data) {
 		'issuer_users',
 		'issuer_api_clients',
 		'issuer_api_keys',
+		'issuer_authorization_codes',
 		'document_types',
 		'document_templates',
 		'document_records',

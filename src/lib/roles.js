@@ -9,6 +9,7 @@ const ROLES = {
 const ROLE_COOKIE = 'signatura_role';
 
 const PORTAL_ACCESS = {
+	'/owner': [ROLES.DOCUMENT_OWNER],
 	'/signatura': [ROLES.DOCUMENT_OWNER],
 	'/wallet': [ROLES.DOCUMENT_OWNER],
 	'/issuer': [ROLES.ISSUER_ADMIN, ROLES.ISSUER_STAFF],
@@ -24,7 +25,7 @@ const ROLE_HOME = {
 	[ROLES.SIGNATURA_STAFF]: '/admin',
 };
 
-const DOCUMENT_OWNER_PREFIXES = ['/signatura', '/wallet'];
+const DOCUMENT_OWNER_PREFIXES = ['/owner', '/signatura', '/wallet'];
 const ISSUER_PREFIXES = ['/issuer', '/issuer-portal'];
 
 function isKnownRole(role) {

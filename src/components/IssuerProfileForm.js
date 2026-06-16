@@ -6,6 +6,9 @@ import { useEffect, useState } from 'react';
 const emptyProfile = {
 	name: '',
 	type: '',
+	contactEmail: '',
+	address: '',
+	registrationNumber: '',
 	registrationDate: '',
 	logoUrl: '',
 	website: '',
@@ -120,6 +123,42 @@ function IssuerProfileForm() {
 					{error}
 				</p>
 			) : null}
+
+			<div className="mt-6 rounded-xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-50">
+				<p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-200">
+					Registered issuer details
+				</p>
+				<p className="mt-2 text-slate-100/95">
+					These are the issuer details created by the admin registration flow and
+					are linked to this issuer account.
+				</p>
+				<dl className="mt-4 grid gap-3 md:grid-cols-2">
+					<div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+						<dt className="text-xs uppercase tracking-[0.18em] text-slate-400">Issuer name</dt>
+						<dd className="mt-1 text-sm font-semibold text-white">{profile.name || 'Not set'}</dd>
+					</div>
+					<div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+						<dt className="text-xs uppercase tracking-[0.18em] text-slate-400">Issuer type</dt>
+						<dd className="mt-1 text-sm font-semibold text-white">{profile.type || 'Not set'}</dd>
+					</div>
+					<div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+						<dt className="text-xs uppercase tracking-[0.18em] text-slate-400">Registration date</dt>
+						<dd className="mt-1 text-sm font-semibold text-white">{profile.registrationDate ? new Date(profile.registrationDate).toLocaleDateString() : 'Not set'}</dd>
+					</div>
+					<div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+						<dt className="text-xs uppercase tracking-[0.18em] text-slate-400">Registration number</dt>
+						<dd className="mt-1 text-sm font-semibold text-white">{profile.registrationNumber || 'Not set'}</dd>
+					</div>
+					<div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 md:col-span-2">
+						<dt className="text-xs uppercase tracking-[0.18em] text-slate-400">Contact email</dt>
+						<dd className="mt-1 text-sm font-semibold text-white">{profile.contactEmail || 'Not set'}</dd>
+					</div>
+					<div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 md:col-span-2">
+						<dt className="text-xs uppercase tracking-[0.18em] text-slate-400">Address</dt>
+						<dd className="mt-1 text-sm font-semibold text-white">{profile.address || 'Not set'}</dd>
+					</div>
+				</dl>
+			</div>
 
 			<div className="mt-6 grid gap-4 lg:grid-cols-2">
 				<label className="grid gap-2 text-sm font-semibold text-slate-200">

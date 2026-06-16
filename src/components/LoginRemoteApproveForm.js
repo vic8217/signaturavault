@@ -1,8 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import {
+	browserSupportsWebAuthn,
+	startAuthentication,
+} from '@simplewebauthn/browser';
 import { useEffect, useMemo, useState } from 'react';
-import { reverifyPasskey } from '@/lib/passkey-client';
 
 function formatExpiry(value) {
 	if (!value) return '';
@@ -24,6 +27,7 @@ export function LoginRemoteApproveForm({
 	const [isLoading, setIsLoading] = useState(true);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [approved, setApproved] = useState(false);
+	const [approvalOptions, setApprovalOptions] = useState(null);
 	const normalizedCode = useMemo(
 		() => String(shortCode || '').trim().toUpperCase(),
 		[shortCode],
@@ -43,7 +47,10 @@ export function LoginRemoteApproveForm({
 				if (!response.ok || body?.ok === false) {
 					throw new Error(body?.error || 'Login challenge not found or expired.');
 				}
-				if (!cancelled) setChallenge(body.challenge);
+				if (!cancelled) {
+					setChallenge(body.challenge);
+					setApprovalOptions(body.options);
+				}
 			} catch (loadError) {
 				if (!cancelled) {
 					setError(
@@ -66,13 +73,17 @@ export function LoginRemoteApproveForm({
 		if (!challenge) return;
 		setIsSubmitting(true);
 		setError('');
-		setStatus('Verify with passkey or biometric on this trusted device.');
+		setStatus('Verify this QR login with passkey or biometric.');
 		try {
-			const reauth = await reverifyPasskey();
-			const credentialId = reauth.credentialId;
-			if (!credentialId) {
-				throw new Error('Trusted device credential was not returned.');
+			if (!browserSupportsWebAuthn()) {
+				throw new Error('This browser does not support passkeys/WebAuthn.');
 			}
+			if (!approvalOptions) {
+				throw new Error('QR approval challenge is missing or expired.');
+			}
+			const assertion = await startAuthentication({
+				optionsJSON: approvalOptions,
+			});
 
 			setStatus('Approving browser sign-in...');
 			const response = await fetch('/api/auth/login/remote/approve', {
@@ -81,7 +92,7 @@ export function LoginRemoteApproveForm({
 				body: JSON.stringify({
 					challengeId: challenge.id,
 					shortCode: normalizedCode,
-					credentialId,
+					response: assertion,
 				}),
 			});
 			const body = await response.json().catch(() => ({}));
@@ -114,8 +125,8 @@ export function LoginRemoteApproveForm({
 			<section className="mx-auto max-w-3xl rounded-2xl border border-red-500/20 bg-slate-950/90 p-6 shadow-2xl">
 				<p className="text-sm text-red-300">{error}</p>
 				<p className="mt-3 text-sm text-slate-400">
-					The QR code may have expired (about 5 minutes). Start a new trusted-device
-					login on the browser.
+					The QR code may have expired. Start a new trusted-device login on the
+					browser.
 				</p>
 				<div className="mt-6 flex flex-wrap gap-3">
 					<Link

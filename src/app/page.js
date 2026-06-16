@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { AppInstallQrCode } from '@/components/AppInstallQrCode';
 import { HomeLoginModal } from '@/components/HomeLoginModal';
 import { useCases } from '@/lib/use-cases';
 import {
@@ -352,6 +353,58 @@ export default function Home() {
 							<div className="grid h-16 w-16 place-items-center rounded-full border-2 border-red-400 text-red-300">
 								<Icon name="check" className="h-8 w-8" />
 							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section className="w-full px-4 pb-12 sm:px-6 sm:pb-16 lg:px-10 2xl:px-14">
+				<div className="mx-auto grid max-w-7xl items-center gap-8 rounded-lg border border-red-500/30 bg-slate-950/75 p-6 shadow-[0_0_70px_rgba(15,23,42,0.55)] md:p-8">
+					<div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)_minmax(0,1fr)] lg:gap-6 xl:gap-10">
+						<div className="order-1 max-w-xl">
+							<div className="mb-5 inline-flex items-center gap-2 rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-red-300">
+								<QrCode className="h-4 w-4" />
+								Mobile install
+							</div>
+							<h2 className="text-2xl font-black leading-tight sm:text-3xl">
+								Scan to install Signatura on your phone.
+							</h2>
+							<p className="mt-4 text-base leading-7 text-slate-300">
+								The QR opens the dedicated install page at{' '}
+								<span className="font-semibold text-white">/app</span>. The
+								installed PWA starts directly on the login screen.
+							</p>
+						</div>
+
+							<div className="order-3 flex justify-center lg:order-2">
+								<img
+									src="/images/signatura-install-phone.png"
+									alt="Signatura mobile install steps"
+									className="mx-auto h-[360px] max-w-full object-contain drop-shadow-[0_30px_80px_rgba(255,47,57,0.28)] md:h-[420px] xl:h-[520px]"
+								/>
+							</div>
+
+						<div className="order-2 rounded-xl border border-red-500/40 bg-slate-950/85 p-5 shadow-[0_0_55px_rgba(248,35,35,0.12)] lg:order-3 lg:p-6">
+							<div className="mb-5 flex items-start gap-3 border-b border-white/10 pb-4">
+								<div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-red-400/40 bg-red-500/10">
+									<QrCode className="h-4 w-4 text-red-400" />
+								</div>
+								<div>
+									<h3 className="text-base font-bold text-white sm:text-lg">
+										Install Signatura on your phone
+									</h3>
+									<p className="mt-1 text-sm leading-6 text-slate-400">
+										Scan the QR code to install the PWA. It opens directly to the
+										login page.
+									</p>
+								</div>
+							</div>
+
+							<AppInstallQrCode
+								embedded
+								hideInstallUrl
+								showInstallDetails
+							/>
 						</div>
 					</div>
 				</div>

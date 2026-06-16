@@ -18,8 +18,8 @@ export const metadata = {
 		'Zero Trust Level 2 digital document issuance, verification, and blockchain anchoring platform.',
 	manifest: '/manifest.json',
 	icons: {
-		icon: '/signatura-icon-192.png',
-		apple: '/signatura-icon-192.png',
+		icon: '/icons/icon-192.png',
+		apple: '/icons/icon-192.png',
 	},
 	appleWebApp: {
 		capable: true,
@@ -29,7 +29,7 @@ export const metadata = {
 };
 
 export const viewport = {
-	themeColor: '#0F172A',
+	themeColor: '#020817',
 	width: 'device-width',
 	initialScale: 1,
 	maximumScale: 1,
@@ -43,8 +43,8 @@ export default function RootLayout({ children }) {
 			className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
 			<head>
 				<link rel="manifest" href="/manifest.json" />
-				<link rel="apple-touch-icon" href="/signatura-icon-192.png" />
-				<meta name="theme-color" content="#0F172A" />
+				<link rel="apple-touch-icon" href="/icons/icon-192.png" />
+				<meta name="theme-color" content="#020817" />
 				<meta name="mobile-web-app-capable" content="yes" />
 				<meta name="apple-mobile-web-app-capable" content="yes" />
 				<meta

@@ -4,16 +4,17 @@
   "issuer_users": [],
   "issuer_api_clients": [],
   "issuer_api_keys": [],
+  "issuer_authorization_codes": [],
   "document_types": [],
   "document_templates": [],
   "document_records": [],
   "verification_tokens": [],
   "storage_connections": [],
   "blockchain_anchors": [],
-  "webhooks": [],
-  "api_logs": [],
-  "audit_logs": [],
   "anchor_pool": [],
   "merkle_batches": [],
-  "merkle_proofs": []
+  "merkle_proofs": [],
+  "webhooks": [],
+  "api_logs": [],
+  "audit_logs": []
 }

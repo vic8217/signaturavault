@@ -8,7 +8,9 @@ const PUBLIC_ROUTES = [
 	'/contact',
 	'/pricing',
 	'/login',
+	'/login/authorize',
 	'/register',
+	'/signatura/register',
 	'/admin/register',
 	'/verify',
 	'/account-recovery',
@@ -16,6 +18,7 @@ const PUBLIC_ROUTES = [
 ];
 
 const PORTAL_PREFIXES = [
+	'/owner',
 	'/signatura',
 	'/wallet',
 	'/issuer',
@@ -63,6 +66,15 @@ const LEGACY_REDIRECTS = [
 ];
 
 const EXACT_LEGACY_NEXT_MAP = {
+	'/owner': '/owner',
+	'/owner/wallet': '/owner/wallet',
+	'/owner/issuers': '/owner/issuers',
+	'/owner/scan': '/owner/scan',
+	'/owner/alerts': '/owner/alerts',
+	'/owner/others': '/owner/others',
+	'/owner/activity': '/owner/activity',
+	'/owner/profile': '/owner/profile',
+	'/owner/security': '/owner/security',
 	'/wallet': '/signatura/dashboard',
 	'/wallet/credentials': '/signatura/documents',
 	'/wallet/profile': '/signatura/settings/security',

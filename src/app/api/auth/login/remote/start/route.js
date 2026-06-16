@@ -14,6 +14,23 @@ import {
 } from '@/lib/trustedDeviceLoginChallenge';
 import { getOrigin, getUserAgent } from '@/lib/webauthn';
 
+const KNOWN_SOURCE_APPS = new Set(['ACCURA', 'HAVEN', 'SIGNATURA']);
+
+function normalizeOptionalText(value) {
+	const normalized = String(value || '').trim();
+	return normalized || null;
+}
+
+function normalizeSourceApp(value) {
+	const normalized = String(value || 'SIGNATURA').trim().toUpperCase();
+	return KNOWN_SOURCE_APPS.has(normalized) ? normalized : 'SIGNATURA';
+}
+
+function normalizeAssuranceLevel(value) {
+	const normalized = String(value || 'ZT-L2').trim().toUpperCase();
+	return normalized || 'ZT-L2';
+}
+
 export async function POST(req) {
 	try {
 		const body = await req.json().catch(() => ({}));
@@ -68,6 +85,12 @@ export async function POST(req) {
 			userId: user.id,
 			nextPath,
 			browserUserAgent: getUserAgent(req),
+			clientId: normalizeOptionalText(body.clientId),
+			sourceApp: normalizeSourceApp(body.sourceApp || body.source),
+			requesterOrigin: normalizeOptionalText(body.requesterOrigin) || getOrigin(req),
+			requestedAssuranceLevel: normalizeAssuranceLevel(
+				body.requestedAssuranceLevel,
+			),
 		});
 
 		await logAuthAudit(req, 'qr_login_challenge_created', {

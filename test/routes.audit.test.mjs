@@ -17,7 +17,9 @@ const PUBLIC_ROUTE_CASES = [
 	'/use-cases',
 	'/contact',
 	'/login',
+	'/login/authorize',
 	'/register',
+	'/signatura/register',
 	'/admin/register',
 	'/verify',
 ];

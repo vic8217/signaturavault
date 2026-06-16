@@ -4,6 +4,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 
+import { buildExternalLoginReturnUrl } from '@/lib/externalLoginReturn';
+
 const POLL_INTERVAL_MS = 2000;
 const NO_TRUSTED_DEVICE_MESSAGE =
 	'No trusted device is registered for this Signatura ID. Register a trusted device first.';
@@ -19,6 +21,8 @@ function formatCode(value) {
 export function LoginTrustedDeviceQrPanel({
 	signaturaId,
 	nextPath = '/signatura/dashboard',
+	externalReturnUrl = '',
+	remoteLoginContext = {},
 	onCancel,
 }) {
 	const [submitting, setSubmitting] = useState(false);
@@ -91,6 +95,15 @@ export function LoginTrustedDeviceQrPanel({
 			if (!finishResponse.ok || finishBody?.ok === false) {
 				throw new Error(finishBody?.error || 'Unable to complete trusted device login.');
 			}
+			const externalReturnHref = buildExternalLoginReturnUrl(externalReturnUrl, {
+				signaturaId: finishBody.user?.signaturaId || signaturaId.trim().toUpperCase(),
+				challengeId,
+				signaturaUserId: finishBody.user?.id || '',
+			});
+			if (externalReturnHref) {
+				window.location.href = externalReturnHref;
+				return true;
+			}
 			const destination = new URL(finishBody.next || nextPath, window.location.origin);
 			if (finishBody.canRegisterDevice) {
 				destination.searchParams.set('registerTrustedDevice', '1');
@@ -130,7 +143,19 @@ export function LoginTrustedDeviceQrPanel({
 			const response = await fetch('/api/auth/login/remote/start', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ signaturaId, next: nextPath }),
+				body: JSON.stringify({
+					signaturaId,
+					next: nextPath,
+					...(remoteLoginContext.clientId
+						? { clientId: remoteLoginContext.clientId }
+						: {}),
+					...(remoteLoginContext.sourceApp
+						? { sourceApp: remoteLoginContext.sourceApp, source: remoteLoginContext.sourceApp }
+						: {}),
+					...(remoteLoginContext.requesterOrigin
+						? { requesterOrigin: remoteLoginContext.requesterOrigin }
+						: {}),
+				}),
 				cache: 'no-store',
 			});
 			const body = await response.json().catch(() => ({}));

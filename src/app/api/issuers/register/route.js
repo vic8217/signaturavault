@@ -1,5 +1,6 @@
 import { hashValue } from '@/lib/auth';
 import { withDb, generateId, now } from '@/lib/db';
+import { createIssuerAuthorizationCode } from '@/lib/issuer-authorization';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
 import { requireSession } from '@/lib/session';
 import { redactForLog } from '@/lib/security';
@@ -133,10 +134,18 @@ export async function POST(req) {
 			created_at: now(),
 		});
 
+		const authorizationCode = await createIssuerAuthorizationCode({
+			issuerId,
+			tenantId,
+			label: `${normalizedIssuerName} issuer onboarding`,
+			db,
+		});
+
 		return new Response(
 			JSON.stringify({
 				tenantId,
 				issuerId,
+				authorizationCode,
 				apiClient: {
 					clientId: apiClientId,
 					clientSecret,

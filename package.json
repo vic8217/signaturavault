@@ -18,7 +18,8 @@
     "demo:seed-signatura": "node scripts/demo-seed-signatura.mjs",
     "demo:presentation-token": "node scripts/demo-presentation-token.mjs",
     "check:hoa-signatura-dev": "node scripts/check-hoa-signatura-dev.mjs",
-    "reset:dev": "node ../havenxsig/scripts/reset-dev-environment.mjs"
+    "reset:dev": "node ../havenxsig/scripts/reset-dev-environment.mjs",
+    "reset:dbjson": "node -e \"require('fs').rmSync('data/db.json', { force: true }); console.log('Removed data/db.json')\""
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

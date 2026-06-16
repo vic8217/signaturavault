@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -8,10 +8,112 @@ import {
 	startRegistration,
 } from '@simplewebauthn/browser';
 import { normalizeLoginNextPath } from '@/lib/portalRoutes';
+import {
+	REGISTRATION_STATUSES,
+	registrationStatusCardState,
+	registrationStepForUi,
+} from '@/lib/registration-status';
 import { PasskeyNotice } from './PasskeyNotice';
+import { RegistrationStatusCard } from './RegistrationStatusCard';
+import {
+	registrationApiFetch,
+	registrationApiRequest,
+	readRegistrationApiJson,
+} from '@/lib/registration-api-client';
+
+const REGISTRATION_STORAGE_KEY = 'signatura.pendingRegistration';
+
+function applyRegistrationSessionToForm({
+	data,
+	pendingRegistration,
+	setters,
+}) {
+	const {
+		setCreatedAccount,
+		setRegistrationSessionId,
+		setRegistrationToken,
+		setForm,
+		setStatus,
+		setStep,
+		setPasskeySummary,
+		setTrustedDeviceSummary,
+		setStatusCard,
+		setRecoveryPhrase,
+		setRecoveryPhraseAlreadyIssued,
+	} = setters;
+
+	if (data.currentStep === REGISTRATION_STATUSES.COMPLETED) {
+		return 'completed';
+	}
+
+	setCreatedAccount(data.user || null);
+	setRegistrationSessionId(data.registrationSessionId || pendingRegistration?.registrationSessionId || '');
+	setRegistrationToken('');
+	setForm((current) => ({
+		...current,
+		signaturaId:
+			data.user?.signaturaId ||
+			pendingRegistration?.signaturaId ||
+			current.signaturaId,
+		deviceName:
+			data.trustedDeviceSummary?.deviceName ||
+			data.passkeySummary?.deviceName ||
+			current.deviceName,
+	}));
+	setPasskeySummary(data.passkeySummary || null);
+	setTrustedDeviceSummary(data.trustedDeviceSummary || null);
+	setStatusCard(
+		data.statusCard ||
+			registrationStatusCardState(data.currentStep || REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION),
+	);
+	setRecoveryPhraseAlreadyIssued(Boolean(data.recoveryPhraseAlreadyIssued));
+	if (data.recoveryPhraseAlreadyIssued) {
+		setRecoveryPhrase('');
+	}
+	setStatus('Pending registration resumed. Continue where you left off.');
+	setStep(registrationStepForUi(data.currentStep));
+	writePendingRegistration({
+		registrationSessionId: data.registrationSessionId || pendingRegistration?.registrationSessionId || '',
+		signaturaId: data.user?.signaturaId || pendingRegistration?.signaturaId || '',
+		currentStep: data.currentStep,
+	});
+	return 'resumed';
+}
+
+function readPendingRegistration() {
+	if (typeof window === 'undefined') return null;
+	try {
+		return JSON.parse(window.localStorage.getItem(REGISTRATION_STORAGE_KEY) || 'null');
+	} catch {
+		return null;
+	}
+}
+
+function writePendingRegistration({
+	registrationSessionId,
+	signaturaId,
+	currentStep,
+}) {
+	if (typeof window === 'undefined' || !registrationSessionId) return;
+	window.localStorage.setItem(
+		REGISTRATION_STORAGE_KEY,
+		JSON.stringify({
+			registrationSessionId,
+			signaturaId,
+			currentStep,
+		}),
+	);
+}
+
+function clearPendingRegistration() {
+	if (typeof window === 'undefined') return;
+	window.localStorage.removeItem(REGISTRATION_STORAGE_KEY);
+}
 
 function RegisterPasskeyForm({
 	nextPath = '/signatura/dashboard',
+	externalReturnUrl = '',
+	appRegistrationContext = {},
 	initialSignaturaId = '',
 	initialAccountType = 'user',
 	showIssuerRegistrationLink = false,
@@ -24,18 +126,31 @@ function RegisterPasskeyForm({
 		fullName: '',
 		handphone: '',
 		email: '',
+		authorizationCode: '',
 		deviceName: '',
 	});
 	const accountType = ['issuer', 'admin'].includes(initialAccountType)
 		? initialAccountType
 		: 'user';
+	const registrationSource = String(appRegistrationContext.source || '').toLowerCase();
+	const isAccuraRegistration = registrationSource === 'accura';
+	const companyCode = appRegistrationContext.companyCode || '';
+	const companyName = appRegistrationContext.companyName || '';
+	const accuraRole = appRegistrationContext.role || '';
+	const accuraRolePrefix = appRegistrationContext.rolePrefix || '';
 	const [step, setStep] = useState(isDeviceSetup ? 'resume' : 'account');
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
 	const [recoveryPhrase, setRecoveryPhrase] = useState('');
 	const [recoveryPhraseSaved, setRecoveryPhraseSaved] = useState(false);
+	const [recoveryPhraseAlreadyIssued, setRecoveryPhraseAlreadyIssued] = useState(false);
+	const [passkeySummary, setPasskeySummary] = useState(null);
+	const [trustedDeviceSummary, setTrustedDeviceSummary] = useState(null);
+	const [statusCard, setStatusCard] = useState(null);
 	const [createdAccount, setCreatedAccount] = useState(null);
+	const [existingAccount, setExistingAccount] = useState(null);
 	const [registrationToken, setRegistrationToken] = useState('');
+	const [registrationSessionId, setRegistrationSessionId] = useState('');
 	const trustedDevicesHref = `/signatura/trusted-devices?next=${encodeURIComponent(nextPath)}`;
 	const issuerRegisterHref = `/register?next=${encodeURIComponent('/issuer')}&accountType=issuer`;
 	const accountTypeLabel =
@@ -43,11 +158,178 @@ function RegisterPasskeyForm({
 			? 'Admin account'
 			: accountType === 'issuer'
 				? 'Issuer account'
-				: 'Document owner account';
+			: 'Document owner account';
+	const pageTitle = isAccuraRegistration
+		? 'Create your SIGNATURA account for ACCURA'
+		: 'Create your SIGNATURA account';
+	const finalReturnHref = (() => {
+		if (!externalReturnUrl || !createdAccount?.signaturaId) return '';
+		try {
+			const destination = new URL(externalReturnUrl);
+			destination.searchParams.set('signaturaId', createdAccount.signaturaId);
+			destination.searchParams.set('signaturaUserId', createdAccount.id);
+			if (isAccuraRegistration) {
+				destination.searchParams.set('source', 'accura');
+				destination.searchParams.set('companyCode', companyCode);
+				destination.searchParams.set('role', accuraRole);
+				destination.searchParams.set('rolePrefix', accuraRolePrefix);
+				destination.searchParams.set('registrationStatus', 'success');
+			} else {
+				destination.searchParams.set('signaturaRegistration', 'complete');
+			}
+			return destination.toString();
+		} catch {
+			return '';
+		}
+	})();
+	const existingReturnHref = (() => {
+		if (!externalReturnUrl || !existingAccount?.signaturaId) return '';
+		try {
+			const destination = new URL(externalReturnUrl);
+			destination.searchParams.set('signaturaId', existingAccount.signaturaId);
+			destination.searchParams.set('source', 'accura');
+			destination.searchParams.set('companyCode', companyCode);
+			destination.searchParams.set('role', accuraRole);
+			destination.searchParams.set('rolePrefix', accuraRolePrefix);
+			destination.searchParams.set(
+				'registrationStatus',
+				existingAccount.linkedToCompany ? 'existing' : 'account_exists',
+			);
+			return destination.toString();
+		} catch {
+			return '';
+		}
+	})();
+	const accuraScopedIdMessage =
+		'A personal Signatura ID already exists, but ACCURA requires a separate company-role Signatura ID.';
+
+	function accuraFailureReturnHref(errorCode = 'registration_failed') {
+		if (!externalReturnUrl || !isAccuraRegistration) return '';
+		try {
+			const destination = new URL(externalReturnUrl);
+			destination.searchParams.set('registrationStatus', 'failed');
+			destination.searchParams.set('errorCode', errorCode);
+			return destination.toString();
+		} catch {
+			return '';
+		}
+	}
 
 	function returnToLoginModal() {
 		const canonicalNext = normalizeLoginNextPath(nextPath);
 		router.push(`/?openLogin=1&next=${encodeURIComponent(canonicalNext)}`);
+	}
+
+	useEffect(() => {
+		if (isDeviceSetup) return undefined;
+
+		const pendingRegistration = readPendingRegistration();
+		const pendingSessionId = String(
+			pendingRegistration?.registrationSessionId || '',
+		).trim();
+		if (!pendingSessionId) return undefined;
+
+		let isMounted = true;
+		fetch(`/api/auth/register/session/${encodeURIComponent(pendingSessionId)}`, {
+			headers: {
+				Accept: 'application/json',
+				'ngrok-skip-browser-warning': '1',
+			},
+		})
+			.then(async (response) => {
+				const data = await readRegistrationApiJson(response, 'Registration session').catch(
+					() => ({}),
+				);
+				if (!isMounted) return;
+
+				if (!response.ok || !data.active) {
+					clearPendingRegistration();
+					return;
+				}
+
+				const resumeResult = applyRegistrationSessionToForm({
+					data,
+					pendingRegistration,
+					setters: {
+						setCreatedAccount,
+						setRegistrationSessionId,
+						setRegistrationToken,
+						setForm,
+						setStatus,
+						setStep,
+						setPasskeySummary,
+						setTrustedDeviceSummary,
+						setStatusCard,
+						setRecoveryPhrase,
+						setRecoveryPhraseAlreadyIssued,
+					},
+				});
+				if (resumeResult === 'completed') {
+					clearPendingRegistration();
+					router.push('/login');
+				}
+			})
+			.catch(() => {
+				if (isMounted) clearPendingRegistration();
+			});
+
+		return () => {
+			isMounted = false;
+		};
+	}, [isDeviceSetup]);
+
+	async function cancelPendingRegistration() {
+		const pendingSessionId = registrationSessionId || readPendingRegistration()?.registrationSessionId;
+		clearPendingRegistration();
+
+		if (pendingSessionId) {
+			await registrationApiFetch('/api/auth/register/cancel', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ registrationSessionId: pendingSessionId }),
+			}).catch(() => null);
+		}
+
+		returnToLoginModal();
+	}
+
+	function completeRegistration() {
+		if (finalReturnHref) {
+			window.location.href = finalReturnHref;
+			return;
+		}
+		router.push('/login');
+	}
+
+	async function activateAccount() {
+		setError('');
+		setStatus('Activating your account...');
+		try {
+			const response = await registrationApiFetch('/api/auth/register/activate', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					userId: createdAccount?.id,
+					registrationSessionId,
+				}),
+			});
+			const data = await response.json();
+			if (!response.ok) throw new Error(data.error);
+
+			clearPendingRegistration();
+			setRegistrationSessionId('');
+			setCreatedAccount(data.user || createdAccount);
+			setStatusCard(registrationStatusCardState(REGISTRATION_STATUSES.COMPLETED));
+			setStatus('Your account is active. Redirecting to login...');
+			completeRegistration();
+		} catch (activationError) {
+			setError(
+				activationError instanceof Error
+					? activationError.message
+					: 'Account activation failed.',
+			);
+			setStatus('');
+		}
 	}
 
 	function updateField(event) {
@@ -60,33 +342,69 @@ function RegisterPasskeyForm({
 	async function createAccount(event) {
 		event.preventDefault();
 		setError('');
+		setExistingAccount(null);
 		setStatus('Creating your SIGNATURA ID...');
 
 		try {
-			const response = await fetch('/api/auth/register/account', {
+			const response = await registrationApiFetch('/api/auth/register/account', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					fullName: form.fullName,
 					handphone: form.handphone,
 					email: form.email,
+					authorizationCode: form.authorizationCode,
 					accountType,
+					source: registrationSource,
+					companyCode,
+					companyName,
+					role: accuraRole,
+					rolePrefix: accuraRolePrefix,
+					returnUrl: externalReturnUrl,
 				}),
 			});
 			const data = await response.json();
-			if (!response.ok) throw new Error(data.error);
-			setCreatedAccount(data.user);
-			setRegistrationToken(data.registrationToken || '');
-			setForm((current) => ({
-				...current,
-				signaturaId: data.user?.signaturaId || current.signaturaId,
-			}));
-			setRecoveryPhrase('');
+			if (!response.ok) {
+				if (data?.existingSignaturaId) {
+					setExistingAccount({
+						signaturaId: data.existingSignaturaId,
+						linkedToCompany: Boolean(data.linkedToCompany),
+					});
+				} else {
+					const failureHref = accuraFailureReturnHref(
+						data?.errorCode || data?.error || 'registration_failed',
+					);
+					if (failureHref) {
+						window.location.href = failureHref;
+						return;
+					}
+				}
+				throw new Error(data.error);
+			}
+				setCreatedAccount(data.user);
+				setRegistrationToken(data.registrationToken || '');
+				setRegistrationSessionId(data.registrationSessionId || '');
+				setForm((current) => ({
+					...current,
+					signaturaId: data.user?.signaturaId || current.signaturaId,
+				}));
+				writePendingRegistration({
+					registrationSessionId: data.registrationSessionId || '',
+					signaturaId: data.user?.signaturaId || '',
+					currentStep: REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION,
+				});
+				setPasskeySummary(null);
+				setTrustedDeviceSummary(null);
+				setStatusCard(
+					registrationStatusCardState(REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION),
+				);
+				setRecoveryPhrase('');
 			setRecoveryPhraseSaved(false);
+			setRecoveryPhraseAlreadyIssued(false);
 			setStatus(
-				'Your SIGNATURA ID has been created. Register this device to finish setup and receive your recovery phrase.',
+				'Your SIGNATURA ID has been created. Create your passkey to continue setup.',
 			);
-			setStep('device');
+			setStep('passkey');
 		} catch (accountError) {
 			setError(
 				accountError instanceof Error
@@ -97,12 +415,13 @@ function RegisterPasskeyForm({
 		}
 	}
 
-	async function registerDevice(event) {
+	async function createPasskey(event) {
 		event.preventDefault();
 		setError('');
-		setStatus('Preparing trusted device registration...');
+		setStatus('Preparing passkey creation...');
 		setRecoveryPhrase('');
 		setRecoveryPhraseSaved(false);
+		setRecoveryPhraseAlreadyIssued(false);
 
 		if (!browserSupportsWebAuthn()) {
 			setError('This browser does not support passkeys/WebAuthn.');
@@ -121,46 +440,317 @@ function RegisterPasskeyForm({
 		}
 
 		try {
-			const startResponse = await fetch('/api/auth/register/start', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					userId: createdAccount?.id,
-					registrationToken,
-					deviceName: form.deviceName,
-				}),
-			});
-			const startData = await startResponse.json();
+			const pending = readPendingRegistration();
+			const activeSessionId =
+				registrationSessionId || pending?.registrationSessionId || '';
+			const activeUserId = createdAccount?.id;
+
+			if (!activeUserId) {
+				throw new Error(
+					'Registration account is missing. Refresh the page or resume setup with your Signatura ID.',
+				);
+			}
+			if (!activeSessionId && !registrationToken) {
+				throw new Error(
+					'Registration session expired. Refresh the page or resume setup with your Signatura ID.',
+				);
+			}
+
+			const { response: startResponse, data: startData } =
+				await registrationApiRequest(
+					'/api/auth/register/start',
+					{
+						method: 'POST',
+						body: JSON.stringify({
+							userId: activeUserId,
+							registrationToken,
+							registrationSessionId: activeSessionId,
+							deviceName: form.deviceName || 'This device',
+						}),
+					},
+					'Passkey setup',
+				);
 			if (!startResponse.ok) throw new Error(startData.error);
 
-			setStatus('Approve the prompt on this device.');
+			if (startData.registrationSessionId) {
+				setRegistrationSessionId(startData.registrationSessionId);
+			}
+
+			if (!startData.options) {
+				throw new Error(
+					'Passkey setup did not return WebAuthn options. Refresh and try again.',
+				);
+			}
+
+			setStatus('Approve the passkey prompt on this device.');
 			const registration = await startRegistration({
 				optionsJSON: startData.options,
 			});
 
 			setStatus('Verifying cryptographic proof...');
-			const finishResponse = await fetch('/api/auth/register/finish', {
+			const { response: finishResponse, data: finishData } =
+				await registrationApiRequest(
+					'/api/auth/register/finish',
+					{
+						method: 'POST',
+						body: JSON.stringify({
+							userId: startData.userId || activeUserId,
+							deviceName: form.deviceName || 'This device',
+							response: registration,
+						}),
+					},
+					'Passkey verification',
+				);
+			if (!finishResponse.ok) throw new Error(finishData.error);
+
+			const nextSessionId =
+				startData.registrationSessionId || activeSessionId || registrationSessionId;
+
+			setCreatedAccount(finishData.user || createdAccount);
+			setRegistrationSessionId(nextSessionId);
+			setPasskeySummary(finishData.passkeySummary || null);
+			setStatusCard(
+				registrationStatusCardState(REGISTRATION_STATUSES.PASSKEY_CREATED),
+			);
+			writePendingRegistration({
+				registrationSessionId: nextSessionId,
+				signaturaId: finishData.user?.signaturaId || createdAccount?.signaturaId || '',
+				currentStep: REGISTRATION_STATUSES.PASSKEY_CREATED,
+			});
+			setStatus('Passkey created successfully.');
+			setStep('passkey_success');
+		} catch (registrationError) {
+			const message =
+				registrationError instanceof Error
+					? registrationError.message
+					: 'Passkey creation failed.';
+			setError(
+				message.includes('Unexpected token')
+					? 'Passkey setup received an invalid server response. Use the same HTTPS Signatura URL on your phone, refresh the page, then try again.'
+					: message,
+			);
+			setStatus('');
+		}
+	}
+
+	async function syncRegistrationSession(pendingSessionId = registrationSessionId) {
+		const sessionId = String(pendingSessionId || '').trim();
+		if (!sessionId) return null;
+
+		const response = await registrationApiFetch(
+			`/api/auth/register/session/${encodeURIComponent(sessionId)}`,
+		);
+		const data = await readRegistrationApiJson(response, 'Registration session').catch(
+			() => ({}),
+		);
+		if (!response.ok || !data.active) return null;
+
+		applyRegistrationSessionToForm({
+			data,
+			pendingRegistration: readPendingRegistration(),
+			setters: {
+				setCreatedAccount,
+				setRegistrationSessionId,
+				setRegistrationToken,
+				setForm,
+				setStatus,
+				setStep,
+				setPasskeySummary,
+				setTrustedDeviceSummary,
+				setStatusCard,
+				setRecoveryPhrase,
+				setRecoveryPhraseAlreadyIssued,
+			},
+		});
+		return data;
+	}
+
+	async function continueToTrustedDevice() {
+		setError('');
+		setStatus('Continuing to trusted device registration...');
+		const pending = readPendingRegistration();
+		const activeSessionId =
+			registrationSessionId || pending?.registrationSessionId || '';
+
+		function applyContinueSuccess(data, fallbackStep) {
+			const currentStep = data.currentStep || fallbackStep;
+			const nextSessionId = data.registrationSessionId || activeSessionId;
+
+			setRegistrationSessionId(nextSessionId);
+			setCreatedAccount(data.user || createdAccount);
+			setStatusCard(registrationStatusCardState(currentStep));
+			writePendingRegistration({
+				registrationSessionId: nextSessionId,
+				signaturaId: data.user?.signaturaId || createdAccount?.signaturaId || '',
+				currentStep,
+			});
+			setStatus(
+				currentStep === REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED
+					? 'Trusted device is already registered. Continue setup.'
+					: currentStep === REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE
+						? 'Trusted device registered. Continue to recovery setup.'
+						: 'Register this device as your trusted Signatura device.',
+			);
+			setStep(registrationStepForUi(currentStep));
+		}
+
+		try {
+			const response = await registrationApiFetch('/api/auth/register/continue', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					userId: startData.userId,
-					deviceName: form.deviceName,
-					response: registration,
+					registrationSessionId: activeSessionId,
+					userId: createdAccount?.id,
+					targetStep: 'trusted_device',
 				}),
 			});
-			const finishData = await finishResponse.json();
-			if (!finishResponse.ok) throw new Error(finishData.error);
+			const data = await response.json();
 
-			setCreatedAccount(finishData.user || createdAccount);
-			setRecoveryPhrase(finishData.recoveryPhrase || '');
-			setRecoveryPhraseSaved(false);
-			setStatus('This device is now trusted.');
-			setStep('recovery');
-		} catch (registrationError) {
+			if (response.ok) {
+				applyContinueSuccess(
+					data,
+					REGISTRATION_STATUSES.PENDING_TRUSTED_DEVICE_REGISTRATION,
+				);
+				return;
+			}
+
+			const synced = await syncRegistrationSession(activeSessionId);
+			const resolvedStep = synced?.currentStep || data.currentStep || '';
+			const canOpenTrustedDeviceStep = [
+				REGISTRATION_STATUSES.PASSKEY_CREATED,
+				REGISTRATION_STATUSES.PENDING_TRUSTED_DEVICE_REGISTRATION,
+				REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED,
+				REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE,
+			].includes(resolvedStep);
+
+			if (canOpenTrustedDeviceStep) {
+				applyContinueSuccess(
+					{
+						user: synced?.user || createdAccount,
+						currentStep:
+							resolvedStep === REGISTRATION_STATUSES.PASSKEY_CREATED
+								? REGISTRATION_STATUSES.PENDING_TRUSTED_DEVICE_REGISTRATION
+								: resolvedStep,
+						registrationSessionId: synced?.registrationSessionId || activeSessionId,
+					},
+					REGISTRATION_STATUSES.PENDING_TRUSTED_DEVICE_REGISTRATION,
+				);
+				return;
+			}
+
+			const hint =
+				typeof data?.hint === 'string' && data.hint.trim()
+					? ` ${data.hint.trim()}`
+					: '';
+			throw new Error(`${data.error || 'Unable to continue registration.'}${hint}`);
+		} catch (continueError) {
 			setError(
-				registrationError instanceof Error
-					? registrationError.message
-					: 'Registration failed.',
+				continueError instanceof Error
+					? continueError.message
+					: 'Unable to continue registration.',
+			);
+			setStatus('');
+		}
+	}
+
+	async function registerTrustedDevice(event) {
+		event.preventDefault();
+		setError('');
+		setStatus('Registering trusted device...');
+		const pending = readPendingRegistration();
+		const activeSessionId =
+			registrationSessionId || pending?.registrationSessionId || '';
+
+		try {
+			const response = await registrationApiFetch('/api/auth/register/trusted-device', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					userId: createdAccount?.id,
+					registrationSessionId: activeSessionId,
+					deviceName:
+						form.deviceName || passkeySummary?.deviceName || 'Trusted device',
+				}),
+			});
+			const data = await response.json();
+			if (!response.ok) throw new Error(data.error);
+
+			setCreatedAccount(data.user || createdAccount);
+			setTrustedDeviceSummary(data.trustedDeviceSummary || null);
+			setStatusCard(
+				registrationStatusCardState(REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED),
+			);
+			writePendingRegistration({
+				registrationSessionId,
+				signaturaId: data.user?.signaturaId || createdAccount?.signaturaId || '',
+				currentStep: REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED,
+			});
+			setStatus('Trusted device registered successfully.');
+			setStep('trusted_device_success');
+		} catch (deviceError) {
+			setError(
+				deviceError instanceof Error
+					? deviceError.message
+					: 'Trusted device registration failed.',
+			);
+			setStatus('');
+		}
+	}
+
+	async function continueToRecovery() {
+		setError('');
+		setStatus('Preparing your recovery phrase...');
+		setRecoveryPhrase('');
+		setRecoveryPhraseSaved(false);
+
+		try {
+			const continueResponse = await registrationApiFetch('/api/auth/register/continue', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					registrationSessionId,
+					targetStep: 'recovery',
+				}),
+			});
+			const continueData = await continueResponse.json();
+			if (!continueResponse.ok) throw new Error(continueData.error);
+
+			const recoveryResponse = await registrationApiFetch('/api/auth/register/recovery', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					userId: createdAccount?.id,
+					registrationSessionId,
+				}),
+			});
+			const recoveryData = await recoveryResponse.json();
+			if (!recoveryResponse.ok) throw new Error(recoveryData.error);
+
+			setCreatedAccount(recoveryData.user || createdAccount);
+			setRecoveryPhraseAlreadyIssued(Boolean(recoveryData.recoveryPhraseAlreadyIssued));
+			if (!recoveryData.recoveryPhraseAlreadyIssued) {
+				setRecoveryPhrase(recoveryData.recoveryPhrase || '');
+			}
+			setStatusCard(
+				registrationStatusCardState(REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE),
+			);
+			writePendingRegistration({
+				registrationSessionId,
+				signaturaId:
+					recoveryData.user?.signaturaId || createdAccount?.signaturaId || '',
+				currentStep: REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE,
+			});
+			setStatus(
+				recoveryData.recoveryPhraseAlreadyIssued
+					? 'Your recovery phrase was already generated. Confirm you saved it to activate your account.'
+					: 'Save your recovery phrase offline before activating your account.',
+			);
+			setStep('recovery');
+		} catch (recoveryError) {
+			setError(
+				recoveryError instanceof Error
+					? recoveryError.message
+					: 'Unable to continue to recovery phrase.',
 			);
 			setStatus('');
 		}
@@ -172,11 +762,12 @@ function RegisterPasskeyForm({
 		setStatus('Verifying your SIGNATURA ID...');
 		setRecoveryPhrase('');
 		setRecoveryPhraseSaved(false);
-		setCreatedAccount(null);
-		setRegistrationToken('');
+			setCreatedAccount(null);
+			setRegistrationToken('');
+			setRegistrationSessionId('');
 
 		try {
-			const response = await fetch('/api/auth/register/resume', {
+			const response = await registrationApiFetch('/api/auth/register/resume', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
@@ -189,8 +780,51 @@ function RegisterPasskeyForm({
 			if (!response.ok) throw new Error(data.error);
 			setCreatedAccount(data.user);
 			setRegistrationToken(data.registrationToken || '');
-			setStatus('Your SIGNATURA ID is ready for trusted device registration.');
-			setStep('device');
+			setRegistrationSessionId(data.registrationSessionId || '');
+
+			const sessionResponse = await registrationApiFetch(
+				`/api/auth/register/session/${encodeURIComponent(data.registrationSessionId || '')}`,
+			);
+			const sessionData = await readRegistrationApiJson(
+				sessionResponse,
+				'Registration session',
+			).catch(() => ({}));
+			if (sessionResponse.ok && sessionData.active) {
+				applyRegistrationSessionToForm({
+					data: sessionData,
+					pendingRegistration: {
+						registrationSessionId: data.registrationSessionId,
+						signaturaId: data.user?.signaturaId,
+					},
+					setters: {
+						setCreatedAccount,
+						setRegistrationSessionId,
+						setRegistrationToken,
+						setForm,
+						setStatus,
+						setStep,
+						setPasskeySummary,
+						setTrustedDeviceSummary,
+						setStatusCard,
+						setRecoveryPhrase,
+						setRecoveryPhraseAlreadyIssued,
+					},
+				});
+				return;
+			}
+
+			writePendingRegistration({
+				registrationSessionId: data.registrationSessionId || '',
+				signaturaId: data.user?.signaturaId || form.signaturaId,
+				currentStep: REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION,
+			});
+			setPasskeySummary(null);
+			setTrustedDeviceSummary(null);
+			setStatusCard(
+				registrationStatusCardState(REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION),
+			);
+			setStatus('Your SIGNATURA ID is ready for passkey creation.');
+			setStep('passkey');
 		} catch (resumeError) {
 			setError(
 				resumeError instanceof Error
@@ -210,7 +844,7 @@ function RegisterPasskeyForm({
 				<h1 className="mt-2 text-3xl font-black">
 					{isDeviceSetup
 						? 'Register trusted device'
-						: 'Create your SIGNATURA account'}
+						: pageTitle}
 				</h1>
 				<p className="mt-3 text-sm leading-6 text-slate-300">
 					{isDeviceSetup
@@ -227,6 +861,40 @@ function RegisterPasskeyForm({
 						private fields. System admins and database managers cannot read them
 						directly from the database. Signatura uses Zero Trust Level 2
 						controls for this flow.
+					</div>
+				) : null}
+				{isAccuraRegistration ? (
+					<div className="mt-4 rounded-xl border border-red-300/25 bg-red-500/10 p-4 text-sm leading-6 text-red-50/90">
+						<p className="font-bold">Registering for ACCURA company access</p>
+						<p className="mt-2">
+							<span className="font-semibold text-white">
+								ACCURA Company Name:
+							</span>{' '}
+							{companyName || 'ACCURA company'}
+						</p>
+						<p>
+							<span className="font-semibold text-white">
+								ACCURA Company Code:
+							</span>{' '}
+							<span className="font-mono">{companyCode || 'Not applicable'}</span>
+						</p>
+						<p>
+							<span className="font-semibold text-white">
+								Selected Role:
+							</span>{' '}
+							{accuraRole || 'Not provided'}
+						</p>
+						<p>
+							<span className="font-semibold text-white">
+								Role Prefix:
+							</span>{' '}
+							<span className="font-mono">
+								{accuraRolePrefix || 'Not provided'}
+							</span>
+						</p>
+						<p className="mt-2">
+							This Signatura ID will be linked only to this ACCURA company and selected role.
+						</p>
 					</div>
 				) : null}
 			</div>
@@ -281,13 +949,29 @@ function RegisterPasskeyForm({
 							className="rounded-xl border border-white/10 bg-white px-4 py-3 text-slate-950 outline-none ring-red-500 transition focus:ring-2"
 						/>
 					</label>
+					{accountType === 'issuer' ? (
+						<label className="grid gap-2 text-sm font-semibold">
+							<span>Issuer authorization code</span>
+							<input
+								name="authorizationCode"
+								type="password"
+								placeholder="Enter the issuer creation code"
+								value={form.authorizationCode}
+								onChange={updateField}
+								className="rounded-xl border border-white/10 bg-white px-4 py-3 text-slate-950 outline-none ring-red-500 transition focus:ring-2"
+							/>
+							<p className="text-xs font-normal text-slate-300">
+								This code authorizes issuer Signatura ID creation and issuer portal access.
+							</p>
+						</label>
+					) : null}
 					<div className="grid gap-3 sm:grid-cols-2">
 						<button className="rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400">
 							Create SIGNATURA ID
 						</button>
 						<button
 							type="button"
-							onClick={returnToLoginModal}
+							onClick={cancelPendingRegistration}
 							className="rounded-xl border border-red/15 px-5 hover:border-red-400 py-3 text-sm font-bold text-red-100 transition hover:text-red-400">
 							Cancel
 						</button>
@@ -337,7 +1021,7 @@ function RegisterPasskeyForm({
 						</button>
 						<button
 							type="button"
-							onClick={returnToLoginModal}
+							onClick={cancelPendingRegistration}
 							className="rounded-xl border border-white/15 px-5 py-3 text-sm font-bold text-red-100 transition hover:border-red-300 hover:text-white">
 							Cancel
 						</button>
@@ -346,19 +1030,93 @@ function RegisterPasskeyForm({
 			) : null}
 
 			{status ? <p className="mt-4 text-sm text-slate-200">{status}</p> : null}
-			{createdAccount?.signaturaId && step !== 'account' ? (
-				<div className="mt-4 rounded-xl border border-red-300/25 bg-red-500/10 p-4 text-sm text-red-100">
-					<p className="font-bold">SIGNATURA ID</p>
-					<p className="mt-2 break-all font-mono text-white">
-						{createdAccount.signaturaId}
-					</p>
+			{createdAccount?.signaturaId && step !== 'account' && step !== 'resume' ? (
+				<RegistrationStatusCard
+					statusCard={statusCard}
+					signaturaId={createdAccount.signaturaId}
+				/>
+			) : null}
+
+			{step === 'passkey' ? (
+				<div className="mt-6">
+					<PasskeyNotice />
+					<form onSubmit={createPasskey} className="mt-6 grid gap-4">
+						<p className="text-sm leading-6 text-slate-300">
+							Create a passkey on this device. You will confirm trusted device
+							registration on the next step.
+						</p>
+						<div className="grid gap-3 sm:grid-cols-2">
+							<button className="rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400">
+								Create passkey
+							</button>
+							<button
+								type="button"
+								onClick={cancelPendingRegistration}
+								className="rounded-xl border border-white/15 px-5 py-3 text-sm font-bold text-red-100 transition hover:border-red-300 hover:text-white">
+								Cancel
+							</button>
+						</div>
+					</form>
 				</div>
 			) : null}
 
-			{step === 'device' ? (
+			{step === 'passkey_success' ? (
+				<div className="mt-6 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-5">
+					<h2 className="text-xl font-bold text-emerald-100">
+						Passkey Created Successfully
+					</h2>
+					<dl className="mt-4 grid gap-2 text-sm">
+						<div className="flex justify-between gap-4">
+							<dt className="text-slate-300">Signatura ID</dt>
+							<dd className="font-mono text-white">{createdAccount?.signaturaId}</dd>
+						</div>
+						<div className="flex justify-between gap-4">
+							<dt className="text-slate-300">Passkey Status</dt>
+							<dd className="font-semibold text-white">
+								{passkeySummary?.passkeyStatus || 'Active'}
+							</dd>
+						</div>
+						<div className="flex justify-between gap-4">
+							<dt className="text-slate-300">Credential Registered</dt>
+							<dd className="font-semibold text-white">
+								{passkeySummary?.credentialRegistered ? 'Yes' : 'No'}
+							</dd>
+						</div>
+						{passkeySummary?.deviceName ? (
+							<div className="flex justify-between gap-4">
+								<dt className="text-slate-300">Authenticator/Device</dt>
+								<dd className="text-right text-white">{passkeySummary.deviceName}</dd>
+							</div>
+						) : null}
+						{passkeySummary?.authenticatorAttachment ? (
+							<div className="flex justify-between gap-4">
+								<dt className="text-slate-300">Authenticator Type</dt>
+								<dd className="text-right capitalize text-white">
+									{passkeySummary.authenticatorAttachment}
+								</dd>
+							</div>
+						) : null}
+					</dl>
+					<p className="mt-4 text-sm leading-6 text-emerald-50/90">
+						Your passkey is stored securely on this device. Signatura does not store
+						your private key.
+					</p>
+					<button
+						type="button"
+						onClick={continueToTrustedDevice}
+						className="mt-5 rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400">
+						Continue to Trusted Device Registration
+					</button>
+				</div>
+			) : null}
+
+			{step === 'trusted_device' ? (
 				<div className="mt-6">
-					<PasskeyNotice />
-					<form onSubmit={registerDevice} className="mt-6 grid gap-4">
+					<form onSubmit={registerTrustedDevice} className="grid gap-4">
+						<p className="text-sm leading-6 text-slate-300">
+							Name this device so you can recognize it when approving Signatura
+							login and QR challenges.
+						</p>
 						<label className="grid gap-2 text-sm font-semibold">
 							<span>Device name</span>
 							<input
@@ -375,7 +1133,7 @@ function RegisterPasskeyForm({
 							</button>
 							<button
 								type="button"
-								onClick={returnToLoginModal}
+								onClick={cancelPendingRegistration}
 								className="rounded-xl border border-white/15 px-5 py-3 text-sm font-bold text-red-100 transition hover:border-red-300 hover:text-white">
 								Cancel
 							</button>
@@ -383,9 +1141,68 @@ function RegisterPasskeyForm({
 					</form>
 				</div>
 			) : null}
+
+			{step === 'trusted_device_success' ? (
+				<div className="mt-6 rounded-xl border border-sky-400/30 bg-sky-500/10 p-5">
+					<h2 className="text-xl font-bold text-sky-100">Trusted Device Registered</h2>
+					<dl className="mt-4 grid gap-2 text-sm">
+						<div className="flex justify-between gap-4">
+							<dt className="text-slate-300">Device name</dt>
+							<dd className="text-right text-white">
+								{trustedDeviceSummary?.deviceName || form.deviceName}
+							</dd>
+						</div>
+						<div className="flex justify-between gap-4">
+							<dt className="text-slate-300">Device Status</dt>
+							<dd className="font-semibold text-white">
+								{trustedDeviceSummary?.deviceStatus || 'Trusted'}
+							</dd>
+						</div>
+						<div className="flex justify-between gap-4">
+							<dt className="text-slate-300">Passkey Status</dt>
+							<dd className="font-semibold text-white">
+								{trustedDeviceSummary?.passkeyStatus || 'Active'}
+							</dd>
+						</div>
+					</dl>
+					<p className="mt-4 text-sm leading-6 text-sky-50/90">
+						This device can now approve Signatura login and QR challenges.
+					</p>
+					<button
+						type="button"
+						onClick={continueToRecovery}
+						className="mt-5 rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400">
+						Continue to Recovery Phrase
+					</button>
+				</div>
+			) : null}
 			{error ? (
 				<div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
 					<p>{error}</p>
+					{existingAccount?.signaturaId ? (
+						<div className="mt-3 rounded-lg border border-white/10 bg-slate-950/80 p-3">
+							<p className="text-xs font-bold uppercase tracking-[0.14em] text-red-200">
+								Existing SIGNATURA ID
+							</p>
+							<p className="mt-2 break-all font-mono text-base text-white">
+								{existingAccount.signaturaId}
+							</p>
+							<p className="mt-2 text-xs leading-5 text-red-50/80">
+								{existingAccount.linkedToCompany
+									? 'This Signatura ID is already linked to this ACCURA company.'
+									: isAccuraRegistration
+										? accuraScopedIdMessage
+										: 'This Signatura ID already exists for the submitted contact details.'}
+							</p>
+							{existingReturnHref ? (
+								<a
+									href={existingReturnHref}
+									className="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-red-500 px-4 py-2 text-center text-xs font-bold text-white transition hover:bg-red-400">
+									Continue in ACCURA
+								</a>
+							) : null}
+						</div>
+					) : null}
 					{error.includes('Account already exists') ? (
 						<div className="mt-3 flex flex-col gap-2 sm:flex-row">
 							<button
@@ -394,28 +1211,42 @@ function RegisterPasskeyForm({
 								className="rounded-lg bg-red-500 px-4 py-2 text-center text-xs font-bold text-white transition hover:bg-red-400">
 								Sign in
 							</button>
-							<Link
-								href="/login?next=/issuer"
-								className="rounded-lg border border-white/15 px-4 py-2 text-center text-xs font-bold text-white transition hover:border-red-400">
-								Sign in as issuer
-							</Link>
+							{!isAccuraRegistration ? (
+								<Link
+									href="/login?next=/issuer"
+									className="rounded-lg border border-white/15 px-4 py-2 text-center text-xs font-bold text-white transition hover:border-red-400">
+									Sign in as issuer
+								</Link>
+							) : null}
 						</div>
 					) : null}
 				</div>
 			) : null}
 
-			{step === 'recovery' && recoveryPhrase ? (
+			{step === 'recovery' ? (
 				<div className="mt-6 rounded-xl border border-amber-400/40 bg-amber-300/10 p-4">
 					<h2 className="font-bold text-amber-100">
-						Recovery phrase, shown only once
+						{recoveryPhrase
+							? 'Recovery phrase, shown only once'
+							: 'Activate your account'}
 					</h2>
-					<p className="mt-2 text-sm leading-6 text-amber-50/90">
-						Write this phrase offline. It authorizes account and device recovery
-						only. It does not reveal your encrypted private data.
-					</p>
-					<p className="mt-4 rounded-lg bg-slate-900 px-4 py-3 font-mono text-sm leading-7 text-white">
-						{recoveryPhrase}
-					</p>
+					{recoveryPhrase ? (
+						<>
+							<p className="mt-2 text-sm leading-6 text-amber-50/90">
+								Write this phrase offline. It authorizes account and device recovery
+								only. It does not reveal your encrypted private data.
+							</p>
+							<p className="mt-4 rounded-lg bg-slate-900 px-4 py-3 font-mono text-sm leading-7 text-white">
+								{recoveryPhrase}
+							</p>
+						</>
+					) : (
+						<p className="mt-2 text-sm leading-6 text-amber-50/90">
+							{recoveryPhraseAlreadyIssued
+								? 'Your recovery phrase was already generated in this browser session or on another device. If you saved it offline, confirm below to activate your account.'
+								: 'Confirm that you saved your recovery phrase to activate your account.'}
+						</p>
+					)}
 					<label className="mt-4 flex items-start gap-3 text-sm leading-6 text-amber-50/90">
 						<input
 							type="checkbox"
@@ -431,15 +1262,15 @@ function RegisterPasskeyForm({
 						<button
 							type="button"
 							disabled={!recoveryPhraseSaved}
-							onClick={() => setStep('complete')}
+							onClick={activateAccount}
 							className="rounded-xl bg-red-500 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
-							Continue to dashboard
+							{finalReturnHref ? 'Activate and continue registration' : 'Activate account'}
 						</button>
 						<button
 							type="button"
-							onClick={returnToLoginModal}
+							onClick={cancelPendingRegistration}
 							className="rounded-xl border border-white/15 px-5 py-3 text-center text-sm font-bold text-red-100 transition hover:border-red-300 hover:text-white">
-							Return to login
+							Cancel setup
 						</button>
 					</div>
 				</div>
@@ -447,11 +1278,19 @@ function RegisterPasskeyForm({
 
 			{step === 'complete' ? (
 				<div className="mt-6 flex flex-col gap-3 sm:flex-row">
-					<Link
-						href={nextPath || '/signatura/dashboard'}
-						className="rounded-xl bg-red-500 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-400">
-						Open main dashboard
-					</Link>
+					{finalReturnHref ? (
+						<a
+							href={finalReturnHref}
+							className="rounded-xl bg-red-500 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-400">
+							Continue registration
+						</a>
+					) : (
+						<Link
+							href={nextPath || '/signatura/dashboard'}
+							className="rounded-xl bg-red-500 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-400">
+							Open main dashboard
+						</Link>
+					)}
 					<Link
 						href={trustedDevicesHref}
 						className="rounded-xl border border-white/15 px-5 py-3 text-center text-sm font-bold text-amber-50 transition hover:border-red-400 hover:text-white">
@@ -469,7 +1308,7 @@ function RegisterPasskeyForm({
 							Create issuer Signatura ID
 						</Link>
 					) : null}
-					{accountType === 'admin' ? (
+					{isAccuraRegistration ? null : accountType === 'admin' ? (
 						<Link
 							href="/login?next=/admin"
 							className="text-sm font-semibold text-slate-300 transition hover:text-white">

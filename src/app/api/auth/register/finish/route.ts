@@ -1,20 +1,10 @@
 import { verifyRegistrationResponse } from '@simplewebauthn/server';
 import crypto from 'crypto';
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
-import {
-	SIGNATURA_ACCOUNT_TYPES,
-	getSignaturaAccountType,
-	userPublicIdentity,
-} from '@/lib/identity';
-import { setSessionCookie } from '@/lib/session';
-import { ROLE_COOKIE, ROLES } from '@/lib/roles';
-import { logAuthAudit } from '@/lib/auth/authAudit';
-import {
-	hashRecoveryPhrase,
-	makeRecoveryPhrase,
-} from '@/lib/auth/recoveryPhrase';
+import { userPublicIdentity } from '@/lib/identity';
+import { REGISTRATION_STATUSES } from '@/lib/registration-status';
+import { touchRegistrationSession } from '@/lib/registration-session';
 import {
 	assertSecureWebAuthnRequest,
 	consumeChallenge,
@@ -24,12 +14,36 @@ import {
 	logSecurityEvent,
 } from '@/lib/webauthn';
 
+function passkeySummaryFromCredential(
+	credential: {
+		deviceName?: string | null;
+		transports?: string[];
+		userAgent?: string | null;
+	},
+	registrationInfo?: {
+		credentialDeviceType?: string;
+		credentialBackedUp?: boolean;
+		authenticatorAttachment?: string;
+	},
+) {
+	return {
+		passkeyStatus: 'Active',
+		credentialRegistered: true,
+		deviceName: credential.deviceName || 'This device',
+		transports: credential.transports || [],
+		userAgent: credential.userAgent || null,
+		authenticatorAttachment: registrationInfo?.authenticatorAttachment || null,
+		credentialDeviceType: registrationInfo?.credentialDeviceType || null,
+		credentialBackedUp: Boolean(registrationInfo?.credentialBackedUp),
+	};
+}
+
 export async function POST(req: Request) {
 	try {
 		assertSecureWebAuthnRequest(req);
 		const body = await req.json();
 		const userId = String(body.userId || '');
-		const deviceName = String(body.deviceName || '').trim() || 'Trusted device';
+		const deviceName = String(body.deviceName || '').trim() || 'This device';
 		const response = body.response;
 
 		if (!userId || !response) {
@@ -69,13 +83,28 @@ export async function POST(req: Request) {
 			return jsonError('Passkey registration could not be verified', 400);
 		}
 
-		const { credential } = verification.registrationInfo;
-		const recoveryPhrase = makeRecoveryPhrase();
+		const { credential, credentialDeviceType, credentialBackedUp } =
+			verification.registrationInfo;
 		const userAgent = getUserAgent(req);
+		const resolvedDeviceName = challenge.deviceName || deviceName;
+		const authenticatorAttachment =
+			typeof response?.authenticatorAttachment === 'string'
+				? response.authenticatorAttachment
+				: null;
 
 		const result = await prisma.$transaction(async (tx) => {
 			const user = await tx.user.findUnique({ where: { id: userId } });
 			if (!user) throw new Error('User not found');
+
+			const existingCredential = await tx.webAuthnCredential.findFirst({
+				where: {
+					userId,
+					credentialId: credential.id,
+				},
+			});
+			if (existingCredential) {
+				throw new Error('Passkey already registered for this account');
+			}
 
 			await tx.webAuthnCredential.create({
 				data: {
@@ -85,35 +114,10 @@ export async function POST(req: Request) {
 					publicKey: Buffer.from(credential.publicKey),
 					counter: credential.counter,
 					transports: credential.transports || [],
-					deviceName,
+					deviceName: resolvedDeviceName,
 					userAgent,
 					lastUsedAt: new Date(),
-					isTrusted: true,
-				},
-			});
-
-			await tx.trustedDevice.create({
-				data: {
-					id: crypto.randomUUID(),
-					userId,
-					credentialId: credential.id,
-					deviceName,
-					deviceHash: crypto
-						.createHash('sha256')
-						.update(`${userId}:${credential.id}`)
-						.digest('hex'),
-					userAgent,
-					lastUsedAt: new Date(),
-					isTrusted: true,
-				},
-			});
-
-			await tx.recoveryCode.create({
-				data: {
-					id: crypto.randomUUID(),
-					userId,
-					codeHash: hashRecoveryPhrase(recoveryPhrase),
-					codePrefix: 'phrase',
+					isTrusted: false,
 				},
 			});
 
@@ -121,78 +125,57 @@ export async function POST(req: Request) {
 				data: {
 					id: crypto.randomUUID(),
 					userId,
-					event: 'trusted_device_registered',
+					event: 'passkey_created',
 					userAgent,
 					details: {
-						deviceName,
-						credentialId: credential.id,
-						notice: 'Recovery phrase was shown once during onboarding',
+						deviceName: resolvedDeviceName,
+						credentialDeviceType,
+						credentialBackedUp,
+						notice: 'Passkey verified; trusted device registration pending',
 					},
 				},
 			});
 
-			await tx.user.update({
+			const updatedUser = await tx.user.update({
 				where: { id: userId },
-				data: { accountStatus: 'active', trustLevel: 2 },
-			});
-			await tx.authChallenge.updateMany({
-				where: {
-					userId,
-					type: 'REGISTER_ACCOUNT',
-					usedAt: null,
+				data: {
+					accountStatus: REGISTRATION_STATUSES.PASSKEY_CREATED,
 				},
-				data: { usedAt: new Date() },
 			});
 
-			return { ...user, accountStatus: 'active', trustLevel: 2 };
+			return updatedUser;
 		});
 
-		await logAuthAudit(req, 'trusted_device_registered', {
-			userId: result.id,
-			details: {
-				deviceName,
-				firstTrustedDevice: true,
+		await logSecurityEvent(req, 'passkey_created', userId, {
+			deviceName: resolvedDeviceName,
+			credentialDeviceType,
+			credentialBackedUp,
+		});
+
+		await touchRegistrationSession('', userId);
+
+		const passkeySummary = passkeySummaryFromCredential(
+			{
+				deviceName: resolvedDeviceName,
+				transports: credential.transports || [],
+				userAgent,
 			},
-		});
+			{
+				credentialDeviceType,
+				credentialBackedUp,
+				authenticatorAttachment,
+			},
+		);
 
-		const accountType = getSignaturaAccountType(result.signaturaId);
-		let portalRole = ROLES.DOCUMENT_OWNER;
-		if (
-			accountType === SIGNATURA_ACCOUNT_TYPES.ISSUER &&
-			process.env.NODE_ENV !== 'production'
-		) {
-			portalRole = ROLES.ISSUER_ADMIN;
-		}
-		if (accountType === SIGNATURA_ACCOUNT_TYPES.ADMIN) {
-			portalRole = ROLES.SIGNATURA_ADMIN;
-		}
-
-		const responseJson = NextResponse.json({
+		return Response.json({
 			ok: true,
 			user: userPublicIdentity(result),
-			recoveryPhrase,
+			currentStep: REGISTRATION_STATUSES.PASSKEY_CREATED,
+			passkeySummary,
 		});
-		setSessionCookie(responseJson, req, {
-			userId: result.id,
-			signaturaId: result.signaturaId,
-			role: portalRole,
-			trustLevel: result.trustLevel,
-			iat: Date.now(),
-			createdAt: Date.now(),
-			reauthenticatedAt: Date.now(),
-		});
-		responseJson.cookies.set(ROLE_COOKIE, portalRole, {
-			httpOnly: true,
-			sameSite: 'lax',
-			secure: process.env.NODE_ENV === 'production',
-			path: '/',
-			maxAge: 60 * 60 * 8,
-		});
-
-		return responseJson;
 	} catch (error) {
 		return jsonError(
-			safeApiErrorMessage(error, 'Unable to finish registration'),
+			safeApiErrorMessage(error, 'Unable to finish passkey registration'),
 			400,
 		);
 	}

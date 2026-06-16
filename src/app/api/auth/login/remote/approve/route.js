@@ -1,37 +1,89 @@
+import { verifyAuthenticationResponse } from '@simplewebauthn/server';
 import crypto from 'crypto';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
-import { hasRecentVerification, requireSession } from '@/lib/session';
-import { approveTrustedDeviceLoginChallenge } from '@/lib/trustedDeviceLoginChallenge';
-import { getUserAgent, logSecurityEvent } from '@/lib/webauthn';
+import { requireSession } from '@/lib/session';
+import {
+	approveTrustedDeviceLoginChallenge,
+	buildQrLoginApprovalChallenge,
+	findPendingTrustedDeviceLoginChallenge,
+	requireTrustedActiveLoginDevice,
+} from '@/lib/trustedDeviceLoginChallenge';
+import {
+	assertSecureWebAuthnRequest,
+	getOrigin,
+	getRpID,
+	getUserAgent,
+} from '@/lib/webauthn';
 
 export async function POST(req) {
 	try {
+		assertSecureWebAuthnRequest(req);
 		const session = await requireSession();
 		if (!session?.userId) return jsonError('Authentication required', 401);
-		if (!hasRecentVerification(session)) {
-			return jsonError('Recent passkey verification required', 403);
-		}
 
 		const body = await req.json().catch(() => ({}));
 		const challengeId = String(body.challengeId ?? '').trim();
 		const shortCode = String(body.shortCode ?? '').trim().toUpperCase();
-		const credentialId = String(body.credentialId ?? '').trim();
-		if (!challengeId || !shortCode || !credentialId) {
-			return jsonError('Challenge, code, and credential are required', 400);
+		const assertion = body.response;
+		if (!challengeId || !shortCode) {
+			return jsonError('Challenge and code are required', 400);
+		}
+		if (!assertion) {
+			return jsonError('WebAuthn assertion is required', 400);
 		}
 
-		const trustedDevice = await prisma.trustedDevice.findFirst({
-			where: {
-				userId: session.userId,
-				credentialId,
-				isTrusted: true,
-				removedAt: null,
+		const challenge = await findPendingTrustedDeviceLoginChallenge({
+			challengeId,
+			shortCode,
+		});
+		if (!challenge) {
+			return jsonError('Login challenge not found or expired', 404);
+		}
+		if (challenge.userId !== session.userId) {
+			return jsonError(
+				'This Signatura account does not match the browser login request.',
+				403,
+			);
+		}
+
+		const candidateCredential = await prisma.webAuthnCredential.findUnique({
+			where: { credentialId: assertion.id },
+		});
+		if (!candidateCredential || candidateCredential.userId !== session.userId) {
+			return jsonError('Credential is not registered for this account', 401);
+		}
+
+		const expectedChallenge = buildQrLoginApprovalChallenge(challenge).challenge;
+		const verification = await verifyAuthenticationResponse({
+			response: assertion,
+			expectedChallenge,
+			expectedOrigin: getOrigin(req),
+			expectedRPID: getRpID(req),
+			requireUserVerification: true,
+			credential: {
+				id: candidateCredential.credentialId,
+				publicKey: candidateCredential.publicKey,
+				counter: candidateCredential.counter,
+				transports: candidateCredential.transports,
 			},
 		});
-		if (!trustedDevice) {
-			return jsonError('Trusted device proof required', 403);
+		if (!verification.verified) {
+			return jsonError('Trusted device assertion could not be verified', 401);
 		}
+
+		const credentialId = verification.authenticationInfo.credentialID;
+		if (
+			credentialId !== candidateCredential.credentialId ||
+			!candidateCredential.isTrusted
+		) {
+			return jsonError('Credential is not trusted for this account', 401);
+		}
+
+		const trustedDevice = await requireTrustedActiveLoginDevice({
+			userId: session.userId,
+			credentialId,
+		});
 
 		const approved = await approveTrustedDeviceLoginChallenge({
 			challengeId,
@@ -41,6 +93,13 @@ export async function POST(req) {
 			trustedDeviceId: trustedDevice.id,
 		});
 
+		await prisma.webAuthnCredential.update({
+			where: { id: candidateCredential.id },
+			data: {
+				counter: verification.authenticationInfo.newCounter,
+				lastUsedAt: new Date(),
+			},
+		});
 		await prisma.trustedDevice.update({
 			where: { id: trustedDevice.id },
 			data: { lastUsedAt: new Date() },

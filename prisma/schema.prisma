@@ -22,6 +22,7 @@ model User {
   recoveryCodes     RecoveryCode[]
   securityEventLogs SecurityEventLog[]
   signaturaSessions SignaturaSession[]
+  appLinks          SignaturaAppLink[]
   trustedDevices              TrustedDevice[]
   credentials                 WebAuthnCredential[]
   trustedDeviceLoginChallenges TrustedDeviceLoginChallenge[]
@@ -60,6 +61,15 @@ model TrustedDeviceLoginChallenge {
   userId                String    @map("user_id")
   shortCode             String    @map("short_code")
   browserSecretHash     String    @map("browser_secret_hash")
+  nonce                 String
+  clientId              String?   @map("client_id")
+  sourceApp             String?   @map("source_app")
+  requesterOrigin       String?   @map("requester_origin")
+  returnUrl             String?   @map("return_url")
+  expectedSignaturaId   String?   @map("expected_signatura_id")
+  rolePrefix            String?   @map("role_prefix")
+  state                 String?
+  requestedAssuranceLevel String?   @map("requested_assurance_level")
   status                String    @default("PENDING")
   approvalTokenHash     String?   @map("approval_token_hash")
   approvingDeviceId     String?   @map("approving_device_id")
@@ -75,6 +85,9 @@ model TrustedDeviceLoginChallenge {
 
   @@index([shortCode, status])
   @@index([userId, status])
+  @@index([clientId, status])
+  @@index([sourceApp, status])
+  @@index([expectedSignaturaId])
   @@index([expiresAt])
   @@map("trusted_device_login_challenges")
 }
@@ -504,6 +517,36 @@ model SignaturaSession {
   @@index([userId])
   @@index([expiresAt])
   @@map("signatura_sessions")
+}
+
+model SignaturaAppLink {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  signaturaId String   @unique @map("signatura_id")
+  sourceApp   String   @map("source_app")
+  companyCode String?  @map("company_code")
+  companyName String?  @map("company_name")
+  companyId   String?  @map("company_id")
+  tenantId    String?  @map("tenant_id")
+  accuraUserId String? @map("accura_user_id")
+  role        String?
+  rolePrefix  String?  @map("role_prefix")
+  moduleAccess String[] @default([]) @map("accura_module_access")
+  permissionSet String[] @default([]) @map("accura_permission_set")
+  registrationContext Json? @map("registration_context")
+  trustedDeviceStatus String? @map("trusted_device_status")
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sourceApp, companyCode, rolePrefix])
+  @@index([sourceApp, companyId, rolePrefix])
+  @@index([sourceApp, tenantId])
+  @@index([accuraUserId])
+  @@unique([sourceApp, companyCode, rolePrefix, signaturaId])
+  @@map("signatura_app_links")
 }
 
 model AuditAnchor {

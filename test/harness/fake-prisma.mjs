@@ -221,8 +221,11 @@ export function createFakePrisma() {
 		merkleProof: createModel(),
 		merkleBatch: createModel(),
 		apiLog: createModel(),
+		authChallenge: createModel(),
+		securityEventLog: createModel(),
 		trustedDevice: createModel(),
 		trustedDeviceLoginChallenge: createModel(),
+		webAuthnCredential: createModel(),
 		consent: createModel(),
 		privateFieldKeyReference: createModel(),
 		privateFieldKeyAuthorization: createModel(),
@@ -233,11 +236,15 @@ export function createFakePrisma() {
 		securityAuditLog: createModel(),
 		apiClient: createModel(),
 		signaturaSession: createModel(),
+		signaturaAppLink: createModel(),
 	};
 
 	return {
 		...models,
 		async $transaction(callback) {
+			if (Array.isArray(callback)) {
+				return Promise.all(callback);
+			}
 			const snapshots = {};
 			for (const [name, model] of Object.entries(models)) {
 				snapshots[name] = model.__rows.map((row) => ({ ...row }));

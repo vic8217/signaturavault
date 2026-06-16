@@ -22,12 +22,12 @@ test('issuer document summary uses collision-resistant keys for merged records',
 	assert.doesNotMatch(source, /key=\{document\.id\}/);
 });
 
-test('wallet home cards do not key repeated destinations by href', async () => {
+test('wallet quick actions do not key repeated destinations by href', async () => {
 	const source = await readFile(
 		new URL('../src/app/wallet/page.js', import.meta.url),
 		'utf8',
 	);
 
-	assert.match(source, /key=\{card\.title\}/);
-	assert.doesNotMatch(source, /key=\{card\.href\}/);
+	assert.match(source, /key=\{action\.label\}/);
+	assert.doesNotMatch(source, /key=\{action\.href\}/);
 });

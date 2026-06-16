@@ -2,21 +2,128 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-test('new account onboarding continues to device registration before recovery phrase', async () => {
+test('new account onboarding continues to passkey creation before trusted device registration', async () => {
 	const source = await readFile(
 		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
 		'utf8',
 	);
 	const createAccountBody = source.slice(
 		source.indexOf('async function createAccount'),
-		source.indexOf('async function registerDevice'),
+		source.indexOf('async function createPasskey'),
 	);
 
 	assert.match(createAccountBody, /setCreatedAccount\(data\.user\)/);
 	assert.match(createAccountBody, /setRegistrationToken\(data\.registrationToken \|\| ''\)/);
 	assert.match(createAccountBody, /accountType/);
-	assert.match(createAccountBody, /setStep\('device'\)/);
+	assert.match(createAccountBody, /setStep\('passkey'\)/);
 	assert.doesNotMatch(createAccountBody, /returnToLoginModal\(\)/);
+});
+
+test('pending registration stores only session resume markers in browser storage', async () => {
+	const source = await readFile(
+		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+	const storageWriter = source.slice(
+		source.indexOf('function writePendingRegistration'),
+		source.indexOf('function clearPendingRegistration'),
+	);
+	const createAccountBody = source.slice(
+		source.indexOf('async function createAccount'),
+		source.indexOf('async function createPasskey'),
+	);
+	const createPasskeyBody = source.slice(
+		source.indexOf('async function createPasskey'),
+		source.indexOf('async function continueToTrustedDevice'),
+	);
+
+	assert.match(storageWriter, /registrationSessionId/);
+	assert.match(storageWriter, /signaturaId/);
+	assert.match(storageWriter, /currentStep/);
+	assert.doesNotMatch(storageWriter, /fullName/);
+	assert.doesNotMatch(storageWriter, /handphone/);
+	assert.doesNotMatch(storageWriter, /email/);
+	assert.doesNotMatch(storageWriter, /recoveryPhrase/);
+	assert.doesNotMatch(storageWriter, /registrationToken/);
+	assert.match(createAccountBody, /writePendingRegistration/);
+	assert.match(createPasskeyBody, /setStep\('passkey_success'\)/);
+	assert.doesNotMatch(createPasskeyBody, /clearPendingRegistration/);
+});
+
+test('registration supports session resume and explicit cancellation endpoints', async () => {
+	const registerForm = await readFile(
+		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+	const accountRoute = await readFile(
+		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
+		'utf8',
+	);
+	const startRoute = await readFile(
+		new URL('../src/app/api/auth/register/start/route.ts', import.meta.url),
+		'utf8',
+	);
+	const sessionRoute = await readFile(
+		new URL('../src/app/api/auth/register/session/[id]/route.ts', import.meta.url),
+		'utf8',
+	);
+	const cancelRoute = await readFile(
+		new URL('../src/app/api/auth/register/cancel/route.ts', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(accountRoute, /accountStatus: 'pending_passkey_creation'/);
+	assert.match(accountRoute, /registrationSessionId/);
+	assert.match(startRoute, /registrationSessionId/);
+	assert.match(startRoute, /REGISTER_PASSKEY/);
+	assert.doesNotMatch(startRoute, /pending_trusted_device_registration/);
+	assert.match(sessionRoute, /REGISTRATION_STATUSES\.PASSKEY_CREATED/);
+	assert.match(sessionRoute, /registrationStatusCardState/);
+	assert.match(cancelRoute, /CANCELLABLE_REGISTRATION_STATUSES/);
+	assert.match(registerForm, /Passkey Created Successfully/);
+	assert.match(registerForm, /Trusted Device Registered/);
+	assert.match(registerForm, /RegistrationStatusCard/);
+	assert.match(registerForm, /\/api\/auth\/register\/trusted-device/);
+	assert.match(sessionRoute, /registration_session_resumed/);
+	assert.match(cancelRoute, /registration_cancelled/);
+	assert.match(registerForm, /\/api\/auth\/register\/session\/\$\{encodeURIComponent\(pendingSessionId\)\}/);
+	assert.match(registerForm, /\/api\/auth\/register\/cancel/);
+	assert.match(registerForm, /onClick=\{cancelPendingRegistration\}/);
+});
+
+test('registration continue is idempotent for already prepared setup steps', async () => {
+	const continueRoute = await readFile(
+		new URL('../src/app/api/auth/register/continue/route.ts', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(continueRoute, /TRUSTED_DEVICE_READY_STEPS/);
+	assert.match(continueRoute, /resolveRegistrationStep/);
+	assert.match(
+		continueRoute,
+		/targetStep === 'recovery'[\s\S]+PENDING_RECOVERY_PHRASE/,
+	);
+	assert.match(continueRoute, /findRegistrationSession/);
+	assert.match(continueRoute, /renewIfExpired: true/);
+	assert.match(continueRoute, /registrationSessionId: session\.id/);
+});
+
+test('trusted device registration retry returns existing trusted device success', async () => {
+	const trustedDeviceRoute = await readFile(
+		new URL('../src/app/api/auth/register/trusted-device/route.ts', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(trustedDeviceRoute, /function trustedDeviceSuccessResponse/);
+	assert.match(trustedDeviceRoute, /existingTrustedDevice/);
+	assert.match(
+		trustedDeviceRoute,
+		/accountStatus: REGISTRATION_STATUSES\.TRUSTED_DEVICE_REGISTERED/,
+	);
+	assert.doesNotMatch(
+		trustedDeviceRoute,
+		/Trusted device already registered for this passkey/,
+	);
 });
 
 test('account duplicate contact check is scoped by Signatura account type', async () => {
@@ -66,6 +173,93 @@ test('public registration does not expose admin account selection', async () => 
 	assert.doesNotMatch(registerForm, /Account class/);
 	assert.doesNotMatch(registerForm, /SIG-A-XXXX-XXXX/);
 	assert.match(registerForm, /Create issuer Signatura ID/);
+});
+
+test('ACCURA-linked registration shows company context and hides issuer link', async () => {
+	const registerPage = await readFile(
+		new URL('../src/app/register/page.js', import.meta.url),
+		'utf8',
+	);
+	const registerForm = await readFile(
+		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+	const registerRoute = await readFile(
+		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
+		'utf8',
+	);
+	const schema = await readFile(
+		new URL('../prisma/schema.prisma', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(registerPage, /registrationContextFromParams/);
+	assert.match(registerPage, /validateAccuraRegistrationContext/);
+	assert.match(registerPage, /registrationContextError/);
+	assert.match(registerPage, /validateAccuraRegistrationContext/);
+	assert.match(registerPage, /registrationContext\.source !== 'accura'/);
+	assert.match(registerForm, /Create your SIGNATURA account for ACCURA/);
+	assert.match(registerForm, /Registering for ACCURA company access/);
+	assert.match(registerForm, /ACCURA Company Name/);
+	assert.match(registerForm, /ACCURA Company Code/);
+	assert.match(registerForm, /Selected Role/);
+	assert.match(registerForm, /Role Prefix/);
+	assert.match(registerForm, /This Signatura ID will be linked only to this ACCURA company and selected role/);
+	assert.match(registerForm, /role: accuraRole/);
+	assert.match(registerForm, /rolePrefix: accuraRolePrefix/);
+	assert.match(registerRoute, /createUniqueAccuraSignaturaId/);
+	assert.match(registerRoute, /validateAccuraRegistrationContext/);
+	assert.match(registerRoute, /signaturaAppLinkModel/);
+	assert.match(registerRoute, /appLinkModel\.create/);
+	assert.match(registerRoute, /existingSignaturaId/);
+	assert.match(registerRoute, /linkedToCompany/);
+	assert.match(schema, /model SignaturaAppLink/);
+	assert.match(schema, /rolePrefix\s+String\?/);
+});
+
+test('ACCURA callback receives source and company registration status', async () => {
+	const registerForm = await readFile(
+		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(registerForm, /registrationStatus', 'success'/);
+	assert.match(registerForm, /source', 'accura'/);
+	assert.match(registerForm, /companyCode', companyCode/);
+	assert.match(registerForm, /role', accuraRole/);
+	assert.match(registerForm, /rolePrefix', accuraRolePrefix/);
+});
+
+test('ACCURA duplicate registration displays existing Signatura ID', async () => {
+	const registerForm = await readFile(
+		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(registerForm, /Existing SIGNATURA ID/);
+	assert.match(registerForm, /existingAccount\.signaturaId/);
+	assert.match(registerForm, /Continue in ACCURA/);
+	assert.match(registerForm, /registrationStatus'.*existing/s);
+	assert.match(
+		registerForm,
+		/A personal Signatura ID already exists, but ACCURA requires a separate company-role Signatura ID/,
+	);
+});
+
+test('ACCURA registration lookup is scoped by app company role and contact', async () => {
+	const registerRoute = await readFile(
+		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(registerRoute, /const isAccuraRegistration = registrationSource\.source === 'accura'/);
+	assert.match(registerRoute, /matchingContactUserIds/);
+	assert.match(registerRoute, /userId: \{ in: matchingContactUserIds \}/);
+	assert.match(registerRoute, /sourceApp: 'ACCURA'/);
+	assert.match(registerRoute, /companyCode: rolePrefix === 'SADM' \? null : companyCode/);
+	assert.match(registerRoute, /rolePrefix/);
+	assert.match(registerRoute, /ACCURA company-role Signatura ID already exists/);
+	assert.match(registerRoute, /createUniqueAccuraSignaturaId/);
 });
 
 test('admin registration uses a separate admin URL', async () => {

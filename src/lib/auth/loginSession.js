@@ -79,6 +79,7 @@ async function createAuthenticatedLoginResponse({
 	nextPath,
 	eventName,
 	eventDetails = {},
+	canRegisterDevice = false,
 }) {
 	const allowedNext = normalizeLoginNextPath(
 		nextPath?.startsWith('/') ? nextPath : '/signatura/dashboard',
@@ -94,7 +95,7 @@ async function createAuthenticatedLoginResponse({
 		ok: true,
 		next: allowedNext,
 		user: userPublicIdentity(user),
-		canRegisterDevice: true,
+		canRegisterDevice,
 	});
 	setSessionCookie(responseJson, req, {
 		userId: user.id,

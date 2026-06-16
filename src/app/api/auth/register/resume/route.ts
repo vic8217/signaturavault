@@ -7,9 +7,9 @@ import {
 	normalizeEmail,
 	normalizeHandphone,
 } from '@/lib/account-private-fields';
+import { registrationSessionExpiresAt } from '@/lib/registration-session';
 import {
 	assertSecureWebAuthnRequest,
-	challengeExpiresAt,
 	getUserAgent,
 	logSecurityEvent,
 } from '@/lib/webauthn';
@@ -43,21 +43,41 @@ export async function POST(req: Request) {
 		const hasTrustedDevice = user.credentials.length > 0;
 		if (hasTrustedDevice && process.env.NODE_ENV === 'production') {
 			return jsonError('This account already has a trusted device. Sign in with passkey.', 409);
-		}
+			}
 
-		const registrationToken = crypto.randomBytes(32).toString('base64url');
-		await prisma.authChallenge.create({
-			data: {
-				id: crypto.randomUUID(),
-				userId: user.id,
-				type: 'REGISTER_ACCOUNT',
+			const registrationToken = crypto.randomBytes(32).toString('base64url');
+			const registrationSessionId = crypto.randomUUID();
+			await prisma.authChallenge.create({
+				data: {
+					id: registrationSessionId,
+					userId: user.id,
+					type: 'REGISTER_ACCOUNT',
 				challenge: registrationToken,
 				userAgent: getUserAgent(req),
-				expiresAt: challengeExpiresAt(),
-			},
-		});
+				expiresAt: registrationSessionExpiresAt(),
+				},
+			});
+			await prisma.user.updateMany({
+				where: {
+					id: user.id,
+					accountStatus: {
+						in: [
+							'pending_device',
+							'pending_passkey_creation',
+							'passkey_created',
+							'pending_trusted_device_registration',
+							'trusted_device_registered',
+							'pending_recovery_phrase',
+							'pending_activation',
+							'expired',
+							'cancelled',
+						],
+					},
+				},
+				data: { accountStatus: 'pending_passkey_creation' },
+			});
 
-		await logSecurityEvent(req, 'account_device_setup_resumed', user.id, {
+			await logSecurityEvent(req, 'account_device_setup_resumed', user.id, {
 			signaturaId: user.signaturaId,
 			lookupVerified: true,
 			existingTrustedDeviceCount: user.credentials.length,
@@ -66,10 +86,11 @@ export async function POST(req: Request) {
 		});
 
 		return Response.json({
-			ok: true,
-			user: userPublicIdentity(user),
-			registrationToken,
-		});
+				ok: true,
+				user: userPublicIdentity(user),
+				registrationToken,
+				registrationSessionId,
+			});
 	} catch (error) {
 		return jsonError(
 			safeApiErrorMessage(error, 'Unable to resume account setup'),

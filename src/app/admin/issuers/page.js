@@ -51,6 +51,8 @@ export default function AdminIssuers() {
 	const [copiedInviteUrl, setCopiedInviteUrl] = useState(false);
 	const [status, setStatus] = useState('Loading issuers...');
 	const [error, setError] = useState('');
+	const [generatedAuthorizationCode, setGeneratedAuthorizationCode] = useState(null);
+	const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -87,6 +89,7 @@ export default function AdminIssuers() {
 			issuerId: row.id,
 			name: row.name,
 			apiClient: registeredIssuer.apiClient,
+			authorizationCode: registeredIssuer.authorizationCode,
 			deliveryChannel: registeredIssuer.deliveryChannel,
 			invitation: registeredIssuer.invitation,
 			invitationError: registeredIssuer.invitationError,
@@ -102,6 +105,34 @@ export default function AdminIssuers() {
 			window.setTimeout(() => setCopiedInviteUrl(false), 1800);
 		} catch {
 			setCopiedInviteUrl(false);
+		}
+	}
+
+	async function handleGenerateAuthorizationCode() {
+		setIsGeneratingCode(true);
+		setError('');
+
+		try {
+			const response = await fetch('/api/admin/issuer-authorization-codes', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ label: 'Issuer Signatura ID creation' }),
+			});
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.error || 'Unable to generate issuer authorization code');
+			}
+
+			setGeneratedAuthorizationCode(data);
+		} catch (generateError) {
+			setError(
+				generateError instanceof Error
+					? generateError.message
+					: 'Unable to generate issuer authorization code',
+			);
+		} finally {
+			setIsGeneratingCode(false);
 		}
 	}
 
@@ -180,6 +211,21 @@ export default function AdminIssuers() {
 				</div>
 			) : null}
 
+			{generatedAuthorizationCode ? (
+				<section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
+					<p className="text-sm font-bold uppercase tracking-[0.18em] text-emerald-300">
+						Issuer authorization code
+					</p>
+					<h2 className="mt-2 text-xl font-black text-white">
+						{generatedAuthorizationCode.code}
+					</h2>
+					<p className="mt-3 text-sm text-emerald-50/90">
+						Share this code with authorized issuer onboarding staff. It will be accepted for issuer Signatura ID creation until it expires on{' '}
+						{new Date(generatedAuthorizationCode.expiresAt).toLocaleString()}.
+					</p>
+				</section>
+			) : null}
+
 			{latestCredentials ? (
 				<section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
 					<p className="text-sm font-bold uppercase tracking-[0.18em] text-emerald-300">
@@ -195,6 +241,19 @@ export default function AdminIssuers() {
 								<p>API key: {latestCredentials.apiClient.apiKey}</p>
 								<p>Client secret: {latestCredentials.apiClient.clientSecret}</p>
 							</div>
+							{latestCredentials.authorizationCode ? (
+								<div className="mt-4 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm text-emerald-50">
+									<p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-200">
+										Issuer authorization code
+									</p>
+									<p className="mt-2 break-all font-mono text-white">
+										{latestCredentials.authorizationCode.code}
+									</p>
+									<p className="mt-2 text-xs text-emerald-100/80">
+										This code is bound to issuer {latestCredentials.issuerId} and is required for issuer Signatura ID creation.
+									</p>
+								</div>
+							) : null}
 							<p className="mt-4 text-xs leading-5 text-emerald-100/80">
 								Store these securely. They are shown only after registration for
 								setup and should not be sent through public messaging channels.
@@ -330,13 +389,22 @@ export default function AdminIssuers() {
 						Register an issuer to show it in this Dev Admin issuer registry.
 					</p>
 					<div className="mt-6">
-						<RegisterIssuerModal onRegistered={handleRegistered} />
+						<div className="flex flex-wrap items-center gap-3">
+							<button
+								type="button"
+								onClick={handleGenerateAuthorizationCode}
+								disabled={isGeneratingCode}
+								className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-bold text-white transition hover:border-red-400 hover:text-red-100 disabled:cursor-not-allowed disabled:bg-slate-800">
+								{isGeneratingCode ? 'Generating...' : 'Generate issuer code'}
+							</button>
+							<RegisterIssuerModal onRegistered={handleRegistered} />
+						</div>
 					</div>
 				</div>
 			) : null}
 
 			{inviteIssuer ? (
-				<div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 px-4 py-6 backdrop-blur-sm">
+				<div className="fixed inset-0 z-100 overflow-y-auto bg-black/70 px-4 py-6 backdrop-blur-sm">
 					<div className="grid min-h-full place-items-start sm:place-items-center">
 						<div
 							className="w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-slate-950 text-white shadow-[0_0_90px_rgba(248,35,35,0.22)]"

@@ -15,6 +15,7 @@ function evaluatePortalAccess({ pathname, search = '', role }) {
 	if (
 		pathname === '/issuer/activate' ||
 		pathname === '/issuer/onboarding' ||
+		pathname === '/signatura/register' ||
 		pathname === '/admin/register'
 	) {
 		return { action: 'allow' };
