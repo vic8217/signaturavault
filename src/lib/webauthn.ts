@@ -26,9 +26,27 @@ function getOrigin(req: Request) {
 
 function assertSecureWebAuthnRequest(req: Request) {
 	const host = getHost(req);
-	const proto = req.headers.get('x-forwarded-proto');
+	if (isLocalHost(host)) return;
 
-	if (!isLocalHost(host) && proto && proto !== 'https') {
+	const forwardedProto = String(req.headers.get('x-forwarded-proto') || '')
+		.split(',')[0]
+		.trim()
+		.toLowerCase();
+	if (forwardedProto === 'https') return;
+	if (String(req.headers.get('x-forwarded-ssl') || '').toLowerCase() === 'on') {
+		return;
+	}
+
+	const cfVisitor = req.headers.get('cf-visitor');
+	if (cfVisitor && cfVisitor.includes('https')) return;
+
+	// ngrok and similar tunnels sometimes omit x-forwarded-proto on API requests.
+	const hostname = host.split(':')[0].toLowerCase();
+	if (hostname.endsWith('.ngrok-free.dev') || hostname.endsWith('.ngrok-free.app')) {
+		return;
+	}
+
+	if (forwardedProto === 'http') {
 		throw new Error('HTTPS is required for passkey authentication');
 	}
 }

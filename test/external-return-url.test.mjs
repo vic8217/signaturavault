@@ -3,9 +3,31 @@ import test from 'node:test';
 
 import {
 	externalReturnUrlFromParams,
+	isPhoneUnreachableAccuraReturnUrl,
 	normalizeExternalReturnUrl,
 } from '@/lib/externalReturnUrl.js';
 import { buildExternalLoginReturnUrl } from '@/lib/externalLoginReturn.js';
+
+test('phone-unreachable ACCURA return URLs include localhost and private LAN hosts', () => {
+	assert.equal(
+		isPhoneUnreachableAccuraReturnUrl(
+			'http://192.168.68.139:3001/api/company-registration/signatura-callback?requestId=abc',
+		),
+		true,
+	);
+	assert.equal(
+		isPhoneUnreachableAccuraReturnUrl(
+			'http://localhost:3001/api/company-registration/signatura-callback?requestId=abc',
+		),
+		true,
+	);
+	assert.equal(
+		isPhoneUnreachableAccuraReturnUrl(
+			'https://accura.example/api/company-registration/signatura-callback?requestId=abc',
+		),
+		false,
+	);
+});
 
 test('external return URL accepts local partner app callback in development', () => {
 	const url = 'http://localhost:3001/register/continue?state=abc';
@@ -18,6 +40,12 @@ test('external return URL accepts local partner app callback in development', ()
 
 test('external return URL accepts any localhost partner port in development', () => {
 	const url = 'http://localhost:5173/accura/register?state=abc';
+	assert.equal(normalizeExternalReturnUrl(url), url);
+});
+
+test('external return URL accepts private LAN ACCURA origin in development', () => {
+	const url =
+		'http://192.168.68.139:3001/company-admin/login?companyCode=BEEP-7B946B&authMode=login';
 	assert.equal(normalizeExternalReturnUrl(url), url);
 });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
 	ArrowRight,
@@ -16,10 +16,23 @@ import {
 	startAuthentication,
 } from '@simplewebauthn/browser';
 import { LoginTrustedDeviceQrPanel } from './LoginTrustedDeviceQrPanel';
+import { signaturaApiRequest } from '@/lib/registration-api-client';
+import {
+	readStoredTrustedDeviceSignaturaId,
+	shouldAutoPasskeyLoginOnOpen,
+	storeTrustedDeviceSignaturaId,
+} from '@/lib/trustedDeviceLoginClient';
 
 const UNREGISTERED_PASSKEY_ERROR = 'No passkey is registered for this account';
 const PASSKEY_DOMAIN_MISMATCH_ERROR =
 	'No usable passkey was found for this site. If this SIGNATURA ID was created on localhost or a different ngrok URL, register this phone as a trusted device for the current URL.';
+
+function isRemoteApprovalNextPath(nextPath = '') {
+	return (
+		nextPath.includes('/login/remote-approve') ||
+		nextPath.includes('/login/authorize')
+	);
+}
 
 function accountTypeForNextPath(nextPath) {
 	if (nextPath === '/admin' || nextPath.startsWith('/admin/')) return 'admin';
@@ -57,6 +70,7 @@ function LoginPasskeyForm({
 	const [error, setError] = useState('');
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [canRegisterDevice, setCanRegisterDevice] = useState(false);
+	const autoPasskeyStartedRef = useRef(false);
 	const normalizedSignaturaId = signaturaId.trim();
 	const loginAccountType = accountTypeForNextPath(nextPath);
 	const registrationSource = String(appRegistrationContext.source || '').toLowerCase();
@@ -117,6 +131,7 @@ function LoginPasskeyForm({
 		}
 		if (externalReturnUrl && signaturaIdFromUrl) {
 			setStep('qr');
+			return undefined;
 		}
 
 		const syncAutofill = () => {
@@ -127,6 +142,28 @@ function LoginPasskeyForm({
 		};
 		syncAutofill();
 		const timer = window.setTimeout(syncAutofill, 250);
+
+		if (
+			!autoPasskeyStartedRef.current &&
+			!isRemoteApprovalNextPath(nextPath) &&
+			shouldAutoPasskeyLoginOnOpen({
+				externalReturnUrl,
+				loginAccountType,
+			})
+		) {
+			const storedSignaturaId = signaturaIdFromUrl
+				? ''
+				: readStoredTrustedDeviceSignaturaId();
+			const resolvedSignaturaId = (signaturaIdFromUrl || storedSignaturaId).trim();
+			if (resolvedSignaturaId) {
+				autoPasskeyStartedRef.current = true;
+				setSignaturaId(resolvedSignaturaId);
+				setStep('methods');
+				setStatus('Opening your trusted device passkey...');
+				void startLocalPasskeyLogin(resolvedSignaturaId);
+			}
+		}
+
 		return () => window.clearTimeout(timer);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [externalReturnUrl]);
@@ -148,7 +185,17 @@ function LoginPasskeyForm({
 		setStep('methods');
 	}
 
-	async function startLocalPasskeyLogin() {
+	async function startLocalPasskeyLogin(signaturaIdOverride = '') {
+		const normalizedOverride =
+			typeof signaturaIdOverride === 'string'
+				? signaturaIdOverride.trim()
+				: '';
+		const activeSignaturaId =
+			normalizedOverride || normalizedSignaturaId;
+		if (!activeSignaturaId) {
+			setError('Enter your Signatura ID to continue.');
+			return;
+		}
 		if (isSubmitting) return;
 		setError('');
 		setCanRegisterDevice(false);
@@ -170,13 +217,20 @@ function LoginPasskeyForm({
 				throw new Error('This browser does not support passkeys/WebAuthn.');
 			}
 
-			const startResponse = await fetch('/api/auth/login/start', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ signaturaId: normalizedSignaturaId }),
-			});
-			const startData = await startResponse.json();
-			if (!startResponse.ok) throw new Error(startData.error);
+			const { response: startResponse, data: startData } = await signaturaApiRequest(
+				'/api/auth/login/start',
+				{
+					method: 'POST',
+					body: JSON.stringify({ signaturaId: activeSignaturaId }),
+				},
+				'Passkey login start',
+			);
+			if (!startResponse.ok) {
+				throw new Error(
+					startData?.error ||
+						`Passkey login could not start (${startResponse.status}).`,
+				);
+			}
 
 			setStatus('Approve the login with your device passkey.');
 			let assertion;
@@ -196,18 +250,26 @@ function LoginPasskeyForm({
 				window.clearTimeout(passkeyPromptTimer);
 			}
 
-			const finishResponse = await fetch('/api/auth/login/finish', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					userId: startData.userId,
-					next: nextPath,
-					response: assertion,
-				}),
-			});
-			const finishData = await finishResponse.json();
-			if (!finishResponse.ok) throw new Error(finishData.error);
+			const { response: finishResponse, data: finishData } = await signaturaApiRequest(
+				'/api/auth/login/finish',
+				{
+					method: 'POST',
+					body: JSON.stringify({
+						userId: startData.userId,
+						next: nextPath,
+						response: assertion,
+					}),
+				},
+				'Passkey login finish',
+			);
+			if (!finishResponse.ok) {
+				throw new Error(
+					finishData?.error ||
+						`Passkey login could not finish (${finishResponse.status}).`,
+				);
+			}
 
+			storeTrustedDeviceSignaturaId(activeSignaturaId);
 			setStatus('Login verified. Opening portal...');
 			window.location.href = finishData.next || nextPath;
 		} catch (loginError) {
@@ -217,9 +279,17 @@ function LoginPasskeyForm({
 				setStatus(
 					'No trusted device is registered yet. Opening device registration...',
 				);
-				window.location.href = registerDeviceHref;
+				const registerHref = `/register?next=${encodeURIComponent(nextPath)}&signaturaId=${encodeURIComponent(activeSignaturaId)}&setup=device${
+					registrationContextQuery
+				}${
+					externalReturnUrl
+						? `&returnUrl=${encodeURIComponent(externalReturnUrl)}`
+						: ''
+				}`;
+				window.location.href = registerHref;
 				return;
 			}
+			setStep('methods');
 			setError(message);
 			setStatus('');
 		} finally {
@@ -334,7 +404,7 @@ function LoginPasskeyForm({
 							</div>
 							<button
 								type="button"
-								onClick={startLocalPasskeyLogin}
+								onClick={() => startLocalPasskeyLogin()}
 								disabled={isSubmitting}
 								className="rounded-lg bg-red-500 px-5 py-4 text-base font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
 								{isSubmitting ? 'Preparing passkey...' : 'Sign in with this device passkey'}

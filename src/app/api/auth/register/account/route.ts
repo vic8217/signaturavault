@@ -20,10 +20,16 @@ import {
 } from '@/lib/account-private-fields';
 import { verifyIssuerAuthorizationCode } from '@/lib/issuer-authorization';
 import { normalizeExternalReturnUrl } from '@/lib/externalReturnUrl';
+import { verifyAccuraRegistrationHandoffToken } from '@/lib/accuraRegistrationHandoff';
+import {
+	ACCURA_ONBOARDING_ACTIONS,
+	auditAccuraOnboardingEvent,
+} from '@/lib/accuraOnboardingAudit';
 import {
 	normalizeAccuraRole,
 	normalizeAccuraRolePrefix,
 	normalizeCompanyCode,
+	normalizeCompanyId,
 	normalizeCompanyName,
 	normalizeRegistrationSource,
 	sourceAppLabel,
@@ -47,6 +53,20 @@ function signaturaAppLinkModel() {
 		.signaturaAppLink;
 }
 
+function accuraRegistrationHandoffModel(client = prisma) {
+	return (
+		client as unknown as {
+			accuraRegistrationHandoff?: {
+				create: (args: { data: Record<string, unknown> }) => Promise<unknown>;
+				updateMany: (args: {
+					where: Record<string, unknown>;
+					data: Record<string, unknown>;
+				}) => Promise<{ count: number }>;
+			};
+		}
+	).accuraRegistrationHandoff;
+}
+
 export async function POST(req: Request) {
 	try {
 		assertSecureWebAuthnRequest(req);
@@ -56,18 +76,86 @@ export async function POST(req: Request) {
 		const email = normalizeEmail(body.email);
 		const accountType = normalizeSignaturaAccountType(body.accountType);
 		const authorizationCode = String(body.authorizationCode || '').trim();
-		const registrationSource = normalizeRegistrationSource(body.source);
-		const companyCode = normalizeCompanyCode(body.companyCode);
-		const companyName = normalizeCompanyName(body.companyName);
-		const role = normalizeAccuraRole(body.role);
-		const rolePrefix = normalizeAccuraRolePrefix(body.rolePrefix);
-		const returnUrl = normalizeExternalReturnUrl(body.returnUrl);
+		const handoffToken = String(body.accuraHandoffToken || body.handoffToken || '').trim();
+		let registrationSource = normalizeRegistrationSource(body.source);
+		let companyId = normalizeCompanyId(body.companyId);
+		let companyCode = normalizeCompanyCode(body.companyCode);
+		let companyName = normalizeCompanyName(body.companyName);
+		let role = normalizeAccuraRole(body.role);
+		let roleName = String(body.roleName || body.role || '').trim().slice(0, 120);
+		let rolePrefix = normalizeAccuraRolePrefix(body.rolePrefix);
+		let registrationKeyId = String(body.registrationKeyId || '').trim();
+		let tokenId = '';
+		let returnUrl = normalizeExternalReturnUrl(body.returnUrl);
+		let accuraHandoffExpiresAt = '';
+		let accuraRequestId = '';
+		let accuraState = '';
+		let accuraNonce = '';
+		let accuraClientId = 'accura';
+
+		if (registrationSource.source === 'accura' || handoffToken) {
+			if (!handoffToken) {
+				return jsonError(
+					'ACCURA registration session expired. Please ask your Company Admin to generate a new registration key.',
+					400,
+				);
+			}
+			const handoff = verifyAccuraRegistrationHandoffToken(handoffToken);
+			if (!handoff.valid) {
+				await auditAccuraOnboardingEvent({
+					req,
+					action: ACCURA_ONBOARDING_ACTIONS.REQUEST_FAILED,
+					result: 'failed',
+					context: handoff.context || {},
+					details: {
+						reason: handoff.reason || handoff.error || 'invalid_handoff',
+					},
+				});
+				return jsonError(
+					handoff.error ||
+						'ACCURA registration session expired. Please ask your Company Admin to generate a new registration key.',
+					400,
+				);
+			}
+			const context = handoff.context;
+			registrationSource = { source: 'accura', error: '' };
+			companyId = context.companyId;
+			companyCode = context.companyCode;
+			companyName = context.companyName;
+			role = normalizeAccuraRole(context.roleName);
+			roleName = context.roleName;
+			rolePrefix = context.roleCode;
+			registrationKeyId = context.registrationKeyId;
+			tokenId = context.jti;
+			returnUrl = context.returnUrl;
+			accuraHandoffExpiresAt = context.expiresAt;
+			accuraRequestId = context.requestId;
+			accuraState = context.state;
+			accuraNonce = context.nonce;
+			accuraClientId = context.clientId;
+			await auditAccuraOnboardingEvent({
+				req,
+				action: ACCURA_ONBOARDING_ACTIONS.REQUEST_RECEIVED,
+				context,
+				details: { endpoint: '/api/auth/register/account' },
+			});
+			if (context.mode === 'link') {
+				return jsonError(
+					'This ACCURA invitation is for linking an existing Signatura ID. Approve with your trusted device passkey instead.',
+					409,
+				);
+			}
+		}
+
 		const registrationContext = {
 			source: registrationSource.source,
+			companyId,
 			companyCode,
 			companyName,
 			role,
 			rolePrefix,
+			registrationKeyId,
+			tokenId,
 		};
 
 		if (!fullName || fullName.length < 2) return jsonError('Full name is required');
@@ -126,6 +214,12 @@ export async function POST(req: Request) {
 			handphone,
 		});
 		const isAccuraRegistration = registrationSource.source === 'accura';
+		if (isAccuraRegistration && !tokenId) {
+			return jsonError(
+				'ACCURA registration session expired. Please ask your Company Admin to generate a new registration key.',
+				400,
+			);
+		}
 		const matchingContactUsers = await prisma.user.findMany({
 			where: {
 				OR: [{ emailLookupHash }, { mobileLookupHash }],
@@ -141,7 +235,7 @@ export async function POST(req: Request) {
 							where: {
 								userId: { in: matchingContactUserIds },
 								sourceApp: 'ACCURA',
-								companyCode: rolePrefix === 'SADM' ? null : companyCode,
+								companyCode,
 								rolePrefix,
 								status: 'ACTIVE',
 							},
@@ -150,6 +244,22 @@ export async function POST(req: Request) {
 					: null;
 
 			if (existingAccuraLink) {
+				await auditAccuraOnboardingEvent({
+					req,
+					action: ACCURA_ONBOARDING_ACTIONS.ID_LINKED,
+					userId: existingAccuraLink.userId as string,
+					context: {
+						companyId,
+						companyCode,
+						rolePrefix,
+						registrationKeyId,
+						requestId: tokenId,
+					},
+					details: {
+						signaturaId: existingAccuraLink.signaturaId,
+						alreadyLinked: true,
+					},
+				});
 				return NextResponse.json(
 					{
 						error: 'ACCURA company-role Signatura ID already exists',
@@ -177,10 +287,10 @@ export async function POST(req: Request) {
 		const signaturaId =
 			isAccuraRegistration
 				? await createUniqueAccuraSignaturaId(prisma, companyCode, rolePrefix)
-					: await createUniqueSignaturaId(prisma, accountType);
-			const registrationToken = crypto.randomBytes(32).toString('base64url');
-			const registrationSessionId = crypto.randomUUID();
-			const encryptedFields = encryptedAccountContactFields({
+				: await createUniqueSignaturaId(prisma, accountType);
+		const registrationToken = crypto.randomBytes(32).toString('base64url');
+		const registrationSessionId = crypto.randomUUID();
+		const encryptedFields = encryptedAccountContactFields({
 			userId,
 			fullName,
 			handphone,
@@ -188,25 +298,50 @@ export async function POST(req: Request) {
 		});
 
 		const user = await prisma.$transaction(async (tx) => {
+			const handoffModel = accuraRegistrationHandoffModel(tx);
+			if (isAccuraRegistration && handoffModel) {
+				try {
+					await handoffModel.create({
+						data: {
+							id: crypto.randomUUID(),
+							tokenId,
+							registrationKeyId,
+							companyId,
+							companyCode,
+							roleCode: rolePrefix,
+							returnUrl,
+							status: 'CLAIMED',
+							userId,
+							signaturaId,
+							expiresAt: new Date(accuraHandoffExpiresAt),
+						},
+					});
+				} catch {
+					const error = new Error('ACCURA registration handoff was already used.');
+					(error as Error & { status?: number }).status = 409;
+					throw error;
+				}
+			}
+
 			const created = await tx.user.create({
 				data: {
 					id: userId,
 					signaturaId,
-						email: null,
-						name: null,
-						emailLookupHash,
-						mobileLookupHash,
-						accountStatus: 'pending_passkey_creation',
-						trustLevel: 1,
-					},
-				});
+					email: null,
+					name: null,
+					emailLookupHash,
+					mobileLookupHash,
+					accountStatus: 'pending_passkey_creation',
+					trustLevel: 1,
+				},
+			});
 			await ensureAccountPrivateFieldKeyReference(tx, userId);
 			await tx.encryptedPrivateField.createMany({ data: encryptedFields });
-				await tx.authChallenge.create({
-					data: {
-						id: registrationSessionId,
-						userId,
-						type: 'REGISTER_ACCOUNT',
+			await tx.authChallenge.create({
+				data: {
+					id: registrationSessionId,
+					userId,
+					type: 'REGISTER_ACCOUNT',
 					challenge: registrationToken,
 					userAgent: getUserAgent(req),
 					expiresAt: registrationSessionExpiresAt(),
@@ -220,21 +355,35 @@ export async function POST(req: Request) {
 					data: {
 						id: crypto.randomUUID(),
 						userId,
-							signaturaId,
-							sourceApp: sourceAppLabel(registrationSource.source),
-							companyCode:
-								isAccuraRegistration && rolePrefix !== 'SADM'
-									? companyCode
-									: null,
-							companyName:
-								isAccuraRegistration && rolePrefix !== 'SADM'
-									? companyName
-									: null,
-							role: isAccuraRegistration ? role : null,
-							rolePrefix: isAccuraRegistration ? rolePrefix : null,
-							status: 'ACTIVE',
-						},
-					});
+						signaturaId,
+						sourceApp: sourceAppLabel(registrationSource.source),
+						companyCode: isAccuraRegistration ? companyCode : null,
+						companyName: isAccuraRegistration ? companyName : null,
+						companyId: isAccuraRegistration ? companyId : null,
+						tenantId: isAccuraRegistration ? companyId : null,
+						role: isAccuraRegistration ? role : null,
+						rolePrefix: isAccuraRegistration ? rolePrefix : null,
+						registrationContext: isAccuraRegistration
+							? {
+									sourceApp: 'accura',
+									accuraCompanyId: companyId,
+									accuraCompanyCode: companyCode,
+									accuraRoleCode: rolePrefix,
+									accuraRoleName: roleName,
+									accuraRegistrationKeyId: registrationKeyId,
+									returnUrl,
+									handoffTokenId: tokenId,
+									requestId: accuraRequestId || tokenId,
+									state: accuraState,
+									nonce: accuraNonce,
+									clientId: accuraClientId,
+									registeredAt: new Date().toISOString(),
+								}
+							: null,
+						trustedDeviceStatus: isAccuraRegistration ? 'PENDING' : null,
+						status: 'ACTIVE',
+					},
+				});
 			}
 
 			if (
@@ -289,25 +438,45 @@ export async function POST(req: Request) {
 				accountType,
 				sourceApp: sourceAppLabel(registrationSource.source) || null,
 				companyCode:
-					isAccuraRegistration && rolePrefix !== 'SADM'
+					isAccuraRegistration
 						? companyCode
 						: null,
+				companyId: isAccuraRegistration ? companyId : null,
 				role: isAccuraRegistration ? role : null,
 				rolePrefix: isAccuraRegistration ? rolePrefix : null,
+				registrationKeyId: isAccuraRegistration ? registrationKeyId : null,
 			fields: ['full_name', 'handphone', 'email'],
 			plaintextStored: false,
 		});
+		if (isAccuraRegistration) {
+			await auditAccuraOnboardingEvent({
+				req,
+				action: ACCURA_ONBOARDING_ACTIONS.ID_CREATED,
+				userId: user.id,
+				context: {
+					companyId,
+					companyCode,
+					rolePrefix,
+					registrationKeyId,
+					requestId: accuraRequestId || tokenId,
+					state: accuraState,
+					nonce: accuraNonce,
+					clientId: accuraClientId,
+				},
+				details: { signaturaId: user.signaturaId },
+			});
+		}
 
 		return Response.json({
-				ok: true,
-				user: userPublicIdentity(user),
-				registrationToken,
-				registrationSessionId,
-			});
+			ok: true,
+			user: userPublicIdentity(user),
+			registrationToken,
+			registrationSessionId,
+		});
 	} catch (error) {
 		return jsonError(
 			safeApiErrorMessage(error, 'Unable to create account'),
-			400,
+			(error as Error & { status?: number }).status ?? 400,
 		);
 	}
 }

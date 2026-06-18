@@ -2,11 +2,24 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireSession } from '@/lib/session';
 import { resolveSignaturaHomePath } from '@/lib/signaturaHome';
+import { normalizeSignaturaId } from '@/lib/identity';
+import { lookupTrustedDeviceLoginChallenge } from '@/lib/trustedDeviceLoginChallenge';
 import { LoginRemoteApproveForm } from '@/components/LoginRemoteApproveForm';
+import {
+	buildApproverLoginRedirect,
+	buildRemoteApprovePath,
+	queryValue,
+} from '@/lib/remoteApprove';
 
-function queryValue(params, key) {
-	const value = params?.[key];
-	return Array.isArray(value) ? value[0] || '' : value || '';
+async function resolveExpectedSignaturaId(params, challengeId, shortCode) {
+	const fromQuery = normalizeSignaturaId(queryValue(params, 'signaturaId'));
+	if (fromQuery) return fromQuery;
+
+	const challenge = await lookupTrustedDeviceLoginChallenge({
+		challengeId,
+		shortCode,
+	});
+	return normalizeSignaturaId(challenge?.signaturaId || '');
 }
 
 async function signaturaHeaderLink({ loginNext = null } = {}) {
@@ -54,14 +67,40 @@ export default async function LoginRemoteApprovePage({ searchParams }) {
 		);
 	}
 
-	const currentPath = `/login/remote-approve?${new URLSearchParams({
-		cid: challengeId,
-		code: shortCode,
-	}).toString()}`;
+	const expectedSignaturaId = await resolveExpectedSignaturaId(
+		params,
+		challengeId,
+		shortCode,
+	);
+	const currentPath = buildRemoteApprovePath({
+		challengeId,
+		shortCode,
+		signaturaId: expectedSignaturaId,
+	});
 
 	const session = await requireSession();
 	if (!session?.userId) {
-		redirect(`/login?next=${encodeURIComponent(currentPath)}`);
+		redirect(
+			buildApproverLoginRedirect({
+				challengeId,
+				shortCode,
+				signaturaId: expectedSignaturaId,
+			}),
+		);
+	}
+
+	if (
+		expectedSignaturaId &&
+		normalizeSignaturaId(session.signaturaId) !== expectedSignaturaId
+	) {
+		redirect(
+			buildApproverLoginRedirect({
+				challengeId,
+				shortCode,
+				signaturaId: expectedSignaturaId,
+				switchAccount: true,
+			}),
+		);
 	}
 
 	const homeHref = (await resolveSignaturaHomePath()) ?? '/signatura/dashboard';
@@ -78,6 +117,7 @@ export default async function LoginRemoteApprovePage({ searchParams }) {
 				challengeId={challengeId}
 				shortCode={shortCode}
 				homeHref={homeHref}
+				expectedSignaturaId={expectedSignaturaId}
 			/>
 		</main>
 	);

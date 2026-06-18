@@ -6,6 +6,11 @@ import {
 	startAuthentication,
 } from '@simplewebauthn/browser';
 import { useEffect, useMemo, useState } from 'react';
+import {
+	readSignaturaApiJson,
+	signaturaApiFetch,
+	signaturaApiRequest,
+} from '@/lib/registration-api-client';
 
 function formatExpiry(value) {
 	if (!value) return '';
@@ -20,6 +25,7 @@ export function LoginRemoteApproveForm({
 	challengeId,
 	shortCode,
 	homeHref = '/signatura/dashboard',
+	expectedSignaturaId = '',
 }) {
 	const [challenge, setChallenge] = useState(null);
 	const [status, setStatus] = useState('');
@@ -39,11 +45,11 @@ export function LoginRemoteApproveForm({
 			setIsLoading(true);
 			setError('');
 			try {
-				const response = await fetch(
+				const response = await signaturaApiFetch(
 					`/api/auth/login/remote/lookup?cid=${encodeURIComponent(challengeId)}&code=${encodeURIComponent(normalizedCode)}`,
 					{ cache: 'no-store' },
 				);
-				const body = await response.json().catch(() => ({}));
+				const body = await readSignaturaApiJson(response, 'Login challenge lookup');
 				if (!response.ok || body?.ok === false) {
 					throw new Error(body?.error || 'Login challenge not found or expired.');
 				}
@@ -86,16 +92,18 @@ export function LoginRemoteApproveForm({
 			});
 
 			setStatus('Approving browser sign-in...');
-			const response = await fetch('/api/auth/login/remote/approve', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
-					challengeId: challenge.id,
-					shortCode: normalizedCode,
-					response: assertion,
-				}),
-			});
-			const body = await response.json().catch(() => ({}));
+			const { response, data: body } = await signaturaApiRequest(
+				'/api/auth/login/remote/approve',
+				{
+					method: 'POST',
+					body: JSON.stringify({
+						challengeId: challenge.id,
+						shortCode: normalizedCode,
+						response: assertion,
+					}),
+				},
+				'Trusted device login approval',
+			);
 			if (!response.ok || body?.ok === false) {
 				throw new Error(body?.error || 'Trusted device login approval failed.');
 			}
@@ -121,13 +129,24 @@ export function LoginRemoteApproveForm({
 	}
 
 	if (error && !challenge) {
+		const mismatch =
+			error.includes('does not match the browser login request') ||
+			error.includes('different Signatura ID');
 		return (
 			<section className="mx-auto max-w-3xl rounded-2xl border border-red-500/20 bg-slate-950/90 p-6 shadow-2xl">
 				<p className="text-sm text-red-300">{error}</p>
-				<p className="mt-3 text-sm text-slate-400">
-					The QR code may have expired. Start a new trusted-device login on the
-					browser.
-				</p>
+				{mismatch && expectedSignaturaId ? (
+					<p className="mt-3 text-sm text-slate-300">
+						Sign in on this phone as{' '}
+						<span className="font-mono text-white">{expectedSignaturaId}</span>, then
+						scan the QR code again.
+					</p>
+				) : (
+					<p className="mt-3 text-sm text-slate-400">
+						The QR code may have expired. Start a new trusted-device login on the
+						browser.
+					</p>
+				)}
 				<div className="mt-6 flex flex-wrap gap-3">
 					<Link
 						href="/login/remote-approve/scan"
@@ -154,6 +173,12 @@ export function LoginRemoteApproveForm({
 				Another browser is requesting access to Signatura. Verify with your passkey
 				on this trusted device to approve the session.
 			</p>
+			{expectedSignaturaId ? (
+				<p className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-50">
+					This approval must be completed while signed in as{' '}
+					<span className="font-mono text-white">{expectedSignaturaId}</span>.
+				</p>
+			) : null}
 
 			<div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
 				<p>

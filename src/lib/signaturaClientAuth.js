@@ -48,12 +48,22 @@ function clientCredentials(req, body = {}) {
 	};
 }
 
+function resolvedAccuraClientSecret() {
+	return (
+		process.env.SIGNATURA_CLIENT_SECRET?.trim() ||
+		process.env.ACCURA_CLIENT_SECRET?.trim() ||
+		null
+	);
+}
+
 async function authenticateSignaturaClient({ prisma, clientId, clientSecret }) {
 	if (!clientId || !clientSecret) return null;
 
 	const envClientId =
-		process.env.SIGNATURA_CLIENT_ID?.trim() || DEFAULT_ACCURA_CLIENT_ID;
-	const envClientSecret = process.env.SIGNATURA_CLIENT_SECRET?.trim();
+		process.env.SIGNATURA_CLIENT_ID?.trim() ||
+		process.env.ACCURA_CLIENT_ID?.trim() ||
+		DEFAULT_ACCURA_CLIENT_ID;
+	const envClientSecret = resolvedAccuraClientSecret();
 	if (
 		envClientSecret &&
 		timingSafeEqualString(clientId, envClientId) &&

@@ -47,6 +47,17 @@ export async function POST(req) {
 			);
 		}
 
+		const approver = await prisma.user.findUnique({
+			where: { id: session.userId },
+			select: { signaturaId: true },
+		});
+		if (
+			challenge.expectedSignaturaId &&
+			approver?.signaturaId !== challenge.expectedSignaturaId
+		) {
+			return jsonError('This login request is for a different Signatura ID', 403);
+		}
+
 		const candidateCredential = await prisma.webAuthnCredential.findUnique({
 			where: { credentialId: assertion.id },
 		});

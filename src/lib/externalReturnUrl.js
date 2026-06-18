@@ -56,9 +56,38 @@ function configuredAllowedUrls() {
 	return new Set(urls.filter(Boolean));
 }
 
-function isDevelopmentLocalhostUrl(url) {
+function isPrivateLanHostname(hostname) {
+	return (
+		/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+		/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+		/^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname)
+	);
+}
+
+function isDevelopmentPartnerUrl(url) {
 	if (process.env.NODE_ENV === 'production') return false;
-	return ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+	if (['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) return true;
+	return isPrivateLanHostname(url.hostname);
+}
+
+function isPhoneUnreachableAccuraHost(hostname = '') {
+	const normalized = String(hostname).split(':')[0].trim().toLowerCase();
+	if (!normalized) return true;
+	return (
+		normalized === 'localhost' ||
+		normalized === '127.0.0.1' ||
+		normalized === '[::1]' ||
+		normalized === '0.0.0.0' ||
+		isPrivateLanHostname(normalized)
+	);
+}
+
+function isPhoneUnreachableAccuraReturnUrl(value = '') {
+	try {
+		return isPhoneUnreachableAccuraHost(new URL(String(value || '')).hostname);
+	} catch {
+		return false;
+	}
 }
 
 function normalizeExternalReturnUrl(value) {
@@ -80,7 +109,7 @@ function normalizeExternalReturnUrl(value) {
 	const normalized = parsed.toString();
 	if (configuredAllowedUrls().has(normalized)) return normalized;
 	if (configuredAllowedOrigins().has(parsed.origin)) return normalized;
-	if (isDevelopmentLocalhostUrl(parsed)) return normalized;
+	if (isDevelopmentPartnerUrl(parsed)) return normalized;
 	return '';
 }
 
@@ -111,5 +140,7 @@ function externalReturnUrlFromParams(params = {}) {
 
 export {
 	externalReturnUrlFromParams,
+	isPhoneUnreachableAccuraHost,
+	isPhoneUnreachableAccuraReturnUrl,
 	normalizeExternalReturnUrl,
 };

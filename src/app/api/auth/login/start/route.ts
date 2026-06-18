@@ -11,10 +11,14 @@ import {
 	logSecurityEvent,
 } from '@/lib/webauthn';
 
+function isBase64UrlCredentialId(value: string) {
+	return /^[A-Za-z0-9_-]+$/.test(value);
+}
+
 export async function POST(req: Request) {
 	try {
 		assertSecureWebAuthnRequest(req);
-		const body = await req.json();
+		const body = await req.json().catch(() => ({}));
 		const signaturaId = normalizeSignaturaId(body.signaturaId || body.userId);
 
 		if (!signaturaId) {
@@ -26,7 +30,11 @@ export async function POST(req: Request) {
 			include: { credentials: { where: { isTrusted: true } } },
 		});
 
-		if (!user || user.credentials.length === 0) {
+		const trustedCredentials = (user?.credentials || []).filter((credential) =>
+			isBase64UrlCredentialId(String(credential.credentialId || '')),
+		);
+
+		if (!user || trustedCredentials.length === 0) {
 			return jsonError('No passkey is registered for this account', 404);
 		}
 
@@ -34,7 +42,7 @@ export async function POST(req: Request) {
 			rpID: getRpID(req),
 			userVerification: 'required',
 			timeout: 60000,
-			allowCredentials: user.credentials.map((credential) => ({
+			allowCredentials: trustedCredentials.map((credential) => ({
 				id: credential.credentialId,
 				transports: credential.transports as never,
 			})),
@@ -53,7 +61,12 @@ export async function POST(req: Request) {
 
 		await logSecurityEvent(req, 'login_challenge_created', user.id);
 
-		return Response.json({ userId: user.id, signaturaId: user.signaturaId, options });
+		return Response.json(
+			{ userId: user.id, signaturaId: user.signaturaId, options },
+			{
+				headers: { 'content-type': 'application/json; charset=utf-8' },
+			},
+		);
 	} catch (error) {
 		return jsonError(
 			safeApiErrorMessage(error, 'Unable to start login'),

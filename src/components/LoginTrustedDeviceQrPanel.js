@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 
 import { buildExternalLoginReturnUrl } from '@/lib/externalLoginReturn';
+import { signaturaApiRequest } from '@/lib/registration-api-client';
+import { storeTrustedDeviceSignaturaId } from '@/lib/trustedDeviceLoginClient';
 
 const POLL_INTERVAL_MS = 2000;
 const NO_TRUSTED_DEVICE_MESSAGE =
@@ -22,6 +24,9 @@ export function LoginTrustedDeviceQrPanel({
 	signaturaId,
 	nextPath = '/signatura/dashboard',
 	externalReturnUrl = '',
+	oauthState = '',
+	startEndpoint = '/api/auth/login/remote/start',
+	startPayload = {},
 	remoteLoginContext = {},
 	onCancel,
 }) {
@@ -33,6 +38,7 @@ export function LoginTrustedDeviceQrPanel({
 	const [pollStatus, setPollStatus] = useState('');
 	const [canRegisterDevice, setCanRegisterDevice] = useState(false);
 	const pollTimerRef = useRef(null);
+	const normalizedSignaturaId = String(signaturaId || '').trim().toUpperCase();
 
 	useEffect(() => {
 		return () => {
@@ -62,54 +68,76 @@ export function LoginTrustedDeviceQrPanel({
 		setCanRegisterDevice(false);
 	}
 
-	async function pollChallenge(challengeId, secret) {
-		const response = await fetch('/api/auth/login/remote/poll', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ challengeId, browserSecret: secret }),
-			cache: 'no-store',
+	async function completeExternalReturn(challengeId, resolvedSignaturaId) {
+		const externalReturnHref = buildExternalLoginReturnUrl(externalReturnUrl, {
+			signaturaId: resolvedSignaturaId,
+			challengeId,
+			state: oauthState,
 		});
-		const body = await response.json().catch(() => ({}));
+		if (!externalReturnHref) {
+			throw new Error('Unable to build ACCURA return URL.');
+		}
+		window.location.href = externalReturnHref;
+		return true;
+	}
+
+	async function pollChallenge(challengeId, secret) {
+		const { response, data: body } = await signaturaApiRequest(
+			'/api/auth/login/remote/poll',
+			{
+				method: 'POST',
+				body: JSON.stringify({ challengeId, browserSecret: secret }),
+				cache: 'no-store',
+			},
+			'Trusted device login poll',
+		);
 		if (!response.ok || body?.ok === false) {
 			throw new Error(body?.error || 'Unable to poll login challenge.');
 		}
 
 		setPollStatus(body.status || 'PENDING');
-		if (body.status === 'APPROVED' && body.approvalToken) {
+		if (body.status === 'APPROVED') {
 			if (pollTimerRef.current) {
 				clearInterval(pollTimerRef.current);
 				pollTimerRef.current = null;
 			}
 			setSubmitting(true);
-			const finishResponse = await fetch('/api/auth/login/remote/finish', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
-					challengeId,
-					browserSecret: secret,
-					approvalToken: body.approvalToken,
-				}),
-				cache: 'no-store',
-			});
-			const finishBody = await finishResponse.json().catch(() => ({}));
+			const resolvedSignaturaId =
+				String(body.signaturaId || '').trim().toUpperCase() ||
+				normalizedSignaturaId;
+			if (body.redirectUrl) {
+				window.location.href = body.redirectUrl;
+				return true;
+			}
+			if (externalReturnUrl) {
+				return completeExternalReturn(challengeId, resolvedSignaturaId);
+			}
+			if (!body.approvalToken) {
+				throw new Error('Login approval token is missing.');
+			}
+			const { response: finishResponse, data: finishBody } = await signaturaApiRequest(
+				'/api/auth/login/remote/finish',
+				{
+					method: 'POST',
+					body: JSON.stringify({
+						challengeId,
+						browserSecret: secret,
+						approvalToken: body.approvalToken,
+					}),
+					cache: 'no-store',
+				},
+				'Trusted device login finish',
+			);
 			if (!finishResponse.ok || finishBody?.ok === false) {
 				throw new Error(finishBody?.error || 'Unable to complete trusted device login.');
 			}
-			const externalReturnHref = buildExternalLoginReturnUrl(externalReturnUrl, {
-				signaturaId: finishBody.user?.signaturaId || signaturaId.trim().toUpperCase(),
-				challengeId,
-				signaturaUserId: finishBody.user?.id || '',
-			});
-			if (externalReturnHref) {
-				window.location.href = externalReturnHref;
-				return true;
-			}
+			storeTrustedDeviceSignaturaId(resolvedSignaturaId);
 			const destination = new URL(finishBody.next || nextPath, window.location.origin);
 			if (finishBody.canRegisterDevice) {
 				destination.searchParams.set('registerTrustedDevice', '1');
 				destination.searchParams.set(
 					'signaturaId',
-					signaturaId.trim().toUpperCase(),
+					normalizedSignaturaId,
 				);
 			}
 			window.location.href = destination.toString();
@@ -140,25 +168,31 @@ export function LoginTrustedDeviceQrPanel({
 		setSubmitting(true);
 		setError('');
 		try {
-			const response = await fetch('/api/auth/login/remote/start', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
-					signaturaId,
-					next: nextPath,
-					...(remoteLoginContext.clientId
-						? { clientId: remoteLoginContext.clientId }
-						: {}),
-					...(remoteLoginContext.sourceApp
-						? { sourceApp: remoteLoginContext.sourceApp, source: remoteLoginContext.sourceApp }
-						: {}),
-					...(remoteLoginContext.requesterOrigin
-						? { requesterOrigin: remoteLoginContext.requesterOrigin }
-						: {}),
-				}),
-				cache: 'no-store',
-			});
-			const body = await response.json().catch(() => ({}));
+			const { response, data: body } = await signaturaApiRequest(
+				startEndpoint,
+				{
+					method: 'POST',
+					body: JSON.stringify({
+						signaturaId,
+						next: nextPath,
+						...startPayload,
+						...(remoteLoginContext.clientId
+							? { clientId: remoteLoginContext.clientId }
+							: {}),
+						...(remoteLoginContext.sourceApp
+							? {
+									sourceApp: remoteLoginContext.sourceApp,
+									source: remoteLoginContext.sourceApp,
+								}
+							: {}),
+						...(remoteLoginContext.requesterOrigin
+							? { requesterOrigin: remoteLoginContext.requesterOrigin }
+							: {}),
+					}),
+					cache: 'no-store',
+				},
+				'Trusted device login start',
+			);
 			if (!response.ok || body?.ok === false) {
 				throw new Error(body?.error || 'Unable to start trusted device login.');
 			}
@@ -194,7 +228,7 @@ export function LoginTrustedDeviceQrPanel({
 	}
 
 	useEffect(() => {
-		if (!signaturaId.trim()) return;
+		if (!normalizedSignaturaId) return;
 		// eslint-disable-next-line react-hooks/set-state-in-effect
 		startRemoteLogin();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -208,8 +242,9 @@ export function LoginTrustedDeviceQrPanel({
 				Approve with trusted device (QR)
 			</p>
 			<p className="mt-3 text-sm leading-6 text-slate-300">
-				Scan this QR code with a phone or tablet that is already registered as a
-				trusted Signatura device, then approve with passkey or biometric.
+				Scan this QR code with the phone that was registered as your trusted
+				Signatura device during enrollment, then approve with passkey or biometric
+				on that phone.
 			</p>
 
 			{challenge ? (
@@ -232,14 +267,17 @@ export function LoginTrustedDeviceQrPanel({
 							</span>
 						</p>
 						<p className="text-xs leading-5 text-slate-400">
-							Open Signatura on your trusted phone, scan the QR code or enter this
-							code at{' '}
+							Open Signatura on your enrolled trusted phone, scan the QR code or
+							enter this code at{' '}
 							<Link
 								href="/login/remote-approve/scan"
 								className="font-semibold text-red-200 hover:text-white">
 								/login/remote-approve/scan
 							</Link>
-							.
+							. The phone must be signed in as{' '}
+							<span className="font-mono text-white">{signaturaId}</span> before
+							approving. Generic QR scanners on unregistered phones cannot approve
+							this login.
 						</p>
 						<p className="text-xs text-slate-400">
 							Status:{' '}
@@ -274,7 +312,7 @@ export function LoginTrustedDeviceQrPanel({
 			) : null}
 			{submitting && !error ? (
 				<p className="mt-4 text-sm text-slate-300">
-					Waiting for approval on your trusted device...
+					Waiting for approval on your enrolled trusted device...
 				</p>
 			) : null}
 			{canRegisterDevice ? (

@@ -5,8 +5,8 @@ import { POST as finishRemoteLogin } from '@/app/api/auth/login/remote/finish/ro
 import { POST as introspect } from '@/app/api/signatura/introspect/route.js';
 import {
 	approveTrustedDeviceLoginChallenge,
-	consumeTrustedDeviceLoginChallenge,
 	createTrustedDeviceLoginChallenge,
+	LOGIN_CHALLENGE_STATUS,
 	pollTrustedDeviceLoginChallenge,
 } from '@/lib/trustedDeviceLoginChallenge.js';
 import { prisma, resetHarness } from './harness/state.mjs';
@@ -73,10 +73,12 @@ function seedUser(userId = 'user-introspection') {
 	return userId;
 }
 
-async function seedConsumedChallenge({
+async function seedApprovedChallenge({
 	userId,
 	withTrustedDevice = true,
 	expired = false,
+	clientId = CLIENT_ID,
+	sourceApp = 'ACCURA',
 } = {}) {
 	const challengeUserId = userId || seedUser();
 	if (withTrustedDevice) {
@@ -92,8 +94,8 @@ async function seedConsumedChallenge({
 	const { challenge, browserSecret } = await createTrustedDeviceLoginChallenge({
 		userId: challengeUserId,
 		nextPath: '/signatura/dashboard',
-		clientId: CLIENT_ID,
-		sourceApp: 'ACCURA',
+		clientId,
+		sourceApp,
 		requesterOrigin: 'https://accura.example',
 		requestedAssuranceLevel: 'ZT-L2',
 	});
@@ -104,20 +106,11 @@ async function seedConsumedChallenge({
 		credentialId: 'cred-introspection',
 		trustedDeviceId: 'device-introspection',
 	});
-	const poll = await pollTrustedDeviceLoginChallenge({
-		challengeId: challenge.id,
-		browserSecret,
-	});
-	await consumeTrustedDeviceLoginChallenge({
-		challengeId: challenge.id,
-		browserSecret,
-		approvalToken: poll.approvalToken,
-	});
 	const row = prisma.trustedDeviceLoginChallenge.__rows.find(
 		(entry) => entry.id === challenge.id,
 	);
 	if (expired) row.expiresAt = new Date(Date.now() - 1000);
-	return { challenge: row, browserSecret, approvalToken: poll.approvalToken };
+	return { challenge: row, browserSecret };
 }
 
 test('introspection rejects missing client authentication', async () => {
@@ -157,8 +150,13 @@ test('introspection returns trustedDevice=false when no active trusted device re
 	const restore = setClientEnv();
 	try {
 		seedUser();
-		const { challenge } = await seedConsumedChallenge({ withTrustedDevice: false });
-		const response = await introspect(request({ challengeId: challenge.id }));
+		const { challenge } = await seedApprovedChallenge({ withTrustedDevice: false });
+		const response = await introspect(
+			request({
+				challengeId: challenge.id,
+				expectedSignaturaId: 'SIG-ACCURA-ROAD-0F7C99-INVT-ABC123-0001',
+			}),
+		);
 		const body = await response.json();
 
 		assert.equal(response.status, 200);
@@ -170,12 +168,17 @@ test('introspection returns trustedDevice=false when no active trusted device re
 	}
 });
 
-test('introspection returns verified Zero Trust Level 2 assurance for consumed trusted-device QR login', async () => {
+test('valid ACCURA trusted-device challenge returns active=true without browser session cookie', async () => {
 	resetHarness();
 	const restore = setClientEnv();
 	try {
-		const { challenge } = await seedConsumedChallenge();
-		const response = await introspect(request({ challengeId: challenge.id }));
+		const { challenge } = await seedApprovedChallenge();
+		const response = await introspect(
+			request({
+				challengeId: challenge.id,
+				expectedSignaturaId: 'SIG-ACCURA-ROAD-0F7C99-INVT-ABC123-0001',
+			}),
+		);
 		const body = await response.json();
 
 		assert.equal(response.status, 200);
@@ -185,11 +188,18 @@ test('introspection returns verified Zero Trust Level 2 assurance for consumed t
 		assert.equal(body.companyCode, 'ROAD-0F7C99');
 		assert.equal(body.identityVerified, true);
 		assert.equal(body.trustedDevice, true);
-		assert.equal(body.keyUnlocked, true);
+		assert.equal(body.keyUnlocked, false);
+		assert.equal(body.sessionType, 'trusted-device');
 		assert.equal(body.assuranceLevel, 'ZT-L2');
 		assert.equal(body.clientId, CLIENT_ID);
 		assert.equal(body.sourceApp, 'ACCURA');
 		assert.ok(body.expiresAt);
+		assert.equal(
+			prisma.trustedDeviceLoginChallenge.__rows.find(
+				(row) => row.id === challenge.id,
+			).status,
+			LOGIN_CHALLENGE_STATUS.CONSUMED,
+		);
 	} finally {
 		restore();
 	}
@@ -199,7 +209,7 @@ test('introspection accepts signaturaAssertion as challenge reference', async ()
 	resetHarness();
 	const restore = setClientEnv();
 	try {
-		const { challenge } = await seedConsumedChallenge();
+		const { challenge } = await seedApprovedChallenge();
 		const response = await introspect(
 			request({
 				signaturaAssertion: challenge.id,
@@ -220,12 +230,102 @@ test('expired challenge introspection returns active=false', async () => {
 	resetHarness();
 	const restore = setClientEnv();
 	try {
-		const { challenge } = await seedConsumedChallenge({ expired: true });
-		const response = await introspect(request({ challengeId: challenge.id }));
+		const { challenge } = await seedApprovedChallenge({ expired: true });
+		const response = await introspect(
+			request({
+				challengeId: challenge.id,
+				expectedSignaturaId: 'SIG-ACCURA-ROAD-0F7C99-INVT-ABC123-0001',
+			}),
+		);
 		const body = await response.json();
 
 		assert.equal(response.status, 200);
 		assert.deepEqual(body, { active: false, reason: 'expired' });
+	} finally {
+		restore();
+	}
+});
+
+test('reused ACCURA challenge introspection returns active=false', async () => {
+	resetHarness();
+	const restore = setClientEnv();
+	try {
+		const { challenge } = await seedApprovedChallenge();
+		const body = {
+			challengeId: challenge.id,
+			expectedSignaturaId: 'SIG-ACCURA-ROAD-0F7C99-INVT-ABC123-0001',
+		};
+		const first = await introspect(request(body));
+		assert.equal((await first.json()).active, true);
+
+		const second = await introspect(request(body));
+		const secondBody = await second.json();
+
+		assert.equal(second.status, 200);
+		assert.deepEqual(secondBody, { active: false, reason: 'already_consumed' });
+	} finally {
+		restore();
+	}
+});
+
+test('mismatched Signatura ID returns active=false', async () => {
+	resetHarness();
+	const restore = setClientEnv();
+	try {
+		const { challenge } = await seedApprovedChallenge();
+		const response = await introspect(
+			request({
+				challengeId: challenge.id,
+				expectedSignaturaId: 'SIG-ACCURA-ROAD-0F7C99-INVT-OTHER-0002',
+			}),
+		);
+		const body = await response.json();
+
+		assert.equal(response.status, 200);
+		assert.deepEqual(body, { active: false, reason: 'signatura_id_mismatch' });
+	} finally {
+		restore();
+	}
+});
+
+test('wrong clientId challenge returns active=false', async () => {
+	resetHarness();
+	const restore = setClientEnv();
+	try {
+		const { challenge } = await seedApprovedChallenge({ clientId: 'other' });
+		const response = await introspect(
+			request({
+				challengeId: challenge.id,
+				expectedSignaturaId: 'SIG-ACCURA-ROAD-0F7C99-INVT-ABC123-0001',
+			}),
+		);
+		const body = await response.json();
+
+		assert.equal(response.status, 404);
+		assert.deepEqual(body, { active: false, reason: 'not_found' });
+	} finally {
+		restore();
+	}
+});
+
+test('suspended account returns active=false', async () => {
+	resetHarness();
+	const restore = setClientEnv();
+	try {
+		const userId = seedUser();
+		prisma.user.__rows.find((row) => row.id === userId).accountStatus =
+			'suspended';
+		const { challenge } = await seedApprovedChallenge({ userId });
+		const response = await introspect(
+			request({
+				challengeId: challenge.id,
+				expectedSignaturaId: 'SIG-ACCURA-ROAD-0F7C99-INVT-ABC123-0001',
+			}),
+		);
+		const body = await response.json();
+
+		assert.equal(response.status, 200);
+		assert.deepEqual(body, { active: false, reason: 'account_inactive' });
 	} finally {
 		restore();
 	}

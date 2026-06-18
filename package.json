@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:reset": "rm -rf .next && next dev",
     "dev:lan": "next dev -H 0.0.0.0 -p 3000",
+    "dev:lan:reset": "rm -rf .next && next dev -H 0.0.0.0 -p 3000",
     "dev:lan:https": "next dev --experimental-https -H 0.0.0.0 -p 3000",
     "build": "next build",
     "start": "next start",
@@ -26,6 +28,7 @@
     "@prisma/client": "^7.8.0",
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.0",
+    "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.17.0",
     "next": "^16.2.6",
     "onnxruntime-node": "^1.26.0",

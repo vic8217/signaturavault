@@ -6,6 +6,8 @@ import {
 	normalizeCompanyCode,
 	normalizeRegistrationSource,
 	registrationContextFromParams,
+	resolveAccuraAuthorizationRolePrefix,
+	rolePrefixFromAccuraSignaturaId,
 	sourceAppLabel,
 	validateAccuraRegistrationContext,
 } from '@/lib/registrationSource.js';
@@ -53,6 +55,7 @@ test('ACCURA registration context normalizes company metadata', () => {
 test('ACCURA registration context requires a valid company role and return URL', () => {
 	const context = registrationContextFromParams({
 		source: 'accura',
+		companyId: 'company-road',
 		companyCode: 'ROAD-0F7C99',
 		companyName: 'RoadRunner BeepBeep',
 		role: 'inventory_clerk',
@@ -82,6 +85,7 @@ test('ACCURA registration context requires a valid company role and return URL',
 test('ACCURA system admin context does not require company code', () => {
 	const context = registrationContextFromParams({
 		source: 'accura',
+		companyId: 'company-road',
 		role: 'system_admin',
 		rolePrefix: 'SADM',
 	});
@@ -94,20 +98,35 @@ test('ACCURA system admin context does not require company code', () => {
 	);
 });
 
-test('ACCURA role prefixes include company module scopes', () => {
+test('ACCURA authorization role prefix is derived from Signatura ID', () => {
+	const signaturaId = 'SIG-ACCURA-ROAD-9B2D7B-CASH-789BD6-4411';
+	assert.equal(rolePrefixFromAccuraSignaturaId(signaturaId), 'CASH');
+	assert.equal(
+		resolveAccuraAuthorizationRolePrefix('CADM', signaturaId),
+		'CASH',
+	);
+});
+
+test('ACCURA role prefixes include staff and admin roles', () => {
 	for (const prefix of [
 		'SADM',
 		'CADM',
 		'UADM',
-		'ACCT',
-		'INVT',
 		'CASH',
-		'PAYR',
-		'CRM',
-		'SRM',
 		'SALE',
-		'MFG',
+		'INVT',
+		'ACCT',
+		'BOOK',
+		'APCL',
+		'ARCL',
+		'PAYR',
 		'PROC',
+		'MFGC',
+		'CRMS',
+		'SRMS',
+		'BRMG',
+		'SUPV',
+		'AUDT',
 	]) {
 		assert.ok(ACCURA_ROLE_PREFIXES[prefix], `${prefix} should be supported`);
 	}

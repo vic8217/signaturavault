@@ -1,7 +1,9 @@
 import crypto from 'crypto';
+import { buildExternalLoginReturnUrl } from '@/lib/externalLoginReturn';
 import { prisma } from '@/lib/prisma';
 
 export const LOGIN_CHALLENGE_TTL_MS = 90 * 1000;
+export const ACCURA_AUTHORIZE_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 export const QR_LOGIN_APPROVAL_TIMEOUT_MS = 60 * 1000;
 
 export const LOGIN_CHALLENGE_STATUS = {
@@ -117,6 +119,11 @@ export async function createTrustedDeviceLoginChallenge({
 	sourceApp = 'SIGNATURA',
 	requesterOrigin = null,
 	requestedAssuranceLevel = 'ZT-L2',
+	returnUrl = null,
+	expectedSignaturaId = null,
+	rolePrefix = null,
+	state = null,
+	expiresInMs = LOGIN_CHALLENGE_TTL_MS,
 }) {
 	await expireStaleLoginChallenges({ userId });
 	await prisma.trustedDeviceLoginChallenge.updateMany({
@@ -150,10 +157,14 @@ export async function createTrustedDeviceLoginChallenge({
 			sourceApp,
 			requesterOrigin,
 			requestedAssuranceLevel,
+			returnUrl,
+			expectedSignaturaId,
+			rolePrefix,
+			state,
 			status: LOGIN_CHALLENGE_STATUS.PENDING,
 			browserUserAgent,
 			nextPath: nextPath?.startsWith('/') ? nextPath : '/signatura/dashboard',
-			expiresAt: new Date(Date.now() + LOGIN_CHALLENGE_TTL_MS),
+			expiresAt: new Date(Date.now() + expiresInMs),
 		},
 	});
 
@@ -300,16 +311,25 @@ export async function pollTrustedDeviceLoginChallenge({
 				},
 			});
 		}
+		const signaturaId = (
+			await prisma.user.findUnique({
+				where: { id: challenge.userId },
+				select: { signaturaId: true },
+			})
+		)?.signaturaId;
+		const redirectUrl = challenge.returnUrl
+			? buildExternalLoginReturnUrl(challenge.returnUrl, {
+					signaturaId,
+					challengeId: challenge.id,
+					state: challenge.state || '',
+				})
+			: '';
 		return {
 			status: LOGIN_CHALLENGE_STATUS.APPROVED,
 			approvalToken,
 			nextPath: challenge.nextPath || '/signatura/dashboard',
-			signaturaId: (
-				await prisma.user.findUnique({
-					where: { id: challenge.userId },
-					select: { signaturaId: true },
-				})
-			)?.signaturaId,
+			signaturaId,
+			redirectUrl: redirectUrl || null,
 		};
 	}
 
@@ -453,9 +473,13 @@ export async function consumeTrustedDeviceLoginChallenge({
 	};
 }
 
-export function buildRemoteLoginQrUrl(origin, challengeId, shortCode) {
+export function buildRemoteLoginQrUrl(origin, challengeId, shortCode, options = {}) {
 	const url = new URL('/login/remote-approve', origin);
 	url.searchParams.set('cid', challengeId);
 	url.searchParams.set('code', shortCode);
+	const signaturaId = String(options.signaturaId || '').trim().toUpperCase();
+	if (signaturaId) {
+		url.searchParams.set('signaturaId', signaturaId);
+	}
 	return url.toString();
 }

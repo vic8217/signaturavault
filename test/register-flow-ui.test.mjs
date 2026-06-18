@@ -126,6 +126,50 @@ test('trusted device registration retry returns existing trusted device success'
 	);
 });
 
+test('recovery phrase setup renews registration session and uses safe API parsing', async () => {
+	const recoveryRoute = await readFile(
+		new URL('../src/app/api/auth/register/recovery/route.ts', import.meta.url),
+		'utf8',
+	);
+	const registerForm = await readFile(
+		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+	const continueToRecoveryBody = registerForm.slice(
+		registerForm.indexOf('async function continueToRecovery'),
+		registerForm.indexOf('async function resumeSetup'),
+	);
+
+	assert.match(recoveryRoute, /findRegistrationSession/);
+	assert.match(recoveryRoute, /renewIfExpired: true/);
+	assert.match(recoveryRoute, /touchRegistrationSession/);
+	assert.match(continueToRecoveryBody, /resolveRegistrationContext/);
+	assert.match(continueToRecoveryBody, /registrationApiRequest/);
+	assert.match(continueToRecoveryBody, /Recovery phrase setup/);
+});
+
+test('account activation renews registration session and uses safe API parsing', async () => {
+	const activateRoute = await readFile(
+		new URL('../src/app/api/auth/register/activate/route.ts', import.meta.url),
+		'utf8',
+	);
+	const registerForm = await readFile(
+		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+	const activateAccountBody = registerForm.slice(
+		registerForm.indexOf('async function activateAccount'),
+		registerForm.indexOf('function updateField'),
+	);
+
+	assert.match(activateRoute, /findRegistrationSession/);
+	assert.match(activateRoute, /renewIfExpired: true/);
+	assert.match(activateRoute, /touchRegistrationSession/);
+	assert.match(activateAccountBody, /resolveRegistrationContext/);
+	assert.match(activateAccountBody, /registrationApiRequest/);
+	assert.match(activateAccountBody, /Account activation/);
+});
+
 test('account duplicate contact check is scoped by Signatura account type', async () => {
 	const route = await readFile(
 		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
@@ -184,6 +228,10 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
 		'utf8',
 	);
+	const accuraRegisterPage = await readFile(
+		new URL('../src/app/register/accura/page.js', import.meta.url),
+		'utf8',
+	);
 	const registerRoute = await readFile(
 		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
 		'utf8',
@@ -196,38 +244,52 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(registerPage, /registrationContextFromParams/);
 	assert.match(registerPage, /validateAccuraRegistrationContext/);
 	assert.match(registerPage, /registrationContextError/);
+	assert.match(registerPage, /ACCURA registration link is outdated/);
 	assert.match(registerPage, /validateAccuraRegistrationContext/);
 	assert.match(registerPage, /registrationContext\.source !== 'accura'/);
+	assert.match(accuraRegisterPage, /verifyAccuraRegistrationHandoffToken/);
+	assert.match(accuraRegisterPage, /accuraRegistrationContextForForm/);
+	assert.match(accuraRegisterPage, /ACCURA registration session expired/);
+	assert.match(accuraRegisterPage, /ACCURA_ONBOARDING_ACTIONS/);
+	assert.match(accuraRegisterPage, /AccuraOnboardingLinkForm/);
 	assert.match(registerForm, /Create your SIGNATURA account for ACCURA/);
 	assert.match(registerForm, /Registering for ACCURA company access/);
 	assert.match(registerForm, /ACCURA Company Name/);
 	assert.match(registerForm, /ACCURA Company Code/);
-	assert.match(registerForm, /Selected Role/);
+	assert.match(registerForm, /Assigned Role/);
 	assert.match(registerForm, /Role Prefix/);
 	assert.match(registerForm, /This Signatura ID will be linked only to this ACCURA company and selected role/);
-	assert.match(registerForm, /role: accuraRole/);
-	assert.match(registerForm, /rolePrefix: accuraRolePrefix/);
+	assert.match(registerForm, /accuraHandoffToken/);
+	assert.match(registerForm, /role: isAccuraRegistration \? '' : accuraRole/);
+	assert.match(registerForm, /rolePrefix: isAccuraRegistration \? '' : accuraRolePrefix/);
 	assert.match(registerRoute, /createUniqueAccuraSignaturaId/);
 	assert.match(registerRoute, /validateAccuraRegistrationContext/);
+	assert.match(registerRoute, /verifyAccuraRegistrationHandoffToken/);
 	assert.match(registerRoute, /signaturaAppLinkModel/);
 	assert.match(registerRoute, /appLinkModel\.create/);
 	assert.match(registerRoute, /existingSignaturaId/);
 	assert.match(registerRoute, /linkedToCompany/);
 	assert.match(schema, /model SignaturaAppLink/);
+	assert.match(schema, /model AccuraRegistrationHandoff/);
 	assert.match(schema, /rolePrefix\s+String\?/);
 });
 
-test('ACCURA callback receives source and company registration status', async () => {
+test('ACCURA callback receives signed source and company registration status', async () => {
 	const registerForm = await readFile(
 		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
 		'utf8',
 	);
+	const activateRoute = await readFile(
+		new URL('../src/app/api/auth/register/activate/route.ts', import.meta.url),
+		'utf8',
+	);
 
-	assert.match(registerForm, /registrationStatus', 'success'/);
-	assert.match(registerForm, /source', 'accura'/);
-	assert.match(registerForm, /companyCode', companyCode/);
-	assert.match(registerForm, /role', accuraRole/);
-	assert.match(registerForm, /rolePrefix', accuraRolePrefix/);
+	assert.match(registerForm, /data\.accuraReturnUrl/);
+	assert.match(registerForm, /serverReturnUrl/);
+	assert.match(registerForm, /if \(isAccuraRegistration\) return ''/);
+	assert.match(activateRoute, /buildAccuraRegistrationReturnUrl/);
+	assert.match(activateRoute, /registrationStatus: 'SUCCESS'/);
+	assert.match(activateRoute, /accuraRegistrationKeyId/);
 });
 
 test('ACCURA duplicate registration displays existing Signatura ID', async () => {
@@ -256,8 +318,9 @@ test('ACCURA registration lookup is scoped by app company role and contact', asy
 	assert.match(registerRoute, /matchingContactUserIds/);
 	assert.match(registerRoute, /userId: \{ in: matchingContactUserIds \}/);
 	assert.match(registerRoute, /sourceApp: 'ACCURA'/);
-	assert.match(registerRoute, /companyCode: rolePrefix === 'SADM' \? null : companyCode/);
+	assert.match(registerRoute, /companyCode,/);
 	assert.match(registerRoute, /rolePrefix/);
+	assert.match(registerRoute, /tokenId/);
 	assert.match(registerRoute, /ACCURA company-role Signatura ID already exists/);
 	assert.match(registerRoute, /createUniqueAccuraSignaturaId/);
 });

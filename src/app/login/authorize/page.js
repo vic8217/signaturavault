@@ -10,7 +10,7 @@ import {
 } from '@/lib/accuraAuthorization';
 import { normalizeExternalReturnUrl } from '@/lib/externalReturnUrl';
 import { normalizeSignaturaId } from '@/lib/identity';
-import { normalizeAccuraRolePrefix } from '@/lib/registrationSource';
+import { normalizeAccuraRolePrefix, resolveAccuraAuthorizationRolePrefix } from '@/lib/registrationSource';
 
 function firstParam(value) {
 	if (Array.isArray(value)) return value[0] || '';
@@ -25,7 +25,10 @@ export default async function SignaturaAuthorizePage({ searchParams }) {
 	const expectedSignaturaId = normalizeSignaturaId(
 		firstParam(params?.expectedSignaturaId),
 	);
-	const rolePrefix = normalizeAccuraRolePrefix(firstParam(params?.rolePrefix));
+	const rolePrefix = resolveAccuraAuthorizationRolePrefix(
+		firstParam(params?.rolePrefix),
+		expectedSignaturaId,
+	);
 	const state = firstParam(params?.state).trim();
 	console.info('[signatura-authorize] request', {
 		clientId,

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SRC_DIR = fileURLToPath(new URL('../../src/', import.meta.url));
+const PRISMA_FILE = path.join(SRC_DIR, 'lib/prisma.js');
 const CANDIDATE_EXTENSIONS = ['.ts', '.tsx', '.mjs', '.js', '.jsx', '.cjs'];
 
 // Runtime dependencies that cannot resolve/run outside the Next.js server
@@ -60,6 +61,12 @@ export async function resolve(specifier, context, nextResolve) {
 			const base = fileURLToPath(new URL(specifier, context.parentURL));
 			const target = resolveOnDisk(base);
 			if (target) {
+				if (target === PRISMA_FILE) {
+					return {
+						url: new URL('./stubs/prisma.mjs', import.meta.url).href,
+						shortCircuit: true,
+					};
+				}
 				return { url: pathToFileURL(target).href, shortCircuit: true };
 			}
 		}

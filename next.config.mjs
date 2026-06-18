@@ -8,6 +8,8 @@ const nextConfig = {
 		'192.168.1.33',
 		'192.168.68.139',
 		'juiciness-demeanor-december.ngrok-free.dev',
+		'*.ngrok-free.dev',
+		'*.ngrok-free.app',
 	],
 	turbopack: {
 		root: projectRoot,

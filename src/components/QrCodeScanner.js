@@ -1,11 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PortalIcon } from './PortalIcon';
 
-function buildChallengeHref(pathname, challengeId, shortCode) {
-	return `${pathname}?cid=${encodeURIComponent(challengeId)}&code=${encodeURIComponent(String(shortCode).trim().toUpperCase())}`;
+function buildChallengeHref(pathname, challengeId, shortCode, signaturaId = '') {
+	const params = new URLSearchParams();
+	params.set('cid', challengeId);
+	params.set('code', String(shortCode).trim().toUpperCase());
+	if (signaturaId) {
+		params.set('signaturaId', String(signaturaId).trim().toUpperCase());
+	}
+	return `${pathname}?${params.toString()}`;
 }
 
 function getRemoteUnlockHref(payload) {
@@ -34,18 +40,22 @@ function getRemoteUnlockHref(payload) {
 			url.searchParams.get('challengeId') ||
 			url.searchParams.get('id');
 		const shortCode = url.searchParams.get('code') || url.searchParams.get('shortCode');
+		const signaturaId =
+			url.searchParams.get('signaturaId') || url.searchParams.get('signatura_id');
 		if (challengeId && shortCode) {
 			if (url.pathname.includes('/login/remote-approve')) {
 				return buildChallengeHref(
 					'/login/remote-approve',
 					challengeId,
 					shortCode,
+					signaturaId,
 				);
 			}
 			return buildChallengeHref(
 				'/hoa-key/remote-unlock',
 				challengeId,
 				shortCode,
+				signaturaId,
 			);
 		}
 
@@ -78,24 +88,24 @@ function getRemoteUnlockHref(payload) {
 
 export function QrCodeScanner() {
 	const router = useRouter();
-	const videoRef = useRef(null);
-	const streamRef = useRef(null);
-	const frameRef = useRef(null);
-	const detectorRef = useRef(null);
+	const scannerRef = useRef(null);
+	const scannerElementId = `signatura-qr-reader-${useId().replace(/:/g, '')}`;
 	const [status, setStatus] = useState('Camera is off.');
 	const [error, setError] = useState('');
 	const [manualValue, setManualValue] = useState('');
 	const [isScanning, setIsScanning] = useState(false);
 	const [lastPayload, setLastPayload] = useState('');
 
-	function stopCamera() {
-		if (frameRef.current) {
-			cancelAnimationFrame(frameRef.current);
-			frameRef.current = null;
-		}
-		if (streamRef.current) {
-			streamRef.current.getTracks().forEach((track) => track.stop());
-			streamRef.current = null;
+	async function stopCamera() {
+		const scanner = scannerRef.current;
+		scannerRef.current = null;
+		if (scanner) {
+			try {
+				if (scanner.isScanning) await scanner.stop();
+				scanner.clear();
+			} catch {
+				// The camera may already have stopped while the PWA was backgrounded.
+			}
 		}
 		setIsScanning(false);
 	}
@@ -108,33 +118,10 @@ export function QrCodeScanner() {
 			setStatus('Point the camera at a Signatura unlock or verification QR.');
 			return false;
 		}
-		stopCamera();
+		void stopCamera();
 		setStatus('QR code detected. Opening Signatura approval...');
 		router.push(href);
 		return true;
-	}
-
-	async function scanFrame() {
-		const video = videoRef.current;
-		const detector = detectorRef.current;
-		if (!video || !detector || video.readyState < 2) {
-			frameRef.current = requestAnimationFrame(scanFrame);
-			return;
-		}
-
-		try {
-			const codes = await detector.detect(video);
-			const payload = codes?.[0]?.rawValue;
-			if (payload && routePayload(payload)) return;
-		} catch (scanError) {
-			setError(
-				scanError instanceof Error
-					? scanError.message
-					: 'Unable to read QR code from camera.',
-			);
-		}
-
-		frameRef.current = requestAnimationFrame(scanFrame);
 	}
 
 	async function startCamera() {
@@ -146,40 +133,52 @@ export function QrCodeScanner() {
 			return;
 		}
 
-		if (!('BarcodeDetector' in window)) {
-			setError('This browser does not support built-in QR scanning. Paste the QR text below.');
+		if (!navigator.mediaDevices?.getUserMedia) {
+			setError('This device does not provide camera access to the installed app.');
 			return;
 		}
 
 		try {
-			const supportedFormats = await window.BarcodeDetector.getSupportedFormats?.();
-			if (supportedFormats && !supportedFormats.includes('qr_code')) {
-				throw new Error('This browser camera detector does not support QR codes.');
-			}
-
-			detectorRef.current = new window.BarcodeDetector({ formats: ['qr_code'] });
-			const stream = await navigator.mediaDevices.getUserMedia({
-				video: {
-					facingMode: { ideal: 'environment' },
-					width: { ideal: 1280 },
-					height: { ideal: 720 },
-				},
-				audio: false,
+			const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import(
+				'html5-qrcode'
+			);
+			const scanner = new Html5Qrcode(scannerElementId, {
+				formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+				verbose: false,
 			});
-			streamRef.current = stream;
-			if (videoRef.current) {
-				videoRef.current.srcObject = stream;
-				await videoRef.current.play();
-			}
+			scannerRef.current = scanner;
+			await scanner.start(
+				{ facingMode: 'environment' },
+				{
+					fps: 12,
+					qrbox: (viewfinderWidth, viewfinderHeight) => {
+						const edge = Math.floor(
+							Math.min(viewfinderWidth, viewfinderHeight) * 0.72,
+						);
+						return { width: edge, height: edge };
+					},
+					aspectRatio: 1,
+					disableFlip: false,
+				},
+				(decodedText) => {
+					routePayload(decodedText);
+				},
+				() => {
+					// Missing a QR code in an individual frame is expected.
+				},
+			);
 			setIsScanning(true);
-			setStatus('Scanning. Point the camera at the QR code.');
-			frameRef.current = requestAnimationFrame(scanFrame);
+			setStatus('Scanning. Hold the QR code inside the red frame.');
 		} catch (cameraError) {
-			stopCamera();
-			setError(
+			await stopCamera();
+			const message =
 				cameraError instanceof Error
 					? cameraError.message
-					: 'Unable to start the camera.',
+					: String(cameraError || '');
+			setError(
+				/permission|notallowed/i.test(message)
+					? 'Camera permission was denied. Allow camera access for Signatura in Android app/site settings, then retry.'
+					: message || 'Unable to start the camera.',
 			);
 			setStatus('Camera is off.');
 		}
@@ -193,17 +192,19 @@ export function QrCodeScanner() {
 		}
 	}
 
-	useEffect(() => stopCamera, []);
+	useEffect(() => {
+		return () => {
+			void stopCamera();
+		};
+	}, []);
 
 	return (
 		<section className="space-y-5">
 			<div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
 				<div className="relative aspect-[3/4] max-h-[70vh] bg-black sm:aspect-video">
-					<video
-						ref={videoRef}
-						muted
-						playsInline
-						className="h-full w-full object-cover"
+					<div
+						id={scannerElementId}
+						className="h-full w-full overflow-hidden [&_video]:h-full [&_video]:w-full [&_video]:object-cover"
 					/>
 					<div className="pointer-events-none absolute inset-0 grid place-items-center p-8">
 						<div className="aspect-square w-full max-w-72 rounded-3xl border-4 border-red-400/80 shadow-[0_0_0_999px_rgba(2,6,23,0.45)]" />
@@ -233,7 +234,7 @@ export function QrCodeScanner() {
 				</button>
 				<button
 					type="button"
-					onClick={stopCamera}
+					onClick={() => void stopCamera()}
 					className="rounded-xl border border-white/15 px-5 py-3 text-sm font-bold text-slate-100 transition hover:border-red-300">
 					Stop camera
 				</button>

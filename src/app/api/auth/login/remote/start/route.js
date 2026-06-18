@@ -12,6 +12,9 @@ import {
 	buildRemoteLoginQrUrl,
 	createTrustedDeviceLoginChallenge,
 } from '@/lib/trustedDeviceLoginChallenge';
+import {
+	assertPhoneReachableSignaturaOrigin,
+} from '@/lib/publicOrigin';
 import { getOrigin, getUserAgent } from '@/lib/webauthn';
 
 const KNOWN_SOURCE_APPS = new Set(['ACCURA', 'HAVEN', 'SIGNATURA']);
@@ -101,14 +104,17 @@ export async function POST(req) {
 			},
 		});
 
-		const origin = getOrigin(req);
+		const qrOrigin = assertPhoneReachableSignaturaOrigin(req);
 		return Response.json({
 			ok: true,
 			challengeId: challenge.id,
 			shortCode: challenge.shortCode,
 			browserSecret,
 			expiresAt: challenge.expiresAt,
-			qrUrl: buildRemoteLoginQrUrl(origin, challenge.id, challenge.shortCode),
+			qrUrl: buildRemoteLoginQrUrl(qrOrigin, challenge.id, challenge.shortCode, {
+				signaturaId: user.signaturaId,
+			}),
+			publicOrigin: qrOrigin,
 			signaturaId: user.signaturaId,
 			trustedDeviceCount: user.trustedDevices.length,
 		});

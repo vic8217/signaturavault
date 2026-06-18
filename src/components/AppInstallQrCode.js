@@ -87,10 +87,13 @@ export function AppInstallQrCode({
 
 	useEffect(() => {
 		let isMounted = true;
-		const url = new URL(
-			'/app',
-			'https://juiciness-demeanor-december.ngrok-free.dev',
-		).toString();
+		const configuredPublicUrl = String(
+			process.env.NEXT_PUBLIC_SIGNATURA_PUBLIC_URL || '',
+		).trim();
+		const baseOrigin =
+			configuredPublicUrl ||
+			(typeof window !== 'undefined' ? window.location.origin : '');
+		const url = new URL('/app', baseOrigin.endsWith('/') ? baseOrigin : `${baseOrigin}/`).toString();
 
 		import('qrcode')
 			.then((module) => {

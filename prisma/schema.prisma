@@ -549,6 +549,29 @@ model SignaturaAppLink {
   @@map("signatura_app_links")
 }
 
+model AccuraRegistrationHandoff {
+  id                String    @id @default(cuid())
+  tokenId           String    @unique @map("token_id")
+  registrationKeyId String    @map("registration_key_id")
+  companyId         String    @map("company_id")
+  companyCode       String    @map("company_code")
+  roleCode          String    @map("role_code")
+  returnUrl         String    @map("return_url")
+  status            String    @default("CLAIMED")
+  userId            String?   @map("user_id")
+  signaturaId       String?   @map("signatura_id")
+  expiresAt         DateTime  @map("expires_at")
+  claimedAt         DateTime  @default(now()) @map("claimed_at")
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([registrationKeyId])
+  @@index([companyId, roleCode])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("accura_registration_handoffs")
+}
+
 model AuditAnchor {
   id         String    @id @default(cuid())
   sourceApp  String    @map("source_app")

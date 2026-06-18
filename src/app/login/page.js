@@ -1,20 +1,42 @@
 import Link from 'next/link';
 import Image from 'next/image';
+import { redirect } from 'next/navigation';
 import { LoginPasskeyForm } from '@/components/LoginPasskeyForm';
 import { externalReturnUrlFromParams } from '@/lib/externalReturnUrl';
 import { normalizeLoginNextPath } from '@/lib/portalRoutes';
 import { registrationContextFromParams } from '@/lib/registrationSource';
+import { resolveSignaturaHomePath } from '@/lib/signaturaHome';
+import { requireSession } from '@/lib/session';
+import { normalizeSignaturaId } from '@/lib/identity';
+
+function firstParam(value) {
+	return Array.isArray(value) ? value[0] || '' : String(value || '');
+}
 
 export default async function LoginPage({ searchParams }) {
 	const params = await searchParams;
 	const requestedNext = params?.next || '';
 	const externalReturnUrl = externalReturnUrlFromParams(params);
 	const registrationContext = registrationContextFromParams(params);
+	const requestedSignaturaId = normalizeSignaturaId(firstParam(params?.signaturaId));
+	const session = await requireSession();
+	const homePath = (await resolveSignaturaHomePath()) ?? '/signatura/dashboard';
 	const nextPath = normalizeLoginNextPath(
 		typeof requestedNext === 'string' && requestedNext.startsWith('/')
 			? requestedNext
-			: '/signatura/dashboard',
+			: homePath,
 	);
+
+	if (session?.userId && !externalReturnUrl) {
+		const sessionSignaturaId = normalizeSignaturaId(session.signaturaId);
+		const needsDifferentAccount =
+			requestedSignaturaId &&
+			sessionSignaturaId &&
+			sessionSignaturaId !== requestedSignaturaId;
+		if (!needsDifferentAccount) {
+			redirect(nextPath);
+		}
+	}
 
 	return (
 		<main className="relative min-h-screen overflow-x-hidden bg-[#02070d] px-3 py-8 text-white sm:px-6 lg:px-8">

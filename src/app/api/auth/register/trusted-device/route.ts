@@ -28,6 +28,19 @@ function trustedDeviceSuccessResponse(user: any, trustedDevice: any) {
 	});
 }
 
+function signaturaAppLinkModel(client = prisma) {
+	return (
+		client as unknown as {
+			signaturaAppLink?: {
+				updateMany: (args: {
+					where: Record<string, unknown>;
+					data: Record<string, unknown>;
+				}) => Promise<unknown>;
+			};
+		}
+	).signaturaAppLink;
+}
+
 export async function POST(req: Request) {
 	try {
 		assertSecureWebAuthnRequest(req);
@@ -92,6 +105,15 @@ export async function POST(req: Request) {
 						},
 					})
 				: user;
+
+			await signaturaAppLinkModel()?.updateMany({
+				where: {
+					userId,
+					sourceApp: 'ACCURA',
+					status: 'ACTIVE',
+				},
+				data: { trustedDeviceStatus: 'TRUSTED' },
+			});
 
 			return trustedDeviceSuccessResponse(
 				userForResponse,
@@ -162,6 +184,15 @@ export async function POST(req: Request) {
 				data: {
 					accountStatus: REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED,
 				},
+			});
+
+			await signaturaAppLinkModel(tx)?.updateMany({
+				where: {
+					userId,
+					sourceApp: 'ACCURA',
+					status: 'ACTIVE',
+				},
+				data: { trustedDeviceStatus: 'TRUSTED' },
 			});
 
 			return { updatedUser, trustedDevice };

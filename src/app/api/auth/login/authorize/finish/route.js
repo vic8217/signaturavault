@@ -12,7 +12,7 @@ import { buildExternalLoginReturnUrl } from '@/lib/externalLoginReturn';
 import { normalizeExternalReturnUrl } from '@/lib/externalReturnUrl';
 import { normalizeSignaturaId } from '@/lib/identity';
 import { prisma } from '@/lib/prisma';
-import { normalizeAccuraRolePrefix } from '@/lib/registrationSource';
+import { normalizeAccuraRolePrefix, resolveAccuraAuthorizationRolePrefix } from '@/lib/registrationSource';
 import { LOGIN_CHALLENGE_STATUS } from '@/lib/trustedDeviceLoginChallenge';
 import {
 	assertSecureWebAuthnRequest,
@@ -45,25 +45,24 @@ async function createConsumedSignaturaAssertion({
 	return tx.trustedDeviceLoginChallenge.create({
 		data: {
 			userId,
-				shortCode: 'AUTHOR',
-				browserSecretHash: crypto.randomBytes(32).toString('hex'),
-				nonce: crypto.randomBytes(32).toString('base64url'),
-				clientId: 'accura',
-				sourceApp: 'ACCURA',
-				requesterOrigin: requesterOrigin(returnUrl),
-				returnUrl,
-				expectedSignaturaId,
-				rolePrefix,
-				state,
-				requestedAssuranceLevel: 'ZT-L2',
-				status: LOGIN_CHALLENGE_STATUS.CONSUMED,
+			shortCode: 'AUTHOR',
+			browserSecretHash: crypto.randomBytes(32).toString('hex'),
+			nonce: crypto.randomBytes(32).toString('base64url'),
+			clientId: 'accura',
+			sourceApp: 'ACCURA',
+			requesterOrigin: requesterOrigin(returnUrl),
+			returnUrl,
+			expectedSignaturaId,
+			rolePrefix,
+			state,
+			requestedAssuranceLevel: 'ZT-L2',
+			status: LOGIN_CHALLENGE_STATUS.APPROVED,
 			approvingDeviceId: trustedDeviceId,
 			approvingCredentialId: credentialId,
 			browserUserAgent: getUserAgent(req),
 			nextPath: '/login/authorize',
 			approvedAt: now,
-			consumedAt: now,
-			expiresAt: new Date(Date.now() + 90 * 1000),
+			expiresAt: new Date(Date.now() + 5 * 60 * 1000),
 		},
 	});
 }
@@ -76,7 +75,10 @@ export async function POST(req) {
 		const source = normalizeAccuraAuthorizationSource(body.source);
 		const returnUrl = normalizeExternalReturnUrl(body.returnUrl);
 		const expectedSignaturaId = normalizeSignaturaId(body.expectedSignaturaId);
-		const rolePrefix = normalizeAccuraRolePrefix(body.rolePrefix);
+		const rolePrefix = resolveAccuraAuthorizationRolePrefix(
+			body.rolePrefix,
+			expectedSignaturaId,
+		);
 		const userId = String(body.userId || '');
 		const assertion = body.response;
 		const state = String(body.state || '').trim();
@@ -210,13 +212,13 @@ export async function POST(req) {
 				tx,
 				userId,
 				credentialId,
-					trustedDeviceId: trustedDevice.id,
-					returnUrl,
-					expectedSignaturaId,
-					rolePrefix,
-					state,
-					req,
-				});
+				trustedDeviceId: trustedDevice.id,
+				returnUrl,
+				expectedSignaturaId,
+				rolePrefix,
+				state,
+				req,
+			});
 		});
 
 		const redirectUrl = buildExternalLoginReturnUrl(returnUrl, {

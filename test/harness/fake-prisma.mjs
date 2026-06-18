@@ -65,6 +65,16 @@ function recordMatchesWhere(record, where, compositeKeys) {
 	if (!where) return true;
 
 	return Object.entries(where).every(([key, expected]) => {
+		if (key === 'OR' && Array.isArray(expected)) {
+			return expected.some((clause) =>
+				recordMatchesWhere(record, clause, compositeKeys),
+			);
+		}
+		if (key === 'AND' && Array.isArray(expected)) {
+			return expected.every((clause) =>
+				recordMatchesWhere(record, clause, compositeKeys),
+			);
+		}
 		if (compositeKeys.has(key) && isPlainObject(expected)) {
 			return Object.entries(expected).every(([field, value]) =>
 				valueMatches(record[field], value),
@@ -162,6 +172,15 @@ function createModel(compositeKeyNames = [], uniqueFieldNames = []) {
 			rows.push(record);
 			return applySelect(clone(record), select);
 		},
+		async createMany({ data } = {}) {
+			const records = Array.isArray(data) ? data : [];
+			for (const entry of records) {
+				const record = { id: entry.id ?? crypto.randomUUID(), ...entry };
+				if (record.createdAt === undefined) record.createdAt = new Date();
+				rows.push(record);
+			}
+			return { count: records.length };
+		},
 		async update({ where, data, select } = {}) {
 			const record = rows.find((row) =>
 				recordMatchesWhere(row, where, compositeKeys),
@@ -237,6 +256,7 @@ export function createFakePrisma() {
 		apiClient: createModel(),
 		signaturaSession: createModel(),
 		signaturaAppLink: createModel(),
+		accuraRegistrationHandoff: createModel([], ['tokenId']),
 	};
 
 	return {

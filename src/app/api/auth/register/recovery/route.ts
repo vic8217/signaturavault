@@ -8,6 +8,10 @@ import {
 } from '@/lib/auth/recoveryPhrase';
 import { REGISTRATION_STATUSES } from '@/lib/registration-status';
 import {
+	findRegistrationSession,
+	touchRegistrationSession,
+} from '@/lib/registration-session';
+import {
 	assertSecureWebAuthnRequest,
 	logSecurityEvent,
 } from '@/lib/webauthn';
@@ -19,24 +23,30 @@ export async function POST(req: Request) {
 		const userId = String(body.userId || '').trim();
 		const registrationSessionId = String(body.registrationSessionId || '').trim();
 
-		if (!userId || !registrationSessionId) {
-			return jsonError('userId and registrationSessionId are required', 400);
+		if (!registrationSessionId && !userId) {
+			return jsonError('registrationSessionId or userId is required', 400);
 		}
 
-		const session = await prisma.authChallenge.findFirst({
-			where: {
-				id: registrationSessionId,
-				userId,
-				type: 'REGISTER_ACCOUNT',
-				usedAt: null,
-				expiresAt: { gt: new Date() },
-			},
+		const session = await findRegistrationSession({
+			registrationSessionId: registrationSessionId || undefined,
+			userId: userId || undefined,
+			renewIfExpired: true,
 		});
-		if (!session) {
-			return jsonError('Registration session not found or expired', 404);
+		if (!session?.userId) {
+			return jsonError(
+				'Registration session not found or expired. Refresh and resume setup with your Signatura ID.',
+				404,
+			);
 		}
 
-		const user = await prisma.user.findUnique({ where: { id: userId } });
+		const resolvedUserId = userId || session.userId;
+		if (resolvedUserId !== session.userId) {
+			return jsonError('Registration session does not match this account', 403);
+		}
+
+		await touchRegistrationSession(session.id, session.userId);
+
+		const user = await prisma.user.findUnique({ where: { id: session.userId } });
 		if (!user) return jsonError('Account not found', 404);
 
 		const allowedStatuses = new Set([
@@ -52,7 +62,7 @@ export async function POST(req: Request) {
 		}
 
 		const existingRecoveryCode = await prisma.recoveryCode.findFirst({
-			where: { userId },
+			where: { userId: user.id },
 			orderBy: { createdAt: 'desc' },
 		});
 		if (existingRecoveryCode) {
@@ -60,6 +70,7 @@ export async function POST(req: Request) {
 				ok: true,
 				user: userPublicIdentity(user),
 				currentStep: user.accountStatus,
+				registrationSessionId: session.id,
 				recoveryPhraseAlreadyIssued: true,
 			});
 		}
@@ -70,22 +81,22 @@ export async function POST(req: Request) {
 			await tx.recoveryCode.create({
 				data: {
 					id: crypto.randomUUID(),
-					userId,
+					userId: user.id,
 					codeHash: hashRecoveryPhrase(recoveryPhrase),
 					codePrefix: 'phrase',
 				},
 			});
 
 			return tx.user.update({
-				where: { id: userId },
+				where: { id: user.id },
 				data: {
 					accountStatus: REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE,
 				},
 			});
 		});
 
-		await logSecurityEvent(req, 'recovery_phrase_issued', userId, {
-			registrationSessionId,
+		await logSecurityEvent(req, 'recovery_phrase_issued', user.id, {
+			registrationSessionId: session.id,
 			notice: 'Recovery phrase shown once during onboarding',
 		});
 
@@ -93,6 +104,7 @@ export async function POST(req: Request) {
 			ok: true,
 			user: userPublicIdentity(updatedUser),
 			currentStep: REGISTRATION_STATUSES.PENDING_RECOVERY_PHRASE,
+			registrationSessionId: session.id,
 			recoveryPhrase,
 			recoveryPhraseAlreadyIssued: false,
 		});

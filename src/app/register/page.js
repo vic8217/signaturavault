@@ -13,10 +13,12 @@ export default async function RegisterPage({ searchParams }) {
 	const externalReturnUrl = externalReturnUrlFromParams(params);
 	const registrationContext = registrationContextFromParams(params);
 	const registrationContextError =
-		registrationContext.error ||
-		validateAccuraRegistrationContext(registrationContext, {
-			returnUrl: externalReturnUrl,
-		});
+		registrationContext.source === 'accura'
+			? 'This ACCURA registration link is outdated. Return to ACCURA and generate a new secure registration QR code.'
+			: registrationContext.error ||
+				validateAccuraRegistrationContext(registrationContext, {
+					returnUrl: externalReturnUrl,
+				});
 	const requestedSignaturaId = params?.signaturaId || '';
 	const setupMode = params?.setup === 'device' ? 'device' : '';
 	const requestedAccountType =
