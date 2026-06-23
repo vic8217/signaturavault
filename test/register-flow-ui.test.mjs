@@ -203,6 +203,16 @@ test('login modal no longer exposes manual portal role buttons', async () => {
 	assert.doesNotMatch(source, /Dev Admin/);
 });
 
+test('homepage login navigates directly to passkey login page', async () => {
+	const source = await readFile(
+		new URL('../src/app/page.js', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(source, /href="\/login\?next=\/signatura\/dashboard"/);
+	assert.doesNotMatch(source, /HomeLoginModal/);
+});
+
 test('public registration does not expose admin account selection', async () => {
 	const registerPage = await readFile(
 		new URL('../src/app/register/page.js', import.meta.url),

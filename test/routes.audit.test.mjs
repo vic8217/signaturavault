@@ -7,7 +7,10 @@ import {
 	isPublicRoute,
 	normalizeLoginNextPath,
 } from '../config/portalRoutes.mjs';
+import { proxy } from '../src/proxy.js';
 import { evaluatePortalAccess } from '../src/lib/portalRoutes.js';
+import { ROLE_COOKIE, ROLES } from '../src/lib/roles.js';
+import { SESSION_COOKIE, encodeSession } from '../src/lib/session-token.js';
 
 const PUBLIC_ROUTE_CASES = [
 	'/',
@@ -54,6 +57,18 @@ const PROTECTED_UNAUTH_CASES = [
 function parseLoginNext(search) {
 	const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
 	return decodeURIComponent(params.get('next') || '');
+}
+
+function proxyRequest(pathname, cookieValues = {}) {
+	return {
+		url: `https://signatura-sandbox.nouvoux.com${pathname}`,
+		nextUrl: new URL(`https://signatura-sandbox.nouvoux.com${pathname}`),
+		cookies: {
+			get(name) {
+				return cookieValues[name] ? { value: cookieValues[name] } : undefined;
+			},
+		},
+	};
 }
 
 for (const route of PUBLIC_ROUTE_CASES) {
@@ -136,4 +151,39 @@ test('/document-owners redirects to /users in next.config', () => {
 		(entry) => entry.source === '/document-owners',
 	);
 	assert.equal(redirect?.destination, '/users');
+});
+
+test('proxy falls back to signed session role when role cookie is missing', () => {
+	const sessionToken = encodeSession({
+		userId: 'user-1',
+		signaturaId: 'SIG-USER-1',
+		role: ROLES.DOCUMENT_OWNER,
+		exp: Date.now() + 60_000,
+	});
+
+	const response = proxy(
+		proxyRequest('/signatura/dashboard', {
+			[SESSION_COOKIE]: sessionToken,
+		}),
+	);
+
+	assert.equal(response.status, 204);
+});
+
+test('proxy prefers explicit role cookie over session role', () => {
+	const sessionToken = encodeSession({
+		userId: 'user-1',
+		signaturaId: 'SIG-USER-1',
+		role: ROLES.DOCUMENT_OWNER,
+		exp: Date.now() + 60_000,
+	});
+
+	const response = proxy(
+		proxyRequest('/issuer', {
+			[ROLE_COOKIE]: ROLES.ISSUER_ADMIN,
+			[SESSION_COOKIE]: sessionToken,
+		}),
+	);
+
+	assert.equal(response.status, 204);
 });

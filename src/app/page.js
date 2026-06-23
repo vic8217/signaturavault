@@ -1,7 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { AppInstallQrCode } from '@/components/AppInstallQrCode';
-import { HomeLoginModal } from '@/components/HomeLoginModal';
 import { useCases } from '@/lib/use-cases';
 import {
 	FileText,
@@ -283,12 +282,9 @@ export default function Home() {
 					<div className="flex items-center gap-2 sm:gap-3">
 						<Link
 							href="/login?next=/signatura/dashboard"
-							className="rounded-xl border border-white/20 px-4 py-3 text-sm font-bold text-white transition hover:border-red-400 hover:text-red-300 sm:hidden">
+							className="rounded-xl border border-white/20 px-4 py-3 text-sm font-bold text-white transition hover:border-red-400 hover:text-red-300">
 							Login
 						</Link>
-						<div className="hidden sm:block">
-							<HomeLoginModal />
-						</div>
 						<Link
 							href="/issuer/onboarding"
 							className="hidden rounded-xl bg-red-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_30px_rgba(239,68,68,0.35)] transition hover:bg-red-400 sm:inline-block sm:px-5">
