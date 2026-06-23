@@ -39,6 +39,10 @@ import { loadDb, saveDb } from '@/lib/db';
 import { ROLES } from '@/lib/roles';
 import { registrationSessionExpiresAt } from '@/lib/registration-session';
 import {
+	currentRegistrationStep,
+	REGISTRATION_STATUSES,
+} from '@/lib/registration-status';
+import {
 	assertSecureWebAuthnRequest,
 	getUserAgent,
 	logSecurityEvent,
@@ -224,7 +228,12 @@ export async function POST(req: Request) {
 			where: {
 				OR: [{ emailLookupHash }, { mobileLookupHash }],
 			},
-			select: { id: true, signaturaId: true },
+			select: {
+				id: true,
+				signaturaId: true,
+				accountStatus: true,
+				trustLevel: true,
+			},
 		});
 		if (isAccuraRegistration) {
 			const appLinkModel = signaturaAppLinkModel();
@@ -274,20 +283,52 @@ export async function POST(req: Request) {
 					{ status: 409 },
 				);
 			}
+			const existingIdentity =
+				matchingContactUsers.find(
+					(user) => !user.signaturaId.startsWith('SIG-ACCURA-'),
+				) || matchingContactUsers[0];
+			if (existingIdentity) {
+				return NextResponse.json(
+					{
+						error:
+							'An existing Signatura identity matches these contact details. Approve biometric linking to add this ACCURA role.',
+						existingSignaturaId: existingIdentity.signaturaId,
+						source: 'accura',
+						companyCode,
+						companyName,
+						role,
+						rolePrefix,
+						linkedToCompany: false,
+						linkRequired: true,
+					},
+					{ status: 409 },
+				);
+			}
 		} else {
 			const existing = matchingContactUsers.find(
 				(user) => getSignaturaAccountType(user.signaturaId) === accountType,
 			);
 			if (existing) {
-				return jsonError('Account already exists', 409);
+				const setupStep = currentRegistrationStep(existing);
+				const setupIncomplete =
+					setupStep !== REGISTRATION_STATUSES.COMPLETED &&
+					existing.accountStatus !== 'active';
+				return NextResponse.json(
+					{
+						error: 'Account already exists',
+						existingSignaturaId: existing.signaturaId,
+						setupIncomplete,
+					},
+					{ status: 409 },
+				);
 			}
 		}
 
 		const userId = crypto.randomUUID();
-		const signaturaId =
-			isAccuraRegistration
-				? await createUniqueAccuraSignaturaId(prisma, companyCode, rolePrefix)
-				: await createUniqueSignaturaId(prisma, accountType);
+		const signaturaId = await createUniqueSignaturaId(prisma, accountType);
+		const accuraRoleSignaturaId = isAccuraRegistration
+			? await createUniqueAccuraSignaturaId(prisma, companyCode, rolePrefix)
+			: null;
 		const registrationToken = crypto.randomBytes(32).toString('base64url');
 		const registrationSessionId = crypto.randomUUID();
 		const encryptedFields = encryptedAccountContactFields({
@@ -312,7 +353,7 @@ export async function POST(req: Request) {
 							returnUrl,
 							status: 'CLAIMED',
 							userId,
-							signaturaId,
+							signaturaId: accuraRoleSignaturaId || signaturaId,
 							expiresAt: new Date(accuraHandoffExpiresAt),
 						},
 					});
@@ -355,7 +396,7 @@ export async function POST(req: Request) {
 					data: {
 						id: crypto.randomUUID(),
 						userId,
-						signaturaId,
+						signaturaId: accuraRoleSignaturaId || signaturaId,
 						sourceApp: sourceAppLabel(registrationSource.source),
 						companyCode: isAccuraRegistration ? companyCode : null,
 						companyName: isAccuraRegistration ? companyName : null,
@@ -378,6 +419,7 @@ export async function POST(req: Request) {
 									nonce: accuraNonce,
 									clientId: accuraClientId,
 									registeredAt: new Date().toISOString(),
+									masterSignaturaId: signaturaId,
 								}
 							: null,
 						trustedDeviceStatus: isAccuraRegistration ? 'PENDING' : null,
@@ -463,7 +505,10 @@ export async function POST(req: Request) {
 					nonce: accuraNonce,
 					clientId: accuraClientId,
 				},
-				details: { signaturaId: user.signaturaId },
+				details: {
+					signaturaId: accuraRoleSignaturaId || user.signaturaId,
+					masterSignaturaId: user.signaturaId,
+				},
 			});
 		}
 

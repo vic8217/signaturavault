@@ -522,7 +522,7 @@ model SignaturaSession {
 model SignaturaAppLink {
   id          String   @id @default(cuid())
   userId      String   @map("user_id")
-  signaturaId String   @unique @map("signatura_id")
+  signaturaId String   @map("signatura_id")
   sourceApp   String   @map("source_app")
   companyCode String?  @map("company_code")
   companyName String?  @map("company_name")
@@ -545,6 +545,7 @@ model SignaturaAppLink {
   @@index([sourceApp, companyId, rolePrefix])
   @@index([sourceApp, tenantId])
   @@index([accuraUserId])
+  @@unique([userId, sourceApp, companyId, rolePrefix])
   @@unique([sourceApp, companyCode, rolePrefix, signaturaId])
   @@map("signatura_app_links")
 }

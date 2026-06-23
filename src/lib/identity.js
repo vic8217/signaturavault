@@ -118,6 +118,12 @@ function userPublicIdentity(user) {
 	};
 }
 
+function resolveAccuraLinkedSignaturaId(appLink, user) {
+	const linkedId = String(appLink?.signaturaId || '').trim().toUpperCase();
+	if (linkedId.startsWith('SIG-ACCURA-')) return linkedId;
+	return String(user?.signaturaId || '').trim().toUpperCase();
+}
+
 export {
 	SIGNATURA_ACCOUNT_TYPES,
 	SIGNATURA_ID_PREFIX,
@@ -129,6 +135,7 @@ export {
 	getSignaturaAccountType,
 	normalizeSignaturaAccountType,
 	normalizeSignaturaId,
+	resolveAccuraLinkedSignaturaId,
 	signaturaPrefixForAccountType,
 	userPublicIdentity,
 };

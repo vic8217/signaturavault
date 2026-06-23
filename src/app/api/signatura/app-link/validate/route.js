@@ -38,10 +38,9 @@ export async function POST(req) {
 		where: {
 			signaturaId,
 			sourceApp,
-			companyCode: rolePrefix === 'SADM' ? null : companyCode,
-			role,
 			rolePrefix,
 			status: 'ACTIVE',
+			...(rolePrefix === 'SADM' ? {} : { companyCode }),
 		},
 		select: {
 			status: true,
@@ -52,7 +51,7 @@ export async function POST(req) {
 		},
 	});
 
-	if (!link) {
+	if (!link || normalizeAccuraRole(link.role) !== role) {
 		return Response.json(INVALID_RESPONSE, { status: 200 });
 	}
 

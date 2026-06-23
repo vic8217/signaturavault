@@ -60,6 +60,12 @@ const quickActions = [
 		icon: ScanLine,
 	},
 	{
+		label: 'Scan Login QR',
+		helper: 'Approve ACCURA login',
+		href: '/signatura/scan-login',
+		icon: KeyRound,
+	},
+	{
 		label: 'Share',
 		helper: 'Send proof',
 		href: '/owner/credentials',

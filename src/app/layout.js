@@ -1,4 +1,5 @@
 import { Geist, Geist_Mono } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 
@@ -42,6 +43,19 @@ export default function RootLayout({ children }) {
 			lang="en"
 			className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
 			<head>
+				<Script id="signatura-pwa-install-capture" strategy="beforeInteractive">
+					{`
+						window.addEventListener('beforeinstallprompt', function (event) {
+							event.preventDefault();
+							window.__signaturaPwaInstallPrompt = event;
+							window.dispatchEvent(new Event('signatura:pwa-install-ready'));
+						});
+
+						window.addEventListener('appinstalled', function () {
+							window.__signaturaPwaInstallPrompt = null;
+						});
+					`}
+				</Script>
 				<link rel="manifest" href="/manifest.json" />
 				<link rel="apple-touch-icon" href="/icons/icon-192.png" />
 				<meta name="theme-color" content="#020817" />

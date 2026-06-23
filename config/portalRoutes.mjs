@@ -43,6 +43,11 @@ const LEGACY_REDIRECTS = [
 		destination: '/signatura/documents/issuers/issuer/:issuerId',
 	},
 	{ source: '/wallet/scan', destination: '/signatura/documents/scan' },
+	{ source: '/wallet/scan-login', destination: '/signatura/scan-login' },
+	{
+		source: '/wallet/approve-accura-login',
+		destination: '/signatura/approve-accura-login',
+	},
 	{ source: '/wallet/settings', destination: '/signatura/settings' },
 	{
 		source: '/wallet/profile',
@@ -80,6 +85,8 @@ const EXACT_LEGACY_NEXT_MAP = {
 	'/wallet/profile': '/signatura/settings/security',
 	'/wallet/settings': '/signatura/settings',
 	'/wallet/scan': '/signatura/documents/scan',
+	'/wallet/scan-login': '/signatura/scan-login',
+	'/wallet/approve-accura-login': '/signatura/approve-accura-login',
 	'/wallet/issuers': '/signatura/documents/issuers',
 	'/security/devices': '/signatura/trusted-devices',
 	'/security/add-device': '/signatura/trusted-devices/add',

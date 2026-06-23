@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
 	ArrowRight,
 	ChevronRight,
+	Fingerprint,
 	LockKeyhole,
 	RefreshCcw,
 	ShieldCheck,
@@ -71,6 +72,11 @@ function LoginPasskeyForm({
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [canRegisterDevice, setCanRegisterDevice] = useState(false);
 	const autoPasskeyStartedRef = useRef(false);
+	const signaturaIdInputRef = useRef(null);
+	const [accountSwitchContext, setAccountSwitchContext] = useState({
+		active: false,
+		requiredRolePrefix: '',
+	});
 	const normalizedSignaturaId = signaturaId.trim();
 	const loginAccountType = accountTypeForNextPath(nextPath);
 	const registrationSource = String(appRegistrationContext.source || '').toLowerCase();
@@ -126,45 +132,63 @@ function LoginPasskeyForm({
 		const params = new URLSearchParams(window.location.search);
 		const signaturaIdFromUrl =
 			params.get('signaturaId') || params.get('signatura_id') || '';
-		if (signaturaIdFromUrl && !signaturaId.trim()) {
-			setSignaturaId(signaturaIdFromUrl);
-		}
-		if (externalReturnUrl && signaturaIdFromUrl) {
-			setStep('qr');
-			return undefined;
-		}
+		const switchingAccount = params.get('switchAccount') === '1';
+		const requiredRolePrefix = String(
+			params.get('requiredRolePrefix') || '',
+		)
+			.replace(/[^a-z0-9]/gi, '')
+			.toUpperCase();
+		const initializeLoginTimer = window.setTimeout(() => {
+			setAccountSwitchContext({
+				active: switchingAccount,
+				requiredRolePrefix,
+			});
+			if (signaturaIdFromUrl && !signaturaId.trim()) {
+				setSignaturaId(signaturaIdFromUrl);
+			}
+			if (externalReturnUrl && signaturaIdFromUrl) {
+				setStep('qr');
+				return;
+			}
+
+			if (
+				!autoPasskeyStartedRef.current &&
+				!switchingAccount &&
+				!isRemoteApprovalNextPath(nextPath) &&
+				shouldAutoPasskeyLoginOnOpen({
+					externalReturnUrl,
+					loginAccountType,
+				})
+			) {
+				const storedSignaturaId = signaturaIdFromUrl
+					? ''
+					: readStoredTrustedDeviceSignaturaId();
+				const resolvedSignaturaId = (
+					signaturaIdFromUrl || storedSignaturaId
+				).trim();
+				if (resolvedSignaturaId) {
+					autoPasskeyStartedRef.current = true;
+					setSignaturaId(resolvedSignaturaId);
+					setStep('methods');
+					setStatus('Opening biometric sign-in...');
+					void startLocalPasskeyLogin(resolvedSignaturaId);
+				}
+			}
+		}, 0);
 
 		const syncAutofill = () => {
+			if (switchingAccount) return;
 			const input = document.querySelector('input[name="signaturaId"]');
 			if (input?.value && !signaturaId.trim() && !signaturaIdFromUrl) {
 				setSignaturaId(input.value);
 			}
 		};
-		syncAutofill();
-		const timer = window.setTimeout(syncAutofill, 250);
+		const autofillTimer = window.setTimeout(syncAutofill, 250);
 
-		if (
-			!autoPasskeyStartedRef.current &&
-			!isRemoteApprovalNextPath(nextPath) &&
-			shouldAutoPasskeyLoginOnOpen({
-				externalReturnUrl,
-				loginAccountType,
-			})
-		) {
-			const storedSignaturaId = signaturaIdFromUrl
-				? ''
-				: readStoredTrustedDeviceSignaturaId();
-			const resolvedSignaturaId = (signaturaIdFromUrl || storedSignaturaId).trim();
-			if (resolvedSignaturaId) {
-				autoPasskeyStartedRef.current = true;
-				setSignaturaId(resolvedSignaturaId);
-				setStep('methods');
-				setStatus('Opening your trusted device passkey...');
-				void startLocalPasskeyLogin(resolvedSignaturaId);
-			}
-		}
-
-		return () => window.clearTimeout(timer);
+		return () => {
+			window.clearTimeout(initializeLoginTimer);
+			window.clearTimeout(autofillTimer);
+		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [externalReturnUrl]);
 
@@ -175,32 +199,27 @@ function LoginPasskeyForm({
 		}
 	}
 
-	function continueToMethods() {
-		if (!normalizedSignaturaId) {
-			setError('Enter your Signatura ID to continue.');
-			return;
-		}
-		setError('');
-		setStatus('');
-		setStep('methods');
-	}
-
 	async function startLocalPasskeyLogin(signaturaIdOverride = '') {
 		const normalizedOverride =
 			typeof signaturaIdOverride === 'string'
 				? signaturaIdOverride.trim()
 				: '';
 		const activeSignaturaId =
-			normalizedOverride || normalizedSignaturaId;
+			normalizedOverride ||
+			normalizedSignaturaId ||
+			String(signaturaIdInputRef.current?.value || '').trim();
 		if (!activeSignaturaId) {
 			setError('Enter your Signatura ID to continue.');
 			return;
+		}
+		if (activeSignaturaId !== normalizedSignaturaId) {
+			setSignaturaId(activeSignaturaId);
 		}
 		if (isSubmitting) return;
 		setError('');
 		setCanRegisterDevice(false);
 		setIsSubmitting(true);
-		setStatus('Preparing passkey login on this device...');
+		setStatus('Preparing biometric sign-in on this device...');
 
 		try {
 			const isLocalhost =
@@ -232,7 +251,9 @@ function LoginPasskeyForm({
 				);
 			}
 
-			setStatus('Approve the login with your device passkey.');
+			setStatus(
+				'Use your fingerprint, face, or device screen lock to approve sign-in.',
+			);
 			let assertion;
 			const passkeyPromptTimer = window.setTimeout(() => {
 				setCanRegisterDevice(true);
@@ -275,20 +296,15 @@ function LoginPasskeyForm({
 		} catch (loginError) {
 			const message =
 				loginError instanceof Error ? loginError.message : 'Login failed.';
-			if (message === UNREGISTERED_PASSKEY_ERROR) {
-				setStatus(
-					'No trusted device is registered yet. Opening device registration...',
-				);
-				const registerHref = `/register?next=${encodeURIComponent(nextPath)}&signaturaId=${encodeURIComponent(activeSignaturaId)}&setup=device${
-					registrationContextQuery
-				}${
-					externalReturnUrl
-						? `&returnUrl=${encodeURIComponent(externalReturnUrl)}`
-						: ''
-				}`;
-				window.location.href = registerHref;
-				return;
-			}
+		if (message === UNREGISTERED_PASSKEY_ERROR) {
+			setCanRegisterDevice(true);
+			setStep('id');
+			setError(
+				'No passkey is registered for this Signatura ID on this device. Register this phone, or create a new account.',
+			);
+			setStatus('');
+			return;
+		}
 			setStep('methods');
 			setError(message);
 			setStatus('');
@@ -316,9 +332,18 @@ function LoginPasskeyForm({
 					</div>
 
 					<p className="mt-6 max-w-xl text-base leading-7 text-slate-400 sm:text-lg">
-						Enter your Signatura ID. You will approve this login from a registered
-						trusted device.
+						{accountSwitchContext.requiredRolePrefix
+									? `Enter your ${accountSwitchContext.requiredRolePrefix} Signatura ID, then verify with the registered device biometric or screen lock.`
+									: 'Enter your Signatura ID, then use your fingerprint, face, or device screen lock.'}
 					</p>
+					{accountSwitchContext.active ? (
+						<p className="mt-4 rounded-lg border border-amber-400/30 bg-amber-400/10 p-4 text-sm leading-6 text-amber-50">
+							You switched accounts for an ACCURA login request.
+							{accountSwitchContext.requiredRolePrefix
+								? ` This request requires ${accountSwitchContext.requiredRolePrefix}.`
+								: ''}
+						</p>
+					) : null}
 
 					{step === 'id' ? (
 						<div className="mt-8 grid min-w-0 gap-5">
@@ -330,6 +355,7 @@ function LoginPasskeyForm({
 									</span>
 									<span className="mx-3 h-9 w-px shrink-0 bg-slate-600 sm:mx-4" />
 									<input
+										ref={signaturaIdInputRef}
 										type="text"
 										required
 										name="signaturaId"
@@ -338,7 +364,9 @@ function LoginPasskeyForm({
 										onInput={(event) => updateSignaturaId(event.currentTarget.value)}
 										autoComplete="username"
 										placeholder={
-											loginAccountType === 'admin'
+											accountSwitchContext.requiredRolePrefix === 'SADM'
+												? 'SIG-ACCURA-SADM-XXXXXX-XXXX'
+												: loginAccountType === 'admin'
 												? 'SIG-A-8FD2-A91C'
 												: loginAccountType === 'issuer'
 													? 'SIG-I-8FD2-A91C'
@@ -350,14 +378,31 @@ function LoginPasskeyForm({
 							</label>
 							<button
 								type="button"
-								onClick={continueToMethods}
-								disabled={isSubmitting || !normalizedSignaturaId}
+								onClick={() => startLocalPasskeyLogin()}
+								disabled={isSubmitting}
 								className="group flex h-16 w-full min-w-0 max-w-full items-center justify-center gap-3 rounded-lg bg-red-500 px-4 text-base font-bold text-white shadow-[0_14px_34px_rgba(239,68,68,0.32)] transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:shadow-none sm:gap-4 sm:px-5 sm:text-lg">
-								<span>Continue</span>
-								<ArrowRight
-									className="h-6 w-6 transition group-hover:translate-x-1"
+								<Fingerprint
+									className="h-6 w-6"
 									aria-hidden="true"
 								/>
+								<span>
+									{isSubmitting ? 'Opening biometrics...' : 'Sign in with biometrics'}
+								</span>
+								<ArrowRight
+									className="h-5 w-5 transition group-hover:translate-x-1"
+									aria-hidden="true"
+								/>
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									setError('');
+									setStatus('');
+									setStep('qr');
+								}}
+								disabled={!normalizedSignaturaId}
+								className="rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white disabled:cursor-not-allowed disabled:border-white/5 disabled:text-slate-600">
+								Use another trusted device (QR)
 							</button>
 
 							<div className="flex items-center gap-6 py-4 text-sm font-semibold text-slate-400">
@@ -385,10 +430,11 @@ function LoginPasskeyForm({
 							<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 								<div>
 									<p className="text-sm font-bold uppercase text-red-300">
-										Trusted device
+										Biometric sign-in
 									</p>
 									<p className="mt-2 text-sm leading-6 text-slate-300">
-										Use the trusted passkey registered on this browser for{' '}
+										Use the fingerprint, face, or screen lock registered on this
+										device for{' '}
 										<span className="font-mono text-white">
 											{normalizedSignaturaId}
 										</span>
@@ -406,8 +452,9 @@ function LoginPasskeyForm({
 								type="button"
 								onClick={() => startLocalPasskeyLogin()}
 								disabled={isSubmitting}
-								className="rounded-lg bg-red-500 px-5 py-4 text-base font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
-								{isSubmitting ? 'Preparing passkey...' : 'Sign in with this device passkey'}
+								className="flex items-center justify-center gap-3 rounded-lg bg-red-500 px-5 py-4 text-base font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
+								<Fingerprint className="h-6 w-6" aria-hidden="true" />
+								{isSubmitting ? 'Opening biometrics...' : 'Try biometric sign-in again'}
 							</button>
 							<button
 								type="button"
@@ -493,7 +540,8 @@ function LoginPasskeyForm({
 						<p className="text-sm leading-6 sm:text-base">
 							No password is used.
 							<br />
-							Your identity is protected by trusted-device approval.
+							Your biometric stays on your device. Signatura verifies only the
+							registered passkey.
 						</p>
 					</div>
 				</div>

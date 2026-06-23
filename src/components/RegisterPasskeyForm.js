@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
 	browserSupportsWebAuthn,
+	startAuthentication,
 	startRegistration,
 } from '@simplewebauthn/browser';
-import { normalizeLoginNextPath } from '@/lib/portalRoutes';
 import {
 	REGISTRATION_STATUSES,
 	registrationStatusCardState,
@@ -20,7 +20,10 @@ import {
 	registrationApiRequest,
 	readRegistrationApiJson,
 } from '@/lib/registration-api-client';
-import { storeTrustedDeviceSignaturaId } from '@/lib/trustedDeviceLoginClient';
+import {
+	clearStoredTrustedDeviceSignaturaId,
+	storeTrustedDeviceSignaturaId,
+} from '@/lib/trustedDeviceLoginClient';
 import { isPhoneUnreachableAccuraReturnUrl } from '@/lib/externalReturnUrl';
 
 const REGISTRATION_STORAGE_KEY = 'signatura.pendingRegistration';
@@ -185,6 +188,22 @@ function RegisterPasskeyForm({
 	const [serverReturnUrl, setServerReturnUrl] = useState('');
 	const trustedDevicesHref = `/signatura/trusted-devices?next=${encodeURIComponent(nextPath)}`;
 	const issuerRegisterHref = `/register?next=${encodeURIComponent('/issuer')}&accountType=issuer`;
+	const createAccountHref = `/register?next=${encodeURIComponent(nextPath)}${
+		externalReturnUrl ? `&returnUrl=${encodeURIComponent(externalReturnUrl)}` : ''
+	}`;
+	const loginHref = `/login?next=${encodeURIComponent(nextPath)}${
+		externalReturnUrl ? `&returnUrl=${encodeURIComponent(externalReturnUrl)}` : ''
+	}`;
+	const existingAccountLoginHref = existingAccount?.signaturaId
+		? `/login?signaturaId=${encodeURIComponent(existingAccount.signaturaId)}&next=${encodeURIComponent(nextPath)}${
+				externalReturnUrl ? `&returnUrl=${encodeURIComponent(externalReturnUrl)}` : ''
+			}`
+		: loginHref;
+	const existingAccountDeviceHref = existingAccount?.signaturaId
+		? `/register?setup=device&signaturaId=${encodeURIComponent(existingAccount.signaturaId)}&next=${encodeURIComponent(nextPath)}${
+				externalReturnUrl ? `&returnUrl=${encodeURIComponent(externalReturnUrl)}` : ''
+			}`
+		: '';
 	const accountTypeLabel =
 		accountType === 'admin'
 			? 'Admin account'
@@ -316,8 +335,90 @@ function RegisterPasskeyForm({
 		window.location.href = destination;
 	}
 
+	async function linkExistingIdentityToAccura() {
+		const signaturaId = existingAccount?.signaturaId;
+		if (!signaturaId || !accuraHandoffToken || continuingExistingAccount) {
+			return;
+		}
+		if (!browserSupportsWebAuthn()) {
+			setError('This browser does not support biometric/passkey approval.');
+			return;
+		}
+
+		setContinuingExistingAccount(true);
+		setError('');
+		setStatus('Preparing biometric approval for your existing Signatura identity...');
+		try {
+			const { response: startResponse, data: startData } =
+				await registrationApiRequest(
+					'/api/auth/login/start',
+					{
+						method: 'POST',
+						body: JSON.stringify({ signaturaId }),
+					},
+					'Existing identity link start',
+				);
+			if (!startResponse.ok) {
+				throw new Error(
+					startData?.error || 'Unable to start biometric approval.',
+				);
+			}
+
+			setStatus('Approve the new ACCURA role with your biometric or device PIN.');
+			const assertion = await startAuthentication({
+				optionsJSON: startData.options,
+			});
+			const { response: linkResponse, data: linkData } =
+				await registrationApiRequest(
+					'/api/auth/register/accura/link',
+					{
+						method: 'POST',
+						body: JSON.stringify({
+							accuraHandoffToken,
+							signaturaId,
+							response: assertion,
+						}),
+					},
+					'ACCURA role link',
+				);
+			if (!linkResponse.ok) {
+				throw new Error(
+					linkData?.error || 'Unable to link this ACCURA role.',
+				);
+			}
+
+			storeTrustedDeviceSignaturaId(signaturaId);
+			const destination =
+				linkData.accuraReturnUrl || linkData.redirectTo || externalReturnUrl;
+			if (
+				shouldDeferAccuraReturnToDesktop(destination, isAccuraRegistration)
+			) {
+				setExistingAccount((current) => ({
+					...current,
+					linkedToCompany: true,
+					linkRequired: false,
+				}));
+				setStatus(
+					'ACCURA role linked. Return to ACCURA on your computer to continue.',
+				);
+				return;
+			}
+			setStatus('ACCURA role linked. Returning to ACCURA...');
+			window.location.href = destination || '/signatura/dashboard';
+		} catch (linkError) {
+			setStatus('');
+			setError(
+				linkError instanceof Error
+					? linkError.message
+					: 'Unable to link this ACCURA role.',
+			);
+		} finally {
+			setContinuingExistingAccount(false);
+		}
+	}
+
 	const accuraScopedIdMessage =
-		'A personal Signatura ID already exists, but ACCURA requires a separate company-role Signatura ID.';
+		'Use this existing Signatura ID and approve biometric linking to add the ACCURA company role.';
 
 	function accuraFailureReturnHref(errorCode = 'registration_failed') {
 		if (!externalReturnUrl || !isAccuraRegistration) return '';
@@ -331,9 +432,13 @@ function RegisterPasskeyForm({
 		}
 	}
 
-	function returnToLoginModal() {
-		const canonicalNext = normalizeLoginNextPath(nextPath);
-		router.push(`/?openLogin=1&next=${encodeURIComponent(canonicalNext)}`);
+	function returnToLogin() {
+		router.push(loginHref);
+	}
+
+	function startNewAccountRegistration() {
+		clearStoredTrustedDeviceSignaturaId();
+		router.push(createAccountHref);
 	}
 
 	useEffect(() => {
@@ -392,7 +497,7 @@ function RegisterPasskeyForm({
 		return () => {
 			isMounted = false;
 		};
-	}, [isDeviceSetup]);
+	}, [isDeviceSetup, router]);
 
 	async function cancelPendingRegistration() {
 		const pendingSessionId = registrationSessionId || readPendingRegistration()?.registrationSessionId;
@@ -406,7 +511,7 @@ function RegisterPasskeyForm({
 			}).catch(() => null);
 		}
 
-		returnToLoginModal();
+		returnToLogin();
 	}
 
 	function completeRegistration() {
@@ -513,11 +618,13 @@ function RegisterPasskeyForm({
 			});
 			const data = await response.json();
 			if (!response.ok) {
-				if (data?.existingSignaturaId) {
-					setExistingAccount({
-						signaturaId: data.existingSignaturaId,
-						linkedToCompany: Boolean(data.linkedToCompany),
-					});
+					if (data?.existingSignaturaId) {
+						setExistingAccount({
+							signaturaId: data.existingSignaturaId,
+							linkedToCompany: Boolean(data.linkedToCompany),
+							linkRequired: Boolean(data.linkRequired),
+							setupIncomplete: Boolean(data.setupIncomplete),
+						});
 				} else {
 					const failureHref = accuraFailureReturnHref(
 						data?.errorCode || data?.error || 'registration_failed',
@@ -940,75 +1047,108 @@ function RegisterPasskeyForm({
 		}
 	}
 
-	async function resumeSetup(event) {
-		event.preventDefault();
+	async function resumeRegistrationForContact({
+		signaturaId,
+		handphone,
+		email,
+	}) {
 		setError('');
 		setStatus('Verifying your SIGNATURA ID...');
 		setRecoveryPhrase('');
 		setRecoveryPhraseSaved(false);
-			setCreatedAccount(null);
-			setRegistrationToken('');
-			setRegistrationSessionId('');
+		setCreatedAccount(null);
+		setRegistrationToken('');
+		setRegistrationSessionId('');
 
+		const response = await registrationApiFetch('/api/auth/register/resume', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				signaturaId,
+				handphone,
+				email,
+			}),
+		});
+		const data = await response.json();
+		if (!response.ok) throw new Error(data.error);
+		setCreatedAccount(data.user);
+		setRegistrationToken(data.registrationToken || '');
+		setRegistrationSessionId(data.registrationSessionId || '');
+
+		const sessionResponse = await registrationApiFetch(
+			`/api/auth/register/session/${encodeURIComponent(data.registrationSessionId || '')}`,
+		);
+		const sessionData = await readRegistrationApiJson(
+			sessionResponse,
+			'Registration session',
+		).catch(() => ({}));
+		if (sessionResponse.ok && sessionData.active) {
+			applyRegistrationSessionToForm({
+				data: sessionData,
+				pendingRegistration: {
+					registrationSessionId: data.registrationSessionId,
+					signaturaId: data.user?.signaturaId,
+				},
+				setters: {
+					setCreatedAccount,
+					setRegistrationSessionId,
+					setRegistrationToken,
+					setForm,
+					setStatus,
+					setStep,
+					setPasskeySummary,
+					setTrustedDeviceSummary,
+					setStatusCard,
+					setRecoveryPhrase,
+					setRecoveryPhraseAlreadyIssued,
+				},
+			});
+			return;
+		}
+
+		writePendingRegistration({
+			registrationSessionId: data.registrationSessionId || '',
+			signaturaId: data.user?.signaturaId || signaturaId,
+			currentStep: REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION,
+		});
+		setPasskeySummary(null);
+		setTrustedDeviceSummary(null);
+		setStatusCard(
+			registrationStatusCardState(REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION),
+		);
+		setStatus('Your SIGNATURA ID is ready for passkey creation.');
+		setStep('passkey');
+	}
+
+	async function continueExistingAccountSetup() {
+		if (!existingAccount?.signaturaId) return;
+		setContinuingExistingAccount(true);
 		try {
-			const response = await registrationApiFetch('/api/auth/register/resume', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					signaturaId: form.signaturaId,
-					handphone: form.handphone,
-					email: form.email,
-				}),
+			await resumeRegistrationForContact({
+				signaturaId: existingAccount.signaturaId,
+				handphone: form.handphone,
+				email: form.email,
 			});
-			const data = await response.json();
-			if (!response.ok) throw new Error(data.error);
-			setCreatedAccount(data.user);
-			setRegistrationToken(data.registrationToken || '');
-			setRegistrationSessionId(data.registrationSessionId || '');
-
-			const sessionResponse = await registrationApiFetch(
-				`/api/auth/register/session/${encodeURIComponent(data.registrationSessionId || '')}`,
+		} catch (resumeError) {
+			setError(
+				resumeError instanceof Error
+					? resumeError.message
+					: 'Unable to resume account setup.',
 			);
-			const sessionData = await readRegistrationApiJson(
-				sessionResponse,
-				'Registration session',
-			).catch(() => ({}));
-			if (sessionResponse.ok && sessionData.active) {
-				applyRegistrationSessionToForm({
-					data: sessionData,
-					pendingRegistration: {
-						registrationSessionId: data.registrationSessionId,
-						signaturaId: data.user?.signaturaId,
-					},
-					setters: {
-						setCreatedAccount,
-						setRegistrationSessionId,
-						setRegistrationToken,
-						setForm,
-						setStatus,
-						setStep,
-						setPasskeySummary,
-						setTrustedDeviceSummary,
-						setStatusCard,
-						setRecoveryPhrase,
-						setRecoveryPhraseAlreadyIssued,
-					},
-				});
-				return;
-			}
+			setStatus('');
+		} finally {
+			setContinuingExistingAccount(false);
+		}
+	}
 
-			writePendingRegistration({
-				registrationSessionId: data.registrationSessionId || '',
-				signaturaId: data.user?.signaturaId || form.signaturaId,
-				currentStep: REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION,
+	async function resumeSetup(event) {
+		event.preventDefault();
+		try {
+			await resumeRegistrationForContact({
+				signaturaId: form.signaturaId,
+				handphone: form.handphone,
+				email: form.email,
 			});
-			setPasskeySummary(null);
-			setTrustedDeviceSummary(null);
-			setStatusCard(
-				registrationStatusCardState(REGISTRATION_STATUSES.PENDING_PASSKEY_CREATION),
-			);
-			setStatus('Your SIGNATURA ID is ready for passkey creation.');
-			setStep('passkey');
 		} catch (resumeError) {
 			setError(
 				resumeError instanceof Error
@@ -1075,10 +1215,11 @@ function RegisterPasskeyForm({
 							<span className="font-mono">
 								{accuraRolePrefix || 'Not provided'}
 							</span>
-						</p>
-						<p className="mt-2">
-							This Signatura ID will be linked only to this ACCURA company and selected role.
-						</p>
+							</p>
+							<p className="mt-2">
+								Your Signatura ID identifies you. This ACCURA company and role
+								will be stored as a separate authorization under the same identity.
+							</p>
 					</div>
 				) : null}
 			</div>
@@ -1205,9 +1346,20 @@ function RegisterPasskeyForm({
 						</button>
 						<button
 							type="button"
-							onClick={cancelPendingRegistration}
+							onClick={returnToLogin}
 							className="rounded-xl border border-white/15 px-5 py-3 text-sm font-bold text-red-100 transition hover:border-red-300 hover:text-white">
-							Cancel
+							Back to login
+						</button>
+					</div>
+					<div className="mt-2 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+						<p className="text-sm leading-6 text-slate-300">
+							Don&apos;t have a Signatura ID yet, or want a new account?
+						</p>
+						<button
+							type="button"
+							onClick={startNewAccountRegistration}
+							className="mt-3 w-full rounded-xl border border-red-400/40 bg-red-500/10 px-5 py-3 text-sm font-bold text-red-100 transition hover:border-red-300 hover:bg-red-500/15">
+							Create new Signatura account
 						</button>
 					</div>
 				</form>
@@ -1378,8 +1530,18 @@ function RegisterPasskeyForm({
 										? accuraScopedIdMessage
 										: 'This Signatura ID already exists for the submitted contact details.'}
 							</p>
-							{existingReturnHref ? (
-								<button
+								{existingAccount.linkRequired ? (
+									<button
+										type="button"
+										disabled={continuingExistingAccount}
+										onClick={linkExistingIdentityToAccura}
+										className="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-red-500 px-4 py-2 text-center text-xs font-bold text-white transition hover:bg-red-400 disabled:bg-slate-700">
+										{continuingExistingAccount
+											? 'Waiting for biometric approval...'
+											: 'Link this ACCURA role'}
+									</button>
+								) : existingReturnHref ? (
+									<button
 									type="button"
 									disabled={continuingExistingAccount}
 									onClick={continueExistingAccountInAccura}
@@ -1390,20 +1552,44 @@ function RegisterPasskeyForm({
 						</div>
 					) : null}
 					{error.includes('Account already exists') ? (
-						<div className="mt-3 flex flex-col gap-2 sm:flex-row">
-							<button
-								type="button"
-								onClick={returnToLoginModal}
-								className="rounded-lg bg-red-500 px-4 py-2 text-center text-xs font-bold text-white transition hover:bg-red-400">
-								Sign in
-							</button>
-							{!isAccuraRegistration ? (
+						<div className="mt-3 space-y-3">
+							<p className="text-xs leading-5 text-red-50/80">
+								This email or phone is already linked to a Signatura account.
+								Clearing browser data does not remove your account from
+								Signatura.
+							</p>
+							<div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+								{existingAccount?.setupIncomplete ? (
+									<button
+										type="button"
+										disabled={continuingExistingAccount}
+										onClick={continueExistingAccountSetup}
+										className="rounded-lg bg-red-500 px-4 py-2 text-center text-xs font-bold text-white transition hover:bg-red-400 disabled:bg-slate-700">
+										{continuingExistingAccount
+											? 'Resuming setup...'
+											: 'Continue setup'}
+									</button>
+								) : null}
 								<Link
-									href="/login?next=/issuer"
-									className="rounded-lg border border-white/15 px-4 py-2 text-center text-xs font-bold text-white transition hover:border-red-400">
-									Sign in as issuer
+									href={existingAccountLoginHref}
+									className="rounded-lg bg-red-500 px-4 py-2 text-center text-xs font-bold text-white transition hover:bg-red-400">
+									Sign in
 								</Link>
-							) : null}
+								{existingAccountDeviceHref && !existingAccount?.setupIncomplete ? (
+									<Link
+										href={existingAccountDeviceHref}
+										className="rounded-lg border border-white/15 px-4 py-2 text-center text-xs font-bold text-white transition hover:border-red-400">
+										Register this device
+									</Link>
+								) : null}
+								{!isAccuraRegistration ? (
+									<Link
+										href="/login?next=/issuer"
+										className="rounded-lg border border-white/15 px-4 py-2 text-center text-xs font-bold text-white transition hover:border-red-400">
+										Sign in as issuer
+									</Link>
+								) : null}
+							</div>
 						</div>
 					) : null}
 				</div>

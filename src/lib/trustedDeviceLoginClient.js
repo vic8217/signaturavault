@@ -44,6 +44,15 @@ export function readStoredTrustedDeviceSignaturaId(origin) {
 	}
 }
 
+export function clearStoredTrustedDeviceSignaturaId() {
+	if (typeof window === 'undefined') return;
+	try {
+		window.localStorage.removeItem(TRUSTED_DEVICE_LOGIN_STORAGE_KEY);
+	} catch {
+		// Ignore storage failures in private mode.
+	}
+}
+
 export function shouldAutoPasskeyLoginOnOpen({
 	externalReturnUrl = '',
 	loginAccountType = 'user',

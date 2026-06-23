@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
-import { userPublicIdentity } from '@/lib/identity';
+import { userPublicIdentity, resolveAccuraLinkedSignaturaId } from '@/lib/identity';
 import {
 	buildAccuraRegistrationReturnUrl,
 	notifyAccuraRegistrationCallback,
@@ -116,6 +116,7 @@ export async function POST(req: Request) {
 			},
 			orderBy: { createdAt: 'desc' },
 		});
+		const accuraLinkedSignaturaId = resolveAccuraLinkedSignaturaId(accuraLink, user);
 		const accuraContext =
 			accuraLink?.registrationContext &&
 			typeof accuraLink.registrationContext === 'object'
@@ -178,7 +179,7 @@ export async function POST(req: Request) {
 			if (accuraLink && accuraContext) {
 				accuraReturnUrl =
 					buildAccuraRegistrationReturnUrl(String(accuraContext.returnUrl || ''), {
-						signaturaId: updatedUser.signaturaId,
+						signaturaId: accuraLinkedSignaturaId,
 						userId: updatedUser.id,
 						signaturaSubjectId: updatedUser.id,
 						companyId: String(
@@ -217,7 +218,8 @@ export async function POST(req: Request) {
 						nonce: accuraContext.nonce,
 					},
 					details: {
-						signaturaId: updatedUser.signaturaId,
+						signaturaId: accuraLinkedSignaturaId,
+						masterSignaturaId: updatedUser.signaturaId,
 						accuraReturnUrl,
 					},
 				});

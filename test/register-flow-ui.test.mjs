@@ -16,7 +16,7 @@ test('new account onboarding continues to passkey creation before trusted device
 	assert.match(createAccountBody, /setRegistrationToken\(data\.registrationToken \|\| ''\)/);
 	assert.match(createAccountBody, /accountType/);
 	assert.match(createAccountBody, /setStep\('passkey'\)/);
-	assert.doesNotMatch(createAccountBody, /returnToLoginModal\(\)/);
+	assert.doesNotMatch(createAccountBody, /returnToLogin\(\)/);
 });
 
 test('pending registration stores only session resume markers in browser storage', async () => {
@@ -258,11 +258,11 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(registerForm, /ACCURA Company Code/);
 	assert.match(registerForm, /Assigned Role/);
 	assert.match(registerForm, /Role Prefix/);
-	assert.match(registerForm, /This Signatura ID will be linked only to this ACCURA company and selected role/);
+	assert.match(registerForm, /stored as a separate authorization under the same identity/);
 	assert.match(registerForm, /accuraHandoffToken/);
 	assert.match(registerForm, /role: isAccuraRegistration \? '' : accuraRole/);
 	assert.match(registerForm, /rolePrefix: isAccuraRegistration \? '' : accuraRolePrefix/);
-	assert.match(registerRoute, /createUniqueAccuraSignaturaId/);
+	assert.match(registerRoute, /createUniqueSignaturaId/);
 	assert.match(registerRoute, /validateAccuraRegistrationContext/);
 	assert.match(registerRoute, /verifyAccuraRegistrationHandoffToken/);
 	assert.match(registerRoute, /signaturaAppLinkModel/);
@@ -272,6 +272,15 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(schema, /model SignaturaAppLink/);
 	assert.match(schema, /model AccuraRegistrationHandoff/);
 	assert.match(schema, /rolePrefix\s+String\?/);
+	assert.match(
+		schema,
+		/@@unique\(\[userId, sourceApp, companyId, rolePrefix\]\)/,
+	);
+	const appLinkSchema = schema.match(
+		/model SignaturaAppLink \{[\s\S]*?\n\}/,
+	)?.[0];
+	assert.match(appLinkSchema || '', /signaturaId\s+String\s+@map\("signatura_id"\)/);
+	assert.doesNotMatch(appLinkSchema || '', /signaturaId\s+String\s+@unique/);
 });
 
 test('ACCURA callback receives signed source and company registration status', async () => {
@@ -304,8 +313,10 @@ test('ACCURA duplicate registration displays existing Signatura ID', async () =>
 	assert.match(registerForm, /registrationStatus'.*existing/s);
 	assert.match(
 		registerForm,
-		/A personal Signatura ID already exists, but ACCURA requires a separate company-role Signatura ID/,
+		/Use this existing Signatura ID and approve biometric linking/,
 	);
+	assert.match(registerForm, /Link this ACCURA role/);
+	assert.match(registerForm, /linkExistingIdentityToAccura/);
 });
 
 test('ACCURA registration lookup is scoped by app company role and contact', async () => {
@@ -322,7 +333,58 @@ test('ACCURA registration lookup is scoped by app company role and contact', asy
 	assert.match(registerRoute, /rolePrefix/);
 	assert.match(registerRoute, /tokenId/);
 	assert.match(registerRoute, /ACCURA company-role Signatura ID already exists/);
+	assert.match(registerRoute, /linkRequired: true/);
+	assert.match(registerRoute, /createUniqueSignaturaId/);
 	assert.match(registerRoute, /createUniqueAccuraSignaturaId/);
+	assert.match(registerRoute, /masterSignaturaId/);
+});
+
+test('registration cancel and back always return to login page', async () => {
+	const source = await readFile(
+		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(source, /function returnToLogin\(\)/);
+	assert.match(source, /router\.push\(loginHref\)/);
+	assert.doesNotMatch(source, /openLogin=1/);
+	assert.doesNotMatch(source, /isStandalonePwa/);
+});
+
+test('device setup resume offers create account and login return', async () => {
+	const source = await readFile(
+		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+	const resumeSection = source.slice(
+		source.indexOf("{step === 'resume'"),
+		source.indexOf("{step === 'passkey'"),
+	);
+
+	assert.match(resumeSection, /Create new Signatura account/);
+	assert.match(resumeSection, /startNewAccountRegistration/);
+	assert.match(resumeSection, /Back to login/);
+	assert.match(source, /clearStoredTrustedDeviceSignaturaId/);
+});
+
+test('duplicate user registration returns existing Signatura ID and setup state', async () => {
+	const registerRoute = await readFile(
+		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
+		'utf8',
+	);
+	const registerForm = await readFile(
+		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(
+		registerRoute,
+		/error: 'Account already exists'[\s\S]+existingSignaturaId: existing\.signaturaId[\s\S]+setupIncomplete/,
+	);
+	assert.match(registerForm, /setupIncomplete/);
+	assert.match(registerForm, /Continue setup/);
+	assert.match(registerForm, /Clearing browser data does not remove your account/);
+	assert.match(registerForm, /Register this device/);
 });
 
 test('admin registration uses a separate admin URL', async () => {

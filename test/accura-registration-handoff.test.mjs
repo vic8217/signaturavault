@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { POST as createAccount } from '@/app/api/auth/register/account/route.ts';
@@ -179,13 +180,16 @@ test('ACCURA account registration trusts signed handoff over forged body fields 
 
 		assert.equal(response.status, 200);
 		assert.equal(body.ok, true);
-		assert.match(body.user.signaturaId, /^SIG-ACCURA-ROAD-9B2D7B-CASH-/);
+		assert.match(body.user.signaturaId, /^SIG-U-/);
 
 		const link = prisma.signaturaAppLink.__rows[0];
 		assert.equal(link.sourceApp, 'ACCURA');
 		assert.equal(link.companyId, 'company-road');
 		assert.equal(link.companyCode, 'ROAD-9B2D7B');
 		assert.equal(link.rolePrefix, 'CASH');
+		assert.match(link.signaturaId, /^SIG-ACCURA-ROAD-9B2D7B-CASH-/);
+		assert.equal(link.registrationContext.masterSignaturaId, body.user.signaturaId);
+		assert.notEqual(link.signaturaId, body.user.signaturaId);
 		assert.equal(link.registrationContext.accuraRegistrationKeyId, 'key-cadm-cash-1');
 		assert.equal(
 			link.registrationContext.returnUrl,
@@ -209,4 +213,104 @@ test('ACCURA account registration trusts signed handoff over forged body fields 
 	} finally {
 		restore();
 	}
+});
+
+test('ACCURA reuses an existing Signatura identity for an additional role', async () => {
+	resetHarness();
+	const restore = withSecret();
+	try {
+		const firstToken = issueAccuraRegistrationHandoffToken(handoffPayload());
+		const firstResponse = await createAccount(
+			request({
+				fullName: 'Ava Multi Role',
+				handphone: '+63 917 777 8888',
+				email: 'ava.multi@example.com',
+				accountType: 'user',
+				source: 'accura',
+				accuraHandoffToken: firstToken,
+			}),
+		);
+		const firstBody = await firstResponse.json();
+		assert.equal(firstResponse.status, 200);
+		assert.match(firstBody.user.signaturaId, /^SIG-U-/);
+
+		const secondToken = issueAccuraRegistrationHandoffToken(
+			handoffPayload({
+				roleCode: 'PAYR',
+				roleName: 'Payroll Clerk',
+				registrationKeyId: 'key-cadm-payroll-1',
+			}),
+		);
+		const secondResponse = await createAccount(
+			request({
+				fullName: 'Ava Multi Role',
+				handphone: '+63 917 777 8888',
+				email: 'ava.multi@example.com',
+				accountType: 'user',
+				source: 'accura',
+				accuraHandoffToken: secondToken,
+			}),
+		);
+		const secondBody = await secondResponse.json();
+
+		assert.equal(secondResponse.status, 409);
+		assert.equal(secondBody.linkRequired, true);
+		assert.equal(secondBody.existingSignaturaId, firstBody.user.signaturaId);
+		assert.equal(prisma.user.__rows.length, 1);
+		assert.equal(prisma.signaturaAppLink.__rows.length, 1);
+	} finally {
+		restore();
+	}
+});
+
+test('ACCURA SADM registration allocates SIG-ACCURA-SADM role ID linked to SIG-U master', async () => {
+	resetHarness();
+	const restore = withSecret();
+	try {
+		const token = issueAccuraRegistrationHandoffToken(
+			handoffPayload({
+				companyId: 'accura-platform',
+				companyCode: 'ACCURA',
+				companyName: 'ACCURA Platform',
+				roleCode: 'SADM',
+				roleName: 'System Admin',
+				registrationType: 'system_admin',
+				registrationKeyId: 'platform-system-admin',
+			}),
+		);
+		const response = await createAccount(
+			request({
+				fullName: 'Platform Admin',
+				handphone: '+63 917 000 1111',
+				email: 'platform.admin@example.com',
+				accountType: 'user',
+				source: 'accura',
+				accuraHandoffToken: token,
+			}),
+		);
+		const body = await response.json();
+
+		assert.equal(response.status, 200);
+		assert.match(body.user.signaturaId, /^SIG-U-/);
+		const link = prisma.signaturaAppLink.__rows[0];
+		assert.match(link.signaturaId, /^SIG-ACCURA-SADM-[0-9A-F]{6}-[0-9A-F]{4}$/);
+		assert.equal(link.registrationContext.masterSignaturaId, body.user.signaturaId);
+	} finally {
+		restore();
+	}
+});
+
+test('ACCURA role linking claims each signed handoff only once', async () => {
+	const source = await readFile(
+		new URL(
+			'../src/app/api/auth/register/accura/link/route.ts',
+			import.meta.url,
+		),
+		'utf8',
+	);
+
+	assert.match(source, /status: 'PROCESSING'/);
+	assert.match(source, /status: 'CLAIMED'/);
+	assert.match(source, /already used/);
+	assert.match(source, /status: 'COMPLETED'/);
 });

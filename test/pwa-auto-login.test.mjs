@@ -23,6 +23,7 @@ test('trusted device login client stores signatura id per origin for pwa auto-lo
 	assert.match(source, /isStandalonePwa/);
 	assert.match(source, /storeTrustedDeviceSignaturaId/);
 	assert.match(source, /readStoredTrustedDeviceSignaturaId/);
+	assert.match(source, /clearStoredTrustedDeviceSignaturaId/);
 	assert.match(source, /shouldAutoPasskeyLoginOnOpen/);
 	assert.match(source, /parsed\.origin !== resolvedOrigin/);
 });
@@ -37,5 +38,7 @@ test('login form auto-starts passkey in installed pwa when a stored id exists', 
 	assert.match(source, /readStoredTrustedDeviceSignaturaId/);
 	assert.match(source, /startLocalPasskeyLogin\(resolvedSignaturaId\)/);
 	assert.match(source, /storeTrustedDeviceSignaturaId\(activeSignaturaId\)/);
-	assert.match(source, /Opening your trusted device passkey/);
+	assert.match(source, /Opening biometric sign-in/);
+	assert.match(source, /switchAccount/);
+	assert.match(source, /requiredRolePrefix/);
 });

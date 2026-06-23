@@ -12,7 +12,11 @@ import {
 	notifyAccuraRegistrationCallback,
 	verifyAccuraRegistrationHandoffToken,
 } from '@/lib/accuraRegistrationHandoff';
-import { userPublicIdentity } from '@/lib/identity';
+import {
+	createUniqueAccuraSignaturaId,
+	resolveAccuraLinkedSignaturaId,
+	userPublicIdentity,
+} from '@/lib/identity';
 import { sourceAppLabel } from '@/lib/registrationSource';
 import {
 	assertSecureWebAuthnRequest,
@@ -38,6 +42,8 @@ function accuraRegistrationHandoffModel(client = prisma) {
 	return (
 		client as unknown as {
 			accuraRegistrationHandoff?: {
+				findFirst: (args: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
+				create: (args: Record<string, unknown>) => Promise<unknown>;
 				updateMany: (args: Record<string, unknown>) => Promise<{ count: number }>;
 			};
 		}
@@ -79,9 +85,6 @@ export async function POST(req: Request) {
 		}
 
 		const context = handoff.context;
-		if (context.mode !== 'link') {
-			return jsonError('This ACCURA request is not a link request', 409);
-		}
 		if (context.linkSignaturaId && context.linkSignaturaId !== signaturaId) {
 			return jsonError('Passkey approval does not match the requested Signatura ID', 403);
 		}
@@ -140,6 +143,18 @@ export async function POST(req: Request) {
 		}
 
 		const appLinkModel = signaturaAppLinkModel();
+		const handoffModel = accuraRegistrationHandoffModel();
+		const existingHandoff = handoffModel
+			? await handoffModel.findFirst({
+					where: { tokenId: context.jti },
+				})
+			: null;
+		if (
+			existingHandoff &&
+			!['CLAIMED'].includes(String(existingHandoff.status || '').toUpperCase())
+		) {
+			return jsonError('This ACCURA registration handoff was already used.', 409);
+		}
 		const existingLink = appLinkModel
 			? await appLinkModel.findFirst({
 					where: {
@@ -153,7 +168,52 @@ export async function POST(req: Request) {
 				})
 			: null;
 
+		const existingLinkedId = String(existingLink?.signaturaId || '').trim().toUpperCase();
+		const accuraRoleSignaturaId = existingLinkedId.startsWith('SIG-ACCURA-')
+			? existingLinkedId
+			: await createUniqueAccuraSignaturaId(
+					prisma,
+					context.companyCode,
+					context.roleCode,
+				);
+
 		await prisma.$transaction(async (tx) => {
+			const transactionHandoffModel = accuraRegistrationHandoffModel(tx);
+			if (transactionHandoffModel) {
+				if (existingHandoff) {
+					const claimed = await transactionHandoffModel.updateMany({
+						where: {
+							tokenId: context.jti,
+							status: 'CLAIMED',
+						},
+						data: { status: 'PROCESSING' },
+					});
+					if (claimed.count !== 1) {
+						const error = new Error(
+							'This ACCURA registration handoff was already used.',
+						);
+						(error as Error & { status?: number }).status = 409;
+						throw error;
+					}
+				} else {
+					await transactionHandoffModel.create({
+						data: {
+							id: crypto.randomUUID(),
+							tokenId: context.jti,
+							registrationKeyId: context.registrationKeyId,
+							companyId: context.companyId,
+							companyCode: context.companyCode,
+							roleCode: context.roleCode,
+							returnUrl: context.returnUrl,
+							status: 'PROCESSING',
+							userId: user.id,
+							signaturaId: accuraRoleSignaturaId,
+							expiresAt: new Date(context.expiresAt),
+						},
+					});
+				}
+			}
+
 			await tx.authChallenge.update({
 				where: { id: challenge.id },
 				data: { usedAt: new Date() },
@@ -180,12 +240,14 @@ export async function POST(req: Request) {
 				state: context.state,
 				nonce: context.nonce,
 				linkedAt: new Date().toISOString(),
+				masterSignaturaId: user.signaturaId,
 			};
 
 			if (existingLink && linkModel) {
 				await linkModel.update({
 					where: { id: existingLink.id },
 					data: {
+						signaturaId: accuraRoleSignaturaId,
 						registrationContext,
 						trustedDeviceStatus: 'TRUSTED',
 					},
@@ -195,7 +257,7 @@ export async function POST(req: Request) {
 					data: {
 						id: crypto.randomUUID(),
 						userId: user.id,
-						signaturaId: user.signaturaId,
+						signaturaId: accuraRoleSignaturaId,
 						sourceApp: sourceAppLabel('accura'),
 						companyCode: context.companyCode,
 						companyName: context.companyName,
@@ -210,22 +272,23 @@ export async function POST(req: Request) {
 				});
 			}
 
-			await accuraRegistrationHandoffModel(tx)?.updateMany({
+			await transactionHandoffModel?.updateMany({
 				where: {
 					tokenId: context.jti,
+					status: 'PROCESSING',
 				},
 				data: {
 					status: 'COMPLETED',
 					completedAt: new Date(),
 					userId: user.id,
-					signaturaId: user.signaturaId,
+					signaturaId: accuraRoleSignaturaId,
 				},
 			});
 		});
 
 		const accuraReturnUrl =
 			buildAccuraRegistrationReturnUrl(context.returnUrl, {
-				signaturaId: user.signaturaId,
+				signaturaId: accuraRoleSignaturaId,
 				userId: user.id,
 				signaturaSubjectId: user.id,
 				companyId: context.companyId,
@@ -244,14 +307,21 @@ export async function POST(req: Request) {
 			action: ACCURA_ONBOARDING_ACTIONS.ID_LINKED,
 			userId: user.id,
 			context,
-			details: { signaturaId: user.signaturaId },
+			details: {
+				signaturaId: accuraRoleSignaturaId,
+				masterSignaturaId: user.signaturaId,
+			},
 		});
 		await auditAccuraOnboardingEvent({
 			req,
 			action: ACCURA_ONBOARDING_ACTIONS.REDIRECT_ISSUED,
 			userId: user.id,
 			context,
-			details: { signaturaId: user.signaturaId, accuraReturnUrl },
+			details: {
+				signaturaId: accuraRoleSignaturaId,
+				masterSignaturaId: user.signaturaId,
+				accuraReturnUrl,
+			},
 		});
 		await logSecurityEvent(req, 'accura_signatura_id_linked', user.id, {
 			companyCode: context.companyCode,
