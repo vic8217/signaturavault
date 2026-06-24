@@ -79,6 +79,10 @@ export async function GET(req) {
 				signaturaId: challenge.signaturaId,
 				status: challenge.status,
 				expiresAt: challenge.expiresAt,
+				sourceApp: challenge.sourceApp,
+				clientId: challenge.clientId,
+				requesterOrigin: challenge.requesterOrigin,
+				browserUserAgent: challenge.browserUserAgent,
 			},
 			options,
 		});

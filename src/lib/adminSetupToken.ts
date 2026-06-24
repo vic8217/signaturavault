@@ -35,6 +35,11 @@ function adminSetupTokenModel(client = prisma) {
 					where: { tokenHash: string };
 					include?: Record<string, unknown>;
 				}) => Promise<AdminSetupTokenRecord | null>;
+				findFirst: (args: {
+					where: Record<string, unknown>;
+					include?: Record<string, unknown>;
+					orderBy?: Record<string, unknown>;
+				}) => Promise<AdminSetupTokenRecord | null>;
 				update: (args: {
 					where: { id: string };
 					data: Record<string, unknown>;

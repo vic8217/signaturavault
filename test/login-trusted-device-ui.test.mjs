@@ -81,9 +81,21 @@ test('login offers direct biometric sign-in before QR fallback', async () => {
 	assert.doesNotMatch(source, /Sign in with passkey on this device \(secondary\)/);
 });
 
-test('admin login requires local passkey and does not offer QR fallback', async () => {
+test('admin login keeps local biometric fallback and offers Signatura QR approval', async () => {
 	const loginForm = await readFile(
 		new URL('../src/components/LoginPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+	const remoteStartRoute = await readFile(
+		new URL('../src/app/api/auth/login/remote/start/route.js', import.meta.url),
+		'utf8',
+	);
+	const remoteLookupRoute = await readFile(
+		new URL('../src/app/api/auth/login/remote/lookup/route.js', import.meta.url),
+		'utf8',
+	);
+	const approveForm = await readFile(
+		new URL('../src/components/LoginRemoteApproveForm.js', import.meta.url),
 		'utf8',
 	);
 	const startRoute = await readFile(
@@ -99,9 +111,10 @@ test('admin login requires local passkey and does not offer QR fallback', async 
 		'utf8',
 	);
 
-	assert.match(loginForm, /const requiresLocalPasskey = loginAccountType === 'admin'/);
+	assert.match(loginForm, /Sign in with Signatura QR/);
+	assert.match(loginForm, /Use your Signatura app or PWA wallet/);
+	assert.match(loginForm, /sourceApp: 'SIGNATURA_ADMIN'/);
 	assert.match(loginForm, /next: nextPath/);
-	assert.match(loginForm, /!requiresLocalPasskey/);
 	assert.match(startRoute, /requireLocalPlatformCredential = isAdminPath\(nextPath\)/);
 	assert.match(startRoute, /transports\.includes\('internal'\)/);
 	assert.match(startRoute, /!transports\.includes\('hybrid'\)/);
@@ -115,4 +128,12 @@ test('admin login requires local passkey and does not offer QR fallback', async 
 	assert.match(registerFinishRoute, /credentialDeviceType === 'singleDevice'/);
 	assert.match(registerFinishRoute, /credentialBackedUp === false/);
 	assert.match(registerFinishRoute, /Phone QR, synced, or backed-up passkeys are not allowed/);
+	assert.match(remoteStartRoute, /SIGNATURA_ADMIN/);
+	assert.match(remoteStartRoute, /This Signatura ID is not provisioned for admin access/);
+	assert.match(remoteStartRoute, /accountStatus !== 'active'/);
+	assert.match(remoteStartRoute, /trustLevel < 2/);
+	assert.match(remoteLookupRoute, /browserUserAgent/);
+	assert.match(approveForm, /Approve Admin Sign-in/);
+	assert.match(approveForm, /Signatura Admin Portal/);
+	assert.match(approveForm, /Admin sign-in approved\. You may return to your desktop\./);
 });

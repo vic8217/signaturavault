@@ -125,6 +125,7 @@ function writePendingRegistration({
 }
 
 function AdminSetupQrPanel({ userId, registrationSessionId, signaturaId }) {
+	const router = useRouter();
 	const [qrUrl, setQrUrl] = useState('');
 	const [qrImage, setQrImage] = useState('');
 	const [expiresAt, setExpiresAt] = useState('');
@@ -143,6 +144,52 @@ function AdminSetupQrPanel({ userId, registrationSessionId, signaturaId }) {
 		}, 1000);
 		return () => window.clearInterval(timer);
 	}, [expiresAt]);
+
+	useEffect(() => {
+		if (!qrUrl || !userId || !registrationSessionId) return;
+		let cancelled = false;
+
+		function tokenFromQrUrl() {
+			try {
+				return new URL(qrUrl).searchParams.get('token') || '';
+			} catch {
+				return '';
+			}
+		}
+
+		async function pollSetupStatus() {
+			const token = tokenFromQrUrl();
+			if (!token) return;
+			try {
+				const response = await fetch('/api/admin/setup-token/status', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ token, userId, registrationSessionId }),
+				});
+				const data = await response.json().catch(() => ({}));
+				if (cancelled) return;
+
+				if (response.ok && data.next) {
+					setStatus('Admin passkey created on your phone. Opening admin dashboard...');
+					router.replace(data.next || '/admin');
+					return;
+				}
+				if (response.ok && data.status === 'EXPIRED') {
+					setError(data.message || 'This setup QR has expired.');
+					setStatus('');
+				}
+			} catch {
+				// Keep the QR usable even if one poll fails.
+			}
+		}
+
+		const timer = window.setInterval(pollSetupStatus, 2500);
+		pollSetupStatus();
+		return () => {
+			cancelled = true;
+			window.clearInterval(timer);
+		};
+	}, [qrUrl, registrationSessionId, router, userId]);
 
 	async function generateSetupQr() {
 		setIsLoading(true);

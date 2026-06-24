@@ -95,6 +95,13 @@ function LoginPasskeyForm({
 						requesterOrigin:
 							typeof window !== 'undefined' ? window.location.origin : '',
 					}
+				: loginAccountType === 'admin'
+					? {
+							clientId: 'signatura_admin',
+							sourceApp: 'SIGNATURA_ADMIN',
+							requesterOrigin:
+								typeof window !== 'undefined' ? window.location.origin : '',
+						}
 				: {};
 	const registrationContextQuery =
 		registrationSource === 'accura'
@@ -127,8 +134,6 @@ function LoginPasskeyForm({
 		error === UNREGISTERED_PASSKEY_ERROR ||
 		error === PASSKEY_DOMAIN_MISMATCH_ERROR ||
 		canRegisterDevice;
-	const requiresLocalPasskey = loginAccountType === 'admin';
-
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
 		const signaturaIdFromUrl =
@@ -397,19 +402,25 @@ function LoginPasskeyForm({
 									aria-hidden="true"
 								/>
 							</button>
-								{requiresLocalPasskey ? null : (
-									<button
-										type="button"
-										onClick={() => {
-											setError('');
-											setStatus('');
-											setStep('qr');
-										}}
-										disabled={!normalizedSignaturaId}
-										className="rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white disabled:cursor-not-allowed disabled:border-white/5 disabled:text-slate-600">
-										Use another trusted device (QR)
-									</button>
-								)}
+							<button
+								type="button"
+								onClick={() => {
+									setError('');
+									setStatus('');
+									setStep('qr');
+								}}
+								disabled={!normalizedSignaturaId}
+								className="rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white disabled:cursor-not-allowed disabled:border-white/5 disabled:text-slate-600">
+								{loginAccountType === 'admin'
+									? 'Sign in with Signatura QR'
+									: 'Use another trusted device (QR)'}
+							</button>
+							{loginAccountType === 'admin' ? (
+								<p className="text-sm leading-6 text-slate-400">
+									Use your Signatura app or PWA wallet to scan and approve this
+									admin sign-in.
+								</p>
+							) : null}
 
 							<div className="flex items-center gap-6 py-4 text-sm font-semibold text-slate-400">
 								<span className="h-px flex-1 bg-white/10" />
@@ -462,22 +473,28 @@ function LoginPasskeyForm({
 								<Fingerprint className="h-6 w-6" aria-hidden="true" />
 								{isSubmitting ? 'Opening biometrics...' : 'Try biometric sign-in again'}
 							</button>
-								{requiresLocalPasskey ? null : (
-									<button
-										type="button"
-										onClick={() => {
-											setError('');
-											setStatus('');
-											setStep('qr');
-										}}
-										className="rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white">
-										Use another trusted device (QR)
-									</button>
-								)}
+							<button
+								type="button"
+								onClick={() => {
+									setError('');
+									setStatus('');
+									setStep('qr');
+								}}
+								className="rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white">
+								{loginAccountType === 'admin'
+									? 'Sign in with Signatura QR'
+									: 'Use another trusted device (QR)'}
+							</button>
+							{loginAccountType === 'admin' ? (
+								<p className="text-sm leading-6 text-slate-400">
+									Use your Signatura app or PWA wallet to scan and approve this
+									admin sign-in.
+								</p>
+							) : null}
 							</div>
 						) : null}
 
-						{step === 'qr' && normalizedSignaturaId && !requiresLocalPasskey ? (
+						{step === 'qr' && normalizedSignaturaId ? (
 						<div className="mt-8">
 							<div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 								<div>
@@ -487,7 +504,9 @@ function LoginPasskeyForm({
 									<p className="mt-2 text-sm leading-6 text-slate-300">
 										{externalReturnUrl
 											? 'Approve this ACCURA login on a trusted Signatura phone. ACCURA will not accept passkey-only sign-in for this return flow.'
-											: 'Scan and approve on a device already registered for'}{' '}
+											: loginAccountType === 'admin'
+												? 'Use your Signatura app or PWA wallet to scan and approve this admin sign-in for'
+												: 'Scan and approve on a device already registered for'}{' '}
 										<span className="font-mono text-white">
 											{normalizedSignaturaId}
 										</span>

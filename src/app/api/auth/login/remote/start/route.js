@@ -5,7 +5,11 @@ import {
 	rateLimitKey,
 	rateLimitResponse,
 } from '@/lib/auth/rateLimit';
-import { normalizeSignaturaId } from '@/lib/identity';
+import {
+	SIGNATURA_ACCOUNT_TYPES,
+	getSignaturaAccountType,
+	normalizeSignaturaId,
+} from '@/lib/identity';
 import { prisma } from '@/lib/prisma';
 import { normalizeLoginNextPath } from '@/lib/portalRoutes';
 import {
@@ -17,7 +21,12 @@ import {
 } from '@/lib/publicOrigin';
 import { getOrigin, getUserAgent } from '@/lib/webauthn';
 
-const KNOWN_SOURCE_APPS = new Set(['ACCURA', 'HAVEN', 'SIGNATURA']);
+const KNOWN_SOURCE_APPS = new Set([
+	'ACCURA',
+	'HAVEN',
+	'SIGNATURA',
+	'SIGNATURA_ADMIN',
+]);
 
 function normalizeOptionalText(value) {
 	const normalized = String(value || '').trim();
@@ -58,6 +67,8 @@ export async function POST(req) {
 			select: {
 				id: true,
 				signaturaId: true,
+				accountStatus: true,
+				trustLevel: true,
 				trustedDevices: {
 					where: {
 						isTrusted: true,
@@ -77,6 +88,15 @@ export async function POST(req) {
 			});
 			return jsonError('Signatura ID not found', 404);
 		}
+		const isAdminLogin = nextPath === '/admin' || nextPath.startsWith('/admin/');
+		if (
+			isAdminLogin &&
+			(getSignaturaAccountType(user.signaturaId) !== SIGNATURA_ACCOUNT_TYPES.ADMIN ||
+				user.accountStatus !== 'active' ||
+				user.trustLevel < 2)
+		) {
+			return jsonError('This Signatura ID is not provisioned for admin access.', 403);
+		}
 		if (user.trustedDevices.length === 0) {
 			return jsonError(
 				'No trusted device is registered for this Signatura ID. Register a trusted device first.',
@@ -89,7 +109,9 @@ export async function POST(req) {
 			nextPath,
 			browserUserAgent: getUserAgent(req),
 			clientId: normalizeOptionalText(body.clientId),
-			sourceApp: normalizeSourceApp(body.sourceApp || body.source),
+			sourceApp: isAdminLogin
+				? 'SIGNATURA_ADMIN'
+				: normalizeSourceApp(body.sourceApp || body.source),
 			requesterOrigin: normalizeOptionalText(body.requesterOrigin) || getOrigin(req),
 			requestedAssuranceLevel: normalizeAssuranceLevel(
 				body.requestedAssuranceLevel,

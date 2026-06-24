@@ -21,6 +21,21 @@ function formatExpiry(value) {
 	}
 }
 
+function appLabelForChallenge(challenge) {
+	if (challenge?.sourceApp === 'SIGNATURA_ADMIN') return 'Signatura Admin Portal';
+	if (challenge?.sourceApp === 'ACCURA') return 'ACCURA';
+	if (challenge?.sourceApp === 'HAVEN') return 'HAVEN';
+	return 'Signatura';
+}
+
+function formatCountdown(expiresAt) {
+	if (!expiresAt) return '';
+	const remaining = Math.max(0, new Date(expiresAt).getTime() - Date.now());
+	const minutes = Math.floor(remaining / 60000);
+	const seconds = Math.floor((remaining % 60000) / 1000);
+	return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 export function LoginRemoteApproveForm({
 	challengeId,
 	shortCode,
@@ -34,6 +49,7 @@ export function LoginRemoteApproveForm({
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [approved, setApproved] = useState(false);
 	const [approvalOptions, setApprovalOptions] = useState(null);
+	const [countdown, setCountdown] = useState('');
 	const normalizedCode = useMemo(
 		() => String(shortCode || '').trim().toUpperCase(),
 		[shortCode],
@@ -75,6 +91,15 @@ export function LoginRemoteApproveForm({
 		};
 	}, [challengeId, normalizedCode]);
 
+	useEffect(() => {
+		if (!challenge?.expiresAt) return;
+		setCountdown(formatCountdown(challenge.expiresAt));
+		const timer = window.setInterval(() => {
+			setCountdown(formatCountdown(challenge.expiresAt));
+		}, 1000);
+		return () => window.clearInterval(timer);
+	}, [challenge?.expiresAt]);
+
 	async function approveLogin() {
 		if (!challenge) return;
 		setIsSubmitting(true);
@@ -110,7 +135,9 @@ export function LoginRemoteApproveForm({
 
 			setApproved(true);
 			setStatus(
-				'Browser sign-in approved. You can return to the other device; it should sign in automatically.',
+				challenge?.sourceApp === 'SIGNATURA_ADMIN'
+					? 'Admin sign-in approved. You may return to your desktop.'
+					: 'Browser sign-in approved. You can return to the other device; it should sign in automatically.',
 			);
 		} catch (approveError) {
 			setError(
@@ -166,12 +193,19 @@ export function LoginRemoteApproveForm({
 	return (
 		<section className="mx-auto w-full max-w-3xl rounded-2xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl">
 			<p className="text-sm font-bold uppercase tracking-[0.18em] text-red-300">
-				Trusted device login
+				{challenge?.sourceApp === 'SIGNATURA_ADMIN'
+					? 'Admin QR sign-in'
+					: 'Trusted device login'}
 			</p>
-			<h1 className="mt-2 text-3xl font-black">Approve browser sign-in</h1>
+			<h1 className="mt-2 text-3xl font-black">
+				{challenge?.sourceApp === 'SIGNATURA_ADMIN'
+					? 'Approve Admin Sign-in'
+					: 'Approve browser sign-in'}
+			</h1>
 			<p className="mt-3 text-sm leading-6 text-slate-300">
-				Another browser is requesting access to Signatura. Verify with your passkey
-				on this trusted device to approve the session.
+				{challenge?.sourceApp === 'SIGNATURA_ADMIN'
+					? 'Signatura Admin Portal is requesting access. Verify with your passkey on this trusted device to approve the desktop session.'
+					: 'Another browser is requesting access to Signatura. Verify with your passkey on this trusted device to approve the session.'}
 			</p>
 			{expectedSignaturaId ? (
 				<p className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-50">
@@ -182,16 +216,29 @@ export function LoginRemoteApproveForm({
 
 			<div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
 				<p>
+					<span className="font-semibold text-white">App:</span>{' '}
+					{appLabelForChallenge(challenge)}
+				</p>
+				<p>
 					<span className="font-semibold text-white">Signatura ID:</span>{' '}
 					{challenge?.signaturaId}
 				</p>
+				{challenge?.browserUserAgent ? (
+					<p className="mt-2">
+						<span className="font-semibold text-white">Browser/device:</span>{' '}
+						<span className="break-words text-slate-300">
+							{challenge.browserUserAgent}
+						</span>
+					</p>
+				) : null}
 				<p className="mt-2">
 					<span className="font-semibold text-white">Short code:</span>{' '}
 					<span className="font-mono tracking-[0.25em]">{normalizedCode}</span>
 				</p>
 				{challenge?.expiresAt ? (
 					<p className="mt-2 text-xs text-slate-400">
-						Challenge expires at {formatExpiry(challenge.expiresAt)}.
+						Challenge expires in {countdown || 'soon'} at{' '}
+						{formatExpiry(challenge.expiresAt)}.
 					</p>
 				) : null}
 			</div>
@@ -206,7 +253,11 @@ export function LoginRemoteApproveForm({
 					onClick={approveLogin}
 					disabled={isSubmitting || !challenge}
 					className="mt-6 w-full rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
-					{isSubmitting ? 'Approving...' : 'Approve with passkey'}
+					{isSubmitting
+						? 'Approving...'
+						: challenge?.sourceApp === 'SIGNATURA_ADMIN'
+							? 'Approve Admin Sign-in'
+							: 'Approve with passkey'}
 				</button>
 			)}
 

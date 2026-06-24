@@ -195,6 +195,10 @@ export async function lookupTrustedDeviceLoginChallenge({
 		signaturaId: user.signaturaId,
 		status: challenge.status,
 		expiresAt: challenge.expiresAt,
+		sourceApp: challenge.sourceApp || null,
+		clientId: challenge.clientId || null,
+		requesterOrigin: challenge.requesterOrigin || null,
+		browserUserAgent: challenge.browserUserAgent || null,
 	};
 }
 
@@ -243,6 +247,10 @@ export async function getTrustedDeviceLoginApprovalMaterial({
 		signaturaId: user.signaturaId,
 		status: challenge.status,
 		expiresAt: challenge.expiresAt,
+		sourceApp: challenge.sourceApp || null,
+		clientId: challenge.clientId || null,
+		requesterOrigin: challenge.requesterOrigin || null,
+		browserUserAgent: challenge.browserUserAgent || null,
 		approvalChallenge: buildQrLoginApprovalChallenge(challenge),
 	};
 }

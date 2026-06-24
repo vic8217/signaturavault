@@ -36,6 +36,7 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 	const [installPrompt, setInstallPrompt] = useState(null);
 	const [standalone, setStandalone] = useState(false);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [redirectTarget, setRedirectTarget] = useState('/admin');
 
 	const canInstall = Boolean(installPrompt && !standalone);
 	const tokenMissing = !String(token || '').trim();
@@ -170,10 +171,11 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 			}
 
 			setState('success');
-			setStatus('Admin access is ready.');
+			setRedirectTarget(finishData.next || '/admin');
+			setStatus('Admin access is ready. Opening the admin dashboard...');
 			window.setTimeout(() => {
 				router.replace(finishData.next || '/admin');
-			}, 900);
+			}, 2500);
 		} catch (setupError) {
 			setError(
 				setupError instanceof Error
@@ -214,7 +216,21 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 						</dl>
 					</div>
 
-					{standalone ? null : (
+					{state === 'success' ? (
+						<div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-4">
+							<p className="text-sm font-semibold text-emerald-100">
+								Passkey registration completed successfully.
+							</p>
+							<p className="mt-2 text-sm leading-6 text-emerald-50/85">
+								This setup flow is complete. You will be redirected shortly.
+							</p>
+							<Link
+								href={redirectTarget}
+								className="mt-3 inline-flex rounded-lg border border-emerald-200/40 px-4 py-2 text-sm font-bold text-emerald-50">
+								Open admin dashboard
+							</Link>
+						</div>
+					) : standalone ? null : (
 						<div className="rounded-lg border border-red-300/25 bg-red-500/10 p-4">
 							<p className="text-sm font-semibold text-red-100">
 								Install Signatura for the best wallet experience.
@@ -234,23 +250,27 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 						</div>
 					)}
 
-					<label className="grid gap-2 text-sm font-semibold text-slate-200">
-						Device name
-						<input
-							value={deviceName}
-							onChange={(event) => setDeviceName(event.target.value)}
-							className="rounded-lg border border-white/10 bg-white px-4 py-3 text-slate-950 outline-none ring-red-400/40 focus:ring-4"
-							placeholder="Admin phone"
-						/>
-					</label>
+					{state === 'success' ? null : (
+						<>
+							<label className="grid gap-2 text-sm font-semibold text-slate-200">
+								Device name
+								<input
+									value={deviceName}
+									onChange={(event) => setDeviceName(event.target.value)}
+									className="rounded-lg border border-white/10 bg-white px-4 py-3 text-slate-950 outline-none ring-red-400/40 focus:ring-4"
+									placeholder="Admin phone"
+								/>
+							</label>
 
-					<button
-						type="button"
-						onClick={createPasskey}
-						disabled={isSubmitting || state === 'success'}
-						className="w-full rounded-lg bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-60">
-						{isSubmitting ? 'Creating passkey...' : 'Create Admin Passkey'}
-					</button>
+							<button
+								type="button"
+								onClick={createPasskey}
+								disabled={isSubmitting}
+								className="w-full rounded-lg bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-60">
+								{isSubmitting ? 'Creating passkey...' : 'Create Admin Passkey'}
+							</button>
+						</>
+					)}
 				</div>
 			) : null}
 

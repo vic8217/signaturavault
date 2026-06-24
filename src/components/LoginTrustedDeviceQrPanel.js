@@ -39,6 +39,7 @@ export function LoginTrustedDeviceQrPanel({
 	const [canRegisterDevice, setCanRegisterDevice] = useState(false);
 	const pollTimerRef = useRef(null);
 	const normalizedSignaturaId = String(signaturaId || '').trim().toUpperCase();
+	const isAdminLogin = nextPath === '/admin' || nextPath.startsWith('/admin/');
 
 	useEffect(() => {
 		return () => {
@@ -55,7 +56,7 @@ export function LoginTrustedDeviceQrPanel({
 		});
 	}
 
-	function resetChallenge() {
+	function resetChallenge({ clearError = true } = {}) {
 		if (pollTimerRef.current) {
 			clearInterval(pollTimerRef.current);
 			pollTimerRef.current = null;
@@ -64,7 +65,7 @@ export function LoginTrustedDeviceQrPanel({
 		setBrowserSecret('');
 		setQrDataUrl('');
 		setPollStatus('');
-		setError('');
+		if (clearError) setError('');
 		setCanRegisterDevice(false);
 	}
 
@@ -155,9 +156,9 @@ export function LoginTrustedDeviceQrPanel({
 			}
 			setSubmitting(false);
 			if (body.status === 'EXPIRED') {
-				setError('Trusted device login expired. Start again.');
+				setError('QR expired. Generate a new QR.');
 			}
-			resetChallenge();
+			resetChallenge({ clearError: false });
 			return true;
 		}
 		return false;
@@ -239,11 +240,12 @@ export function LoginTrustedDeviceQrPanel({
 	return (
 		<div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
 			<p className="text-sm font-bold uppercase tracking-[0.18em] text-red-300">
-				Approve with trusted device (QR)
+				{isAdminLogin ? 'Sign in with Signatura QR' : 'Approve with trusted device (QR)'}
 			</p>
 			<p className="mt-3 text-sm leading-6 text-slate-300">
-				Scan this QR code with your phone. It opens Signatura first; if the PWA
-				is not installed, install it, then continue to trusted-device approval.
+				{isAdminLogin
+					? 'Use your Signatura app or PWA wallet to scan and approve this admin sign-in.'
+					: 'Scan this QR code with your phone. It opens Signatura first; if the PWA is not installed, install it, then continue to trusted-device approval.'}
 			</p>
 
 			{challenge ? (
@@ -275,8 +277,7 @@ export function LoginTrustedDeviceQrPanel({
 							</Link>
 							. The phone must be signed in as{' '}
 							<span className="font-mono text-white">{signaturaId}</span> before
-							approving. Generic QR scanners on unregistered phones cannot approve
-							this login.
+							approving. This QR does not create a new account.
 						</p>
 						<p className="text-xs text-slate-400">
 							Status:{' '}
@@ -300,6 +301,14 @@ export function LoginTrustedDeviceQrPanel({
 			{error ? (
 				<div className="mt-4 rounded-xl border border-red-400/30 bg-red-500/10 p-4">
 					<p className="text-sm leading-6 text-red-50">{error}</p>
+					{error === 'QR expired. Generate a new QR.' ? (
+						<button
+							type="button"
+							onClick={startRemoteLogin}
+							className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400">
+							Generate new QR
+						</button>
+					) : null}
 					{error === NO_TRUSTED_DEVICE_MESSAGE ? (
 						<Link
 							href={registerDeviceHref}
