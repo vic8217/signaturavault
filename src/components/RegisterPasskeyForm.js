@@ -124,6 +124,155 @@ function writePendingRegistration({
 	);
 }
 
+function AdminSetupQrPanel({ userId, registrationSessionId, signaturaId }) {
+	const [qrUrl, setQrUrl] = useState('');
+	const [qrImage, setQrImage] = useState('');
+	const [expiresAt, setExpiresAt] = useState('');
+	const [countdown, setCountdown] = useState('');
+	const [status, setStatus] = useState('');
+	const [error, setError] = useState('');
+	const [isLoading, setIsLoading] = useState(false);
+
+	useEffect(() => {
+		if (!expiresAt) return;
+		const timer = window.setInterval(() => {
+			const remaining = Math.max(0, new Date(expiresAt).getTime() - Date.now());
+			const minutes = Math.floor(remaining / 60000);
+			const seconds = Math.floor((remaining % 60000) / 1000);
+			setCountdown(`${minutes}:${String(seconds).padStart(2, '0')}`);
+		}, 1000);
+		return () => window.clearInterval(timer);
+	}, [expiresAt]);
+
+	async function generateSetupQr() {
+		setIsLoading(true);
+		setError('');
+		setStatus('Generating one-time admin setup QR...');
+		try {
+			const response = await fetch('/api/admin/setup-token/create', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ userId, registrationSessionId }),
+			});
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) {
+				throw new Error(data.error || 'Unable to create admin setup QR.');
+			}
+			const { default: QRCode } = await import('qrcode');
+			const image = await QRCode.toDataURL(data.qrPayload || data.setupUrl, {
+				errorCorrectionLevel: 'M',
+				margin: 1,
+				width: 260,
+				color: {
+					dark: '#020617',
+					light: '#ffffff',
+				},
+			});
+			setQrUrl(data.setupUrl || data.qrPayload || '');
+			setQrImage(image);
+			setExpiresAt(data.expiresAt || '');
+			setStatus('Scan with your phone camera to set up your Signatura admin passkey.');
+		} catch (setupQrError) {
+			setError(
+				setupQrError instanceof Error
+					? setupQrError.message
+					: 'Unable to create admin setup QR.',
+			);
+			setStatus('');
+		} finally {
+			setIsLoading(false);
+		}
+	}
+
+	async function copySetupLink() {
+		if (!qrUrl) return;
+		await window.navigator.clipboard?.writeText(qrUrl);
+		setStatus('Setup link copied. Open it on the phone that will hold the admin passkey.');
+	}
+
+	return (
+		<div className="mt-6 rounded-lg border border-red-300/30 bg-red-500/10 p-5">
+			<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+				<div>
+					<p className="text-sm font-bold uppercase tracking-[0.18em] text-red-200">
+						Phone setup QR
+					</p>
+					<h2 className="mt-2 text-xl font-bold text-white">
+						Set up admin passkey on your phone
+					</h2>
+					<p className="mt-2 text-sm leading-6 text-red-50/85">
+						Scan with your phone camera to set up your Signatura admin passkey.
+						The link opens Signatura directly; no second QR scan is required.
+					</p>
+				</div>
+				{expiresAt ? (
+					<div className="rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-right">
+						<p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+							Expires
+						</p>
+						<p className="font-mono text-lg font-bold text-white">
+							{countdown || '10:00'}
+						</p>
+					</div>
+				) : null}
+			</div>
+
+			<div className="mt-5 grid gap-4 sm:grid-cols-[auto,1fr]">
+				<div className="flex h-[280px] w-full items-center justify-center rounded-lg border border-white/10 bg-white p-3 sm:w-[280px]">
+					{qrImage ? (
+						<img
+							src={qrImage}
+							alt={`One-time setup QR for ${signaturaId}`}
+							className="h-full w-full object-contain"
+						/>
+					) : (
+						<p className="px-4 text-center text-sm font-semibold text-slate-600">
+							Generate a one-time QR after creating the admin Signatura ID.
+						</p>
+					)}
+				</div>
+				<div className="flex flex-col justify-between gap-4">
+					<div className="rounded-lg border border-white/10 bg-slate-950/60 p-4">
+						<dl className="grid gap-2 text-sm">
+							<div className="flex justify-between gap-4">
+								<dt className="text-slate-300">Admin Signatura ID</dt>
+								<dd className="font-mono text-white">{signaturaId}</dd>
+							</div>
+							<div className="flex justify-between gap-4">
+								<dt className="text-slate-300">Token</dt>
+								<dd className="font-semibold text-white">Single use</dd>
+							</div>
+						</dl>
+					</div>
+					<div className="grid gap-3">
+						<button
+							type="button"
+							onClick={generateSetupQr}
+							disabled={isLoading}
+							className="rounded-lg bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-60">
+							{qrImage ? 'Regenerate QR' : 'Generate QR'}
+						</button>
+						<button
+							type="button"
+							onClick={copySetupLink}
+							disabled={!qrUrl}
+							className="rounded-lg border border-white/15 px-5 py-3 text-sm font-bold text-red-100 transition hover:border-red-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+							Copy setup link
+						</button>
+					</div>
+				</div>
+			</div>
+
+			{status ? <p className="mt-4 text-sm text-red-50">{status}</p> : null}
+			{error ? (
+				<div className="mt-4 rounded-lg border border-red-500/50 bg-slate-950/70 p-4 text-sm text-red-50">
+					{error}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
 function clearPendingRegistration() {
 	if (typeof window === 'undefined') return;
 	window.localStorage.removeItem(REGISTRATION_STORAGE_KEY);
@@ -1395,6 +1544,15 @@ function RegisterPasskeyForm({
 			{step === 'passkey' ? (
 				<div className="mt-6">
 					<PasskeyNotice />
+					{accountType === 'admin' &&
+					createdAccount?.id &&
+					registrationSessionId ? (
+						<AdminSetupQrPanel
+							userId={createdAccount.id}
+							registrationSessionId={registrationSessionId}
+							signaturaId={createdAccount.signaturaId}
+						/>
+					) : null}
 					<form onSubmit={createPasskey} className="mt-6 grid gap-4">
 						<p className="text-sm leading-6 text-slate-300">
 							Create a passkey on this device. You will confirm trusted device

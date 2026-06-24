@@ -43,16 +43,20 @@ test('homepage shows mobile install alert and installed app starts at login', as
 });
 
 test('QR login app gate preserves challenge and falls back to logged-out scanner', async () => {
-	const [pageSource, gateSource] = await Promise.all([
+	const [pageSource, gateSource, scanPageSource] = await Promise.all([
 		readFile(new URL('../src/app/app/qr-login/page.js', import.meta.url), 'utf8'),
 		readFile(new URL('../src/components/PwaQrLoginGate.js', import.meta.url), 'utf8'),
+		readFile(new URL('../src/app/app/scan/page.js', import.meta.url), 'utf8'),
 	]);
 
 	assert.match(pageSource, /buildRemoteApprovePath/);
-	assert.match(pageSource, /scannerPath = '\/login\/remote-approve\/scan'/);
+	assert.match(pageSource, /scannerPath = '\/app\/scan'/);
 	assert.match(pageSource, /challengeId && shortCode/);
 	assert.match(gateSource, /display-mode: standalone/);
 	assert.match(gateSource, /beforeinstallprompt/);
 	assert.match(gateSource, /window\.location\.replace\(targetPath\)/);
 	assert.match(gateSource, /The QR can be read by any camera/);
+	assert.match(scanPageSource, /QrCodeScanner/);
+	assert.match(scanPageSource, /Available even when signed out/);
+	assert.doesNotMatch(scanPageSource, /requireSession/);
 });

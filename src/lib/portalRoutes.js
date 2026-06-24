@@ -22,7 +22,8 @@ function evaluatePortalAccess({
 		pathname === '/issuer/onboarding' ||
 		pathname === '/signatura/register' ||
 		pathname === '/admin/login' ||
-		pathname === '/admin/register'
+		pathname === '/admin/register' ||
+		pathname === '/admin/setup'
 	) {
 		return { action: 'allow' };
 	}

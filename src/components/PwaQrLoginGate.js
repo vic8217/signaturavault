@@ -14,8 +14,8 @@ function isStandaloneMode() {
 }
 
 export function PwaQrLoginGate({
-	approvalPath = '/login/remote-approve/scan',
-	scannerPath = '/login/remote-approve/scan',
+	approvalPath = '/app/scan',
+	scannerPath = '/app/scan',
 	signaturaId = '',
 	shortCode = '',
 }) {

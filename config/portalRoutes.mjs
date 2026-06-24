@@ -13,6 +13,7 @@ const PUBLIC_ROUTES = [
 	'/signatura/register',
 	'/admin/login',
 	'/admin/register',
+	'/admin/setup',
 	'/verify',
 	'/account-recovery',
 	'/consent',

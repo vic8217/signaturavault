@@ -20,7 +20,9 @@ const adminLogoutHref = `/api/auth/logout?redirect=${encodeURIComponent('/admin/
 export default function AdminLayout({ children }) {
 	const pathname = usePathname();
 	const isAuthScreen =
-		pathname === '/admin/login' || pathname === '/admin/register';
+		pathname === '/admin/login' ||
+		pathname === '/admin/register' ||
+		pathname === '/admin/setup';
 
 	if (isAuthScreen) {
 		return children;

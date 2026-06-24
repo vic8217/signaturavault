@@ -269,9 +269,9 @@ export function LoginTrustedDeviceQrPanel({
 							Open Signatura on your enrolled trusted phone, scan the QR code or
 							enter this code with the logged-out scanner at{' '}
 							<Link
-								href="/login/remote-approve/scan"
+								href="/app/scan"
 								className="font-semibold text-red-200 hover:text-white">
-								/login/remote-approve/scan
+								/app/scan
 							</Link>
 							. The phone must be signed in as{' '}
 							<span className="font-mono text-white">{signaturaId}</span> before

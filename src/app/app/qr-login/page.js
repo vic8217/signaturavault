@@ -11,7 +11,7 @@ export default async function AppQrLoginPage({ searchParams }) {
 	const challengeId = queryValue(params, 'cid') || queryValue(params, 'challengeId');
 	const shortCode = queryValue(params, 'code') || queryValue(params, 'shortCode');
 	const signaturaId = queryValue(params, 'signaturaId');
-	const scannerPath = '/login/remote-approve/scan';
+	const scannerPath = '/app/scan';
 	const approvalPath =
 		challengeId && shortCode
 			? buildRemoteApprovePath({ challengeId, shortCode, signaturaId })
