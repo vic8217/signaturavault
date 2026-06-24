@@ -18,7 +18,7 @@ export default async function AdminRegisterPage({ searchParams }) {
 					Signatura
 				</Link>
 				<Link
-					href="/login?next=/admin"
+					href="/admin/login?next=/admin"
 					className="text-sm font-semibold text-red-200">
 					Admin sign-in
 				</Link>

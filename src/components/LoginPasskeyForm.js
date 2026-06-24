@@ -127,6 +127,7 @@ function LoginPasskeyForm({
 		error === UNREGISTERED_PASSKEY_ERROR ||
 		error === PASSKEY_DOMAIN_MISMATCH_ERROR ||
 		canRegisterDevice;
+	const requiresLocalPasskey = loginAccountType === 'admin';
 
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
@@ -240,7 +241,10 @@ function LoginPasskeyForm({
 				'/api/auth/login/start',
 				{
 					method: 'POST',
-					body: JSON.stringify({ signaturaId: activeSignaturaId }),
+					body: JSON.stringify({
+						signaturaId: activeSignaturaId,
+						next: nextPath,
+					}),
 				},
 				'Passkey login start',
 			);
@@ -393,17 +397,19 @@ function LoginPasskeyForm({
 									aria-hidden="true"
 								/>
 							</button>
-							<button
-								type="button"
-								onClick={() => {
-									setError('');
-									setStatus('');
-									setStep('qr');
-								}}
-								disabled={!normalizedSignaturaId}
-								className="rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white disabled:cursor-not-allowed disabled:border-white/5 disabled:text-slate-600">
-								Use another trusted device (QR)
-							</button>
+								{requiresLocalPasskey ? null : (
+									<button
+										type="button"
+										onClick={() => {
+											setError('');
+											setStatus('');
+											setStep('qr');
+										}}
+										disabled={!normalizedSignaturaId}
+										className="rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white disabled:cursor-not-allowed disabled:border-white/5 disabled:text-slate-600">
+										Use another trusted device (QR)
+									</button>
+								)}
 
 							<div className="flex items-center gap-6 py-4 text-sm font-semibold text-slate-400">
 								<span className="h-px flex-1 bg-white/10" />
@@ -456,20 +462,22 @@ function LoginPasskeyForm({
 								<Fingerprint className="h-6 w-6" aria-hidden="true" />
 								{isSubmitting ? 'Opening biometrics...' : 'Try biometric sign-in again'}
 							</button>
-							<button
-								type="button"
-								onClick={() => {
-									setError('');
-									setStatus('');
-									setStep('qr');
-								}}
-								className="rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white">
-								Use another trusted device (QR)
-							</button>
-						</div>
-					) : null}
+								{requiresLocalPasskey ? null : (
+									<button
+										type="button"
+										onClick={() => {
+											setError('');
+											setStatus('');
+											setStep('qr');
+										}}
+										className="rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white">
+										Use another trusted device (QR)
+									</button>
+								)}
+							</div>
+						) : null}
 
-					{step === 'qr' && normalizedSignaturaId ? (
+						{step === 'qr' && normalizedSignaturaId && !requiresLocalPasskey ? (
 						<div className="mt-8">
 							<div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 								<div>

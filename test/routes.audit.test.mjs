@@ -23,6 +23,7 @@ const PUBLIC_ROUTE_CASES = [
 	'/login/authorize',
 	'/register',
 	'/signatura/register',
+	'/admin/login',
 	'/admin/register',
 	'/verify',
 ];
@@ -51,7 +52,6 @@ const PROTECTED_UNAUTH_CASES = [
 	['/issuer', '/issuer'],
 	['/issuer/profile', '/issuer/profile'],
 	['/issuer/templates', '/issuer/templates'],
-	['/admin', '/admin'],
 ];
 
 function parseLoginNext(search) {
@@ -110,6 +110,28 @@ for (const [pathname, expectedNext] of PROTECTED_UNAUTH_CASES) {
 	});
 }
 
+test('admin entry redirects to admin login/create account flow', () => {
+	const decision = evaluatePortalAccess({
+		pathname: '/admin',
+		role: undefined,
+	});
+
+	assert.equal(decision.action, 'redirect');
+	assert.equal(decision.destination, '/admin/login');
+	assert.equal(decision.search, '?next=%2Fadmin');
+});
+
+test('admin subpages redirect to admin login with return path', () => {
+	const decision = evaluatePortalAccess({
+		pathname: '/admin/issuers',
+		role: undefined,
+	});
+
+	assert.equal(decision.action, 'redirect');
+	assert.equal(decision.destination, '/admin/login');
+	assert.equal(parseLoginNext(decision.search), '/admin/issuers');
+});
+
 for (const pathname of ['/wallet', '/security/devices', '/issuer-portal/templates']) {
 	test(`legacy route passes through proxy before redirect: ${pathname}`, () => {
 		assert.equal(isLegacyRedirectPath(pathname), true);
@@ -140,8 +162,14 @@ test('/admin/register remains accessible while signed in as a user', () => {
 });
 
 test('auth-required redirects never target /', () => {
-	for (const pathname of PROTECTED_UNAUTH_CASES.map(([path]) => path)) {
-		const decision = evaluatePortalAccess({ pathname, role: undefined });
+	for (const pathname of [
+		...PROTECTED_UNAUTH_CASES.map(([path]) => path),
+		'/admin',
+	]) {
+		const decision = evaluatePortalAccess({
+			pathname,
+			role: undefined,
+		});
 		assert.notEqual(decision.destination, '/');
 	}
 });

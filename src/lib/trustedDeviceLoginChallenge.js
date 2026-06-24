@@ -474,7 +474,7 @@ export async function consumeTrustedDeviceLoginChallenge({
 }
 
 export function buildRemoteLoginQrUrl(origin, challengeId, shortCode, options = {}) {
-	const url = new URL('/login/remote-approve', origin);
+	const url = new URL('/app/qr-login', origin);
 	url.searchParams.set('cid', challengeId);
 	url.searchParams.set('code', shortCode);
 	const signaturaId = String(options.signaturaId || '').trim().toUpperCase();

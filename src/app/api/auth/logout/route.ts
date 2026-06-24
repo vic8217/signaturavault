@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { resolvePublicSignaturaOrigin } from '@/lib/publicOrigin';
+import { ROLE_COOKIE } from '@/lib/roles';
 import { clearSessionCookie, getSession } from '@/lib/session';
 import { logSecurityEvent } from '@/lib/webauthn';
 
@@ -16,29 +16,49 @@ function safeRedirectTarget(value: string, req: Request) {
 	}
 }
 
+async function tryGetSession() {
+	try {
+		return await getSession();
+	} catch {
+		return null;
+	}
+}
+
+async function tryLogLogout(req: Request, userId?: string, details = {}) {
+	if (!userId) return;
+	try {
+		await logSecurityEvent(req, 'session_logged_out', userId, details);
+	} catch {
+		// Logout should still clear cookies and redirect if audit logging is unavailable.
+	}
+}
+
+function clearAuthCookies(response: NextResponse, req: Request) {
+	clearSessionCookie(response, req);
+	response.cookies.set(ROLE_COOKIE, '', {
+		httpOnly: true,
+		secure: process.env.NODE_ENV === 'production',
+		sameSite: 'lax',
+		path: '/',
+		maxAge: 0,
+	});
+}
+
 export async function GET(req: Request) {
-	const session = await getSession();
+	const session = await tryGetSession();
 	const url = new URL(req.url);
 	const redirectTo = safeRedirectTarget(url.searchParams.get('redirect') || '/login', req);
-	const response = NextResponse.redirect(
-		new URL(redirectTo, `${resolvePublicSignaturaOrigin(req)}/`),
-	);
-	if (session?.userId) {
-		await logSecurityEvent(req, 'session_logged_out', session.userId, {
-			reason: 'logout_redirect',
-		});
-	}
-	clearSessionCookie(response, req);
+	const response = NextResponse.redirect(new URL(redirectTo, req.url));
+	await tryLogLogout(req, session?.userId, { reason: 'logout_redirect' });
+	clearAuthCookies(response, req);
 	return response;
 }
 
 export async function POST(req: Request) {
-	const session = await getSession();
-	if (session?.userId) {
-		await logSecurityEvent(req, 'session_logged_out', session.userId);
-	}
+	const session = await tryGetSession();
+	await tryLogLogout(req, session?.userId);
 
 	const response = NextResponse.json({ ok: true });
-	clearSessionCookie(response, req);
+	clearAuthCookies(response, req);
 	return response;
 }

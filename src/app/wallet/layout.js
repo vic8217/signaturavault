@@ -43,10 +43,15 @@ export default function WalletLayout({ children }) {
 						</Link>
 						<a
 							className="rounded-lg bg-red-500 px-3 py-2 text-white transition hover:bg-red-600"
-							href="/api/auth/session">
+							href="/api/auth/logout">
 							Sign Out
 						</a>
 					</nav>
+					<a
+						className="justify-self-end rounded-lg bg-red-500 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-600 lg:hidden"
+						href="/api/auth/logout">
+						Sign out
+					</a>
 				</div>
 			</div>
 			<main className="mx-auto w-full max-w-5xl overflow-x-hidden px-3 pb-28 pt-6 sm:px-4 lg:pb-6">

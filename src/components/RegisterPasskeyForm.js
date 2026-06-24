@@ -159,6 +159,7 @@ function RegisterPasskeyForm({
 		handphone: '',
 		email: '',
 		authorizationCode: '',
+		adminProvisioningSecret: '',
 		deviceName: '',
 	});
 	const accountType = ['issuer', 'admin'].includes(initialAccountType)
@@ -600,15 +601,16 @@ function RegisterPasskeyForm({
 			const response = await registrationApiFetch('/api/auth/register/account', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					fullName: form.fullName,
-					handphone: form.handphone,
-					email: form.email,
-					authorizationCode: form.authorizationCode,
-					accountType,
-					source: registrationSource,
-					accuraHandoffToken,
-					companyCode: isAccuraRegistration ? '' : companyCode,
+					body: JSON.stringify({
+						fullName: form.fullName,
+						handphone: form.handphone,
+						email: form.email,
+						authorizationCode: form.authorizationCode,
+						adminProvisioningSecret: form.adminProvisioningSecret,
+						accountType,
+						source: registrationSource,
+						accuraHandoffToken,
+						companyCode: isAccuraRegistration ? '' : companyCode,
 					companyName: isAccuraRegistration ? '' : companyName,
 					role: isAccuraRegistration ? '' : accuraRole,
 					rolePrefix: isAccuraRegistration ? '' : accuraRolePrefix,
@@ -1287,6 +1289,23 @@ function RegisterPasskeyForm({
 							/>
 							<p className="text-xs font-normal text-slate-300">
 								This code authorizes issuer Signatura ID creation and issuer portal access.
+							</p>
+						</label>
+					) : null}
+					{accountType === 'admin' ? (
+						<label className="grid gap-2 text-sm font-semibold">
+							<span>Admin provisioning secret</span>
+							<input
+								name="adminProvisioningSecret"
+								type="password"
+								placeholder="Enter the admin provisioning secret"
+								value={form.adminProvisioningSecret}
+								onChange={updateField}
+								autoComplete="off"
+								className="rounded-xl border border-white/10 bg-white px-4 py-3 text-slate-950 outline-none ring-red-500 transition focus:ring-2"
+							/>
+							<p className="text-xs font-normal text-slate-300">
+								Required in production. Set it as ADMIN_PROVISIONING_SECRET on the server.
 							</p>
 						</label>
 					) : null}

@@ -94,6 +94,7 @@ test('logout redirects account switching through the public Signatura origin', a
 		'utf8',
 	);
 
-	assert.match(source, /resolvePublicSignaturaOrigin/);
+	assert.doesNotMatch(source, /resolvePublicSignaturaOrigin/);
+	assert.match(source, /new URL\(redirectTo, req\.url\)/);
 	assert.match(source, /NextResponse\.redirect/);
 });

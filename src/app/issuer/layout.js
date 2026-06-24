@@ -130,7 +130,7 @@ export default async function IssuerLayout({ children }) {
 				</nav>
 				<a
 					className="absolute bottom-6 left-5 right-5 rounded-lg bg-red-500 px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-red-600"
-					href="/api/auth/session">
+					href="/api/auth/logout">
 					Sign Out
 				</a>
 			</aside>
@@ -156,7 +156,7 @@ export default async function IssuerLayout({ children }) {
 						<IssuerBrand issuer={issuer} compact />
 						<a
 							className="rounded-lg bg-red-500 px-3 py-2 text-xs font-bold text-white"
-							href="/api/auth/session">
+							href="/api/auth/logout">
 							Sign Out
 						</a>
 					</div>

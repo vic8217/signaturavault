@@ -57,7 +57,6 @@ export function shouldAutoPasskeyLoginOnOpen({
 	externalReturnUrl = '',
 	loginAccountType = 'user',
 } = {}) {
-	if (!isStandalonePwa()) return false;
 	if (externalReturnUrl) return false;
 	if (loginAccountType !== 'user') return false;
 	return true;

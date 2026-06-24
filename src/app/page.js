@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { AppInstallQrCode } from '@/components/AppInstallQrCode';
+import { HomePwaInstallAlert } from '@/components/HomePwaInstallAlert';
 import { useCases } from '@/lib/use-cases';
 import {
 	FileText,
@@ -250,6 +251,7 @@ export default function Home() {
 		<main
 			id="home"
 			className="relative isolate min-h-screen overflow-hidden bg-slate-950 text-white">
+			<HomePwaInstallAlert />
 			<div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_75%_20%,rgba(255,45,45,0.18),transparent_28%),radial-gradient(circle_at_20%_8%,rgba(38,92,150,0.24),transparent_32%),linear-gradient(180deg,#030914_0%,#071224_48%,#030914_100%)]" />
 
 			<nav className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/90 backdrop-blur-xl">

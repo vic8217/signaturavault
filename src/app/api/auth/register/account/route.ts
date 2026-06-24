@@ -52,6 +52,20 @@ function validateEmail(email: string) {
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function secretsMatch(providedSecret: string, expectedSecret = '') {
+	if (!providedSecret || !expectedSecret) return false;
+
+	const providedBuffer = Buffer.from(providedSecret);
+	const expectedBuffer = Buffer.from(expectedSecret);
+	if (providedBuffer.length !== expectedBuffer.length) return false;
+
+	try {
+		return crypto.timingSafeEqual(providedBuffer, expectedBuffer);
+	} catch {
+		return false;
+	}
+}
+
 function signaturaAppLinkModel() {
 	return (prisma as unknown as { signaturaAppLink?: typeof prisma.signaturaAppLink })
 		.signaturaAppLink;
@@ -80,6 +94,7 @@ export async function POST(req: Request) {
 		const email = normalizeEmail(body.email);
 		const accountType = normalizeSignaturaAccountType(body.accountType);
 		const authorizationCode = String(body.authorizationCode || '').trim();
+		const adminProvisioningSecret = String(body.adminProvisioningSecret || '').trim();
 		const handoffToken = String(body.accuraHandoffToken || body.handoffToken || '').trim();
 		let registrationSource = normalizeRegistrationSource(body.source);
 		let companyId = normalizeCompanyId(body.companyId);
@@ -208,9 +223,13 @@ export async function POST(req: Request) {
 		}
 		if (
 			accountType === SIGNATURA_ACCOUNT_TYPES.ADMIN &&
-			process.env.NODE_ENV === 'production'
+			process.env.NODE_ENV === 'production' &&
+			!secretsMatch(
+				adminProvisioningSecret,
+				process.env.ADMIN_PROVISIONING_SECRET,
+			)
 		) {
-			return jsonError('Admin Signatura IDs must be provisioned internally', 403);
+			return jsonError('Invalid admin provisioning secret', 403);
 		}
 
 		const { emailLookupHash, mobileLookupHash } = accountLookupHashes({

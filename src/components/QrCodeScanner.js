@@ -227,7 +227,9 @@ function classifyPayload(payload, accuraLoginOnly = false) {
 			url.searchParams.get('signatura_id') ||
 			'';
 		if (challengeId && shortCode) {
-			const isLoginApproval = url.pathname.includes('/login/remote-approve');
+			const isLoginApproval =
+				url.pathname.includes('/login/remote-approve') ||
+				url.pathname.includes('/app/qr-login');
 			return {
 				kind: 'remote-unlock',
 				label: 'Remote Unlock Request',

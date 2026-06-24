@@ -13,7 +13,7 @@ test('login page restores an existing session before rendering the form', async 
 	assert.match(source, /!externalReturnUrl/);
 });
 
-test('trusted device login client stores signatura id per origin for pwa auto-login', async () => {
+test('trusted device login client stores signatura id per origin for auto-login', async () => {
 	const source = await readFile(
 		new URL('../src/lib/trustedDeviceLoginClient.js', import.meta.url),
 		'utf8',
@@ -28,7 +28,23 @@ test('trusted device login client stores signatura id per origin for pwa auto-lo
 	assert.match(source, /parsed\.origin !== resolvedOrigin/);
 });
 
-test('login form auto-starts passkey in installed pwa when a stored id exists', async () => {
+test('trusted device auto-login is allowed for owner login without requiring pwa mode', async () => {
+	const { shouldAutoPasskeyLoginOnOpen } = await import(
+		'../src/lib/trustedDeviceLoginClient.js'
+	);
+
+	assert.equal(shouldAutoPasskeyLoginOnOpen(), true);
+	assert.equal(
+		shouldAutoPasskeyLoginOnOpen({ loginAccountType: 'issuer' }),
+		false,
+	);
+	assert.equal(
+		shouldAutoPasskeyLoginOnOpen({ externalReturnUrl: 'https://accura.test' }),
+		false,
+	);
+});
+
+test('login form auto-starts passkey when a stored id exists', async () => {
 	const source = await readFile(
 		new URL('../src/components/LoginPasskeyForm.js', import.meta.url),
 		'utf8',

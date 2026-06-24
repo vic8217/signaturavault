@@ -17,6 +17,27 @@ import {
 	logSecurityEvent,
 } from '@/lib/webauthn';
 
+function isAdminPath(value: string) {
+	return value === '/admin' || value.startsWith('/admin/');
+}
+
+function isLocalPlatformCredential(credential: { transports?: string[] | null }) {
+	const transports = Array.isArray(credential.transports)
+		? credential.transports.map((transport) => String(transport).toLowerCase())
+		: [];
+	return transports.includes('internal') && !transports.includes('hybrid');
+}
+
+function isPlatformAssertion(response: unknown) {
+	return (
+		typeof response === 'object' &&
+		response !== null &&
+		'authenticatorAttachment' in response &&
+		(response as { authenticatorAttachment?: unknown }).authenticatorAttachment ===
+			'platform'
+	);
+}
+
 export async function POST(req: Request) {
 	try {
 		assertSecureWebAuthnRequest(req);
@@ -24,6 +45,9 @@ export async function POST(req: Request) {
 		const userId = String(body.userId || '');
 		const nextPath = String(body.next || '');
 		const response = body.response;
+		const allowedNext = normalizeLoginNextPath(
+			nextPath.startsWith('/') ? nextPath : '/signatura/dashboard',
+		);
 
 		if (!userId || !response) {
 			return jsonError('userId and response are required');
@@ -36,6 +60,15 @@ export async function POST(req: Request) {
 
 		if (!credential || credential.userId !== userId || !credential.isTrusted) {
 			return jsonError('Credential is not trusted for this account', 401);
+		}
+		if (
+			isAdminPath(allowedNext) &&
+			(!isLocalPlatformCredential(credential) || !isPlatformAssertion(response))
+		) {
+			return jsonError(
+				'Admin sign-in requires a local passkey registered on this device. Cross-device phone QR passkeys are not allowed for admin access.',
+				403,
+			);
 		}
 
 		const challenge = await prisma.authChallenge.findFirst({
@@ -105,9 +138,6 @@ export async function POST(req: Request) {
 			}),
 		]);
 
-		const allowedNext = normalizeLoginNextPath(
-			nextPath.startsWith('/') ? nextPath : '/signatura/dashboard',
-		);
 		let portalRole = null;
 
 		try {

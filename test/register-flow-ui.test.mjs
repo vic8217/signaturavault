@@ -406,8 +406,32 @@ test('admin registration uses a separate admin URL', async () => {
 		new URL('../src/app/admin/register/page.js', import.meta.url),
 		'utf8',
 	);
+	const adminLoginPage = await readFile(
+		new URL('../src/app/admin/login/page.js', import.meta.url),
+		'utf8',
+	);
+	const adminLayout = await readFile(
+		new URL('../src/app/admin/layout.js', import.meta.url),
+		'utf8',
+	);
+	const registerForm = await readFile(
+		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+	const registerRoute = await readFile(
+		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
+		'utf8',
+	);
 
 	assert.match(loginForm, /\/admin\/register\?next=/);
 	assert.match(adminRegisterPage, /initialAccountType="admin"/);
-	assert.match(adminRegisterPage, /href="\/login\?next=\/admin"/);
+	assert.match(adminRegisterPage, /href="\/admin\/login\?next=\/admin"/);
+	assert.match(adminLoginPage, /LoginPasskeyForm nextPath=\{nextPath\}/);
+	assert.match(adminLoginPage, /\/admin\/register\?next=/);
+	assert.match(adminLayout, /pathname === '\/admin\/login'/);
+	assert.match(adminLayout, /pathname === '\/admin\/register'/);
+	assert.match(registerForm, /adminProvisioningSecret/);
+	assert.match(registerForm, /ADMIN_PROVISIONING_SECRET/);
+	assert.match(registerRoute, /process\.env\.ADMIN_PROVISIONING_SECRET/);
+	assert.match(registerRoute, /Invalid admin provisioning secret/);
 });

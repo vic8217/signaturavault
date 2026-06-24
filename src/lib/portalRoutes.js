@@ -11,11 +11,17 @@ import {
 
 export * from './portalRoutesCore.js';
 
-function evaluatePortalAccess({ pathname, search = '', role }) {
+function evaluatePortalAccess({
+	pathname,
+	search = '',
+	role,
+	nodeEnv = process.env.NODE_ENV,
+}) {
 	if (
 		pathname === '/issuer/activate' ||
 		pathname === '/issuer/onboarding' ||
 		pathname === '/signatura/register' ||
+		pathname === '/admin/login' ||
 		pathname === '/admin/register'
 	) {
 		return { action: 'allow' };
@@ -33,11 +39,12 @@ function evaluatePortalAccess({ pathname, search = '', role }) {
 		const next = encodeURIComponent(
 			normalizeLoginNextPath(`${pathname}${search}`),
 		);
+		const isAdminEntry = pathname === '/admin' || pathname.startsWith('/admin/');
 
 		return {
 			action: 'redirect',
-			destination: '/login',
-			search: `?auth=required&next=${next}`,
+			destination: isAdminEntry ? '/admin/login' : '/login',
+			search: isAdminEntry ? `?next=${next}` : `?auth=required&next=${next}`,
 		};
 	}
 

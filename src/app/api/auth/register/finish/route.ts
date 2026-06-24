@@ -2,7 +2,11 @@ import { verifyRegistrationResponse } from '@simplewebauthn/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
-import { userPublicIdentity } from '@/lib/identity';
+import {
+	SIGNATURA_ACCOUNT_TYPES,
+	getSignaturaAccountType,
+	userPublicIdentity,
+} from '@/lib/identity';
 import { REGISTRATION_STATUSES } from '@/lib/registration-status';
 import { touchRegistrationSession } from '@/lib/registration-session';
 import {
@@ -36,6 +40,22 @@ function passkeySummaryFromCredential(
 		credentialDeviceType: registrationInfo?.credentialDeviceType || null,
 		credentialBackedUp: Boolean(registrationInfo?.credentialBackedUp),
 	};
+}
+
+function isAdminLocalPlatformRegistration({
+	authenticatorAttachment,
+	credentialDeviceType,
+	credentialBackedUp,
+}: {
+	authenticatorAttachment?: string | null;
+	credentialDeviceType?: string | null;
+	credentialBackedUp?: boolean;
+}) {
+	return (
+		authenticatorAttachment === 'platform' &&
+		credentialDeviceType === 'singleDevice' &&
+		credentialBackedUp === false
+	);
 }
 
 export async function POST(req: Request) {
@@ -95,6 +115,20 @@ export async function POST(req: Request) {
 		const result = await prisma.$transaction(async (tx) => {
 			const user = await tx.user.findUnique({ where: { id: userId } });
 			if (!user) throw new Error('User not found');
+			const isAdminAccount =
+				getSignaturaAccountType(user.signaturaId) === SIGNATURA_ACCOUNT_TYPES.ADMIN;
+			if (
+				isAdminAccount &&
+				!isAdminLocalPlatformRegistration({
+					authenticatorAttachment,
+					credentialDeviceType,
+					credentialBackedUp,
+				})
+			) {
+				throw new Error(
+					'Admin registration requires a local device passkey. Phone QR, synced, or backed-up passkeys are not allowed for admin accounts.',
+				);
+			}
 
 			const existingCredential = await tx.webAuthnCredential.findFirst({
 				where: {

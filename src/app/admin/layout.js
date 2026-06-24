@@ -1,5 +1,8 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { PortalIcon } from '@/components/PortalIcon';
 
 const navItems = [
@@ -12,7 +15,17 @@ const navItems = [
 	['system', 'System', '/admin/system'],
 ];
 
+const adminLogoutHref = `/api/auth/logout?redirect=${encodeURIComponent('/admin/login?next=/admin')}`;
+
 export default function AdminLayout({ children }) {
+	const pathname = usePathname();
+	const isAuthScreen =
+		pathname === '/admin/login' || pathname === '/admin/register';
+
+	if (isAuthScreen) {
+		return children;
+	}
+
 	return (
 		<div className="min-h-screen bg-[#030914] text-slate-100">
 			<aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-white/10 bg-slate-950 px-5 py-6 lg:block">
@@ -55,7 +68,7 @@ export default function AdminLayout({ children }) {
 
 				<a
 					className="absolute bottom-6 left-5 right-5 rounded-lg bg-red-500 px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-red-600"
-					href="/api/auth/session">
+					href={adminLogoutHref}>
 					Sign Out
 				</a>
 			</aside>
@@ -80,7 +93,7 @@ export default function AdminLayout({ children }) {
 						</Link>
 						<a
 							className="rounded-lg bg-red-500 px-3 py-2 text-xs font-bold text-white"
-							href="/api/auth/session">
+							href={adminLogoutHref}>
 							Sign Out
 						</a>
 					</div>

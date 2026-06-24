@@ -242,9 +242,8 @@ export function LoginTrustedDeviceQrPanel({
 				Approve with trusted device (QR)
 			</p>
 			<p className="mt-3 text-sm leading-6 text-slate-300">
-				Scan this QR code with the phone that was registered as your trusted
-				Signatura device during enrollment, then approve with passkey or biometric
-				on that phone.
+				Scan this QR code with your phone. It opens Signatura first; if the PWA
+				is not installed, install it, then continue to trusted-device approval.
 			</p>
 
 			{challenge ? (
@@ -268,7 +267,7 @@ export function LoginTrustedDeviceQrPanel({
 						</p>
 						<p className="text-xs leading-5 text-slate-400">
 							Open Signatura on your enrolled trusted phone, scan the QR code or
-							enter this code at{' '}
+							enter this code with the logged-out scanner at{' '}
 							<Link
 								href="/login/remote-approve/scan"
 								className="font-semibold text-red-200 hover:text-white">

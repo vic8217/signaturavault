@@ -6,6 +6,7 @@ import {
 	FileClock,
 	FileText,
 	LockKeyhole,
+	LogOut,
 	Settings,
 	UserRound,
 } from 'lucide-react';
@@ -140,6 +141,28 @@ export default function OwnerOthersPage() {
 					</div>
 				</section>
 			))}
+
+			<section className="space-y-2">
+				<h2 className="px-1 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+					Session
+				</h2>
+				<a
+					href="/api/auth/logout"
+					className="flex min-h-16 items-center gap-3 rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-red-50 transition hover:border-red-300/60 hover:bg-red-500/15">
+					<span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-red-300/30 bg-red-500/15 text-red-100">
+						<LogOut className="h-4 w-4" />
+					</span>
+					<span className="min-w-0 flex-1">
+						<span className="block text-sm font-black text-white">
+							Sign out
+						</span>
+						<span className="mt-1 block text-xs text-red-100/80">
+							End this trusted device session
+						</span>
+					</span>
+					<span className="text-red-100/70">&rsaquo;</span>
+				</a>
+			</section>
 		</div>
 	);
 }
