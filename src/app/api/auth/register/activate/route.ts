@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
 import { userPublicIdentity, resolveAccuraLinkedSignaturaId } from '@/lib/identity';
@@ -19,6 +20,13 @@ import {
 	assertSecureWebAuthnRequest,
 	logSecurityEvent,
 } from '@/lib/webauthn';
+import { ROLE_COOKIE, ROLES } from '@/lib/roles';
+import { setSessionCookie } from '@/lib/session';
+import {
+	UNIVERSAL_ROLE_CODES,
+	ensureAccuraMembershipRole,
+	ensureIssuerMembershipRole,
+} from '@/lib/universalIdentity';
 
 function signaturaAppLinkModel(client = prisma) {
 	return (
@@ -26,8 +34,10 @@ function signaturaAppLinkModel(client = prisma) {
 			signaturaAppLink?: {
 				findFirst: (args: Record<string, unknown>) => Promise<{
 					companyCode?: string | null;
+					companyName?: string | null;
 					companyId?: string | null;
 					registrationContext?: Record<string, unknown> | null;
+					role?: string | null;
 					rolePrefix?: string | null;
 				} | null>;
 			};
@@ -122,8 +132,100 @@ export async function POST(req: Request) {
 			typeof accuraLink.registrationContext === 'object'
 				? accuraLink.registrationContext
 				: null;
+		const issuerInvitation = session.issuerInvitationId
+			? await prisma.issuerInvitation.findFirst({
+					where: {
+						id: session.issuerInvitationId,
+						usedAt: null,
+						expiresAt: { gt: new Date() },
+					},
+				})
+			: null;
+		if (session.issuerInvitationId && !issuerInvitation) {
+			return jsonError('Issuer invitation is invalid, expired, or already used', 400);
+		}
+		const pendingIssuerUser =
+			!issuerInvitation
+				? await prisma.issuerUser.findFirst({
+						where: {
+							userId: resolvedUserId,
+							status: 'pending_activation',
+						},
+						orderBy: { invitedAt: 'desc' },
+					})
+				: null;
 
 		const updatedUser = await prisma.$transaction(async (tx) => {
+			if (issuerInvitation) {
+				const updatedInvitation = await tx.issuerInvitation.updateMany({
+					where: {
+						id: issuerInvitation.id,
+						usedAt: null,
+						expiresAt: { gt: new Date() },
+					},
+					data: {
+						usedAt: new Date(),
+						activatedAt: new Date(),
+					},
+				});
+				if (updatedInvitation.count !== 1) {
+					throw new Error('Issuer invitation was already used');
+				}
+
+				if (issuerInvitation.issuerUserId) {
+					await tx.issuerUser.update({
+						where: { id: issuerInvitation.issuerUserId },
+						data: {
+							userId: resolvedUserId,
+							status: 'active',
+							activatedAt: new Date(),
+						},
+					});
+				}
+
+				await ensureIssuerMembershipRole(tx, {
+					identityId: resolvedUserId,
+					tenantId: issuerInvitation.tenantId,
+					issuerId: issuerInvitation.issuerId,
+					issuerName: issuerInvitation.issuerId || issuerInvitation.tenantId,
+					roleCode:
+						issuerInvitation.role === ROLES.ISSUER_ADMIN
+							? UNIVERSAL_ROLE_CODES.ISSUER_ADMIN
+							: UNIVERSAL_ROLE_CODES.ISSUER_STAFF,
+				});
+			}
+
+			if (pendingIssuerUser) {
+				await tx.issuerUser.update({
+					where: { id: pendingIssuerUser.id },
+					data: {
+						status: 'active',
+						activatedAt: new Date(),
+					},
+				});
+				await ensureIssuerMembershipRole(tx, {
+					identityId: resolvedUserId,
+					tenantId: pendingIssuerUser.tenantId,
+					issuerId: pendingIssuerUser.issuerId,
+					issuerName: pendingIssuerUser.issuerId || pendingIssuerUser.tenantId,
+					roleCode:
+						pendingIssuerUser.role === ROLES.ISSUER_ADMIN
+							? UNIVERSAL_ROLE_CODES.ISSUER_ADMIN
+							: UNIVERSAL_ROLE_CODES.ISSUER_STAFF,
+				});
+			}
+
+			if (accuraLink) {
+				await ensureAccuraMembershipRole(tx, {
+					identityId: resolvedUserId,
+					companyId: accuraLink.companyId || accuraLink.companyCode || '',
+					companyCode: accuraLink.companyCode || '',
+					companyName: accuraLink.companyName || accuraLink.companyCode || '',
+					rolePrefix: accuraLink.rolePrefix || '',
+					roleName: accuraLink.role || '',
+				});
+			}
+
 			const activatedUser = await tx.user.update({
 				where: { id: resolvedUserId },
 				data: {
@@ -232,13 +334,37 @@ export async function POST(req: Request) {
 			await notifyAccuraRegistrationCallback(accuraReturnUrl).catch(() => null);
 		}
 
-		return Response.json({
+		const redirectTo = issuerInvitation ? '/issuer' : accuraReturnUrl || '/login';
+		const responseJson = NextResponse.json({
 			ok: true,
 			user: userPublicIdentity(updatedUser),
 			currentStep: REGISTRATION_STATUSES.COMPLETED,
-			redirectTo: accuraReturnUrl || '/login',
+			redirectTo,
 			accuraReturnUrl,
 		});
+		if (issuerInvitation) {
+			const portalRole =
+				issuerInvitation.role === ROLES.ISSUER_ADMIN
+					? ROLES.ISSUER_ADMIN
+					: ROLES.ISSUER_STAFF;
+			setSessionCookie(responseJson, req, {
+				userId: updatedUser.id,
+				signaturaId: updatedUser.signaturaId,
+				role: portalRole,
+				trustLevel: updatedUser.trustLevel,
+				iat: Date.now(),
+				createdAt: Date.now(),
+				reauthenticatedAt: Date.now(),
+			});
+			responseJson.cookies.set(ROLE_COOKIE, portalRole, {
+				httpOnly: true,
+				sameSite: 'lax',
+				secure: process.env.NODE_ENV === 'production',
+				path: '/',
+				maxAge: 60 * 60 * 8,
+			});
+		}
+		return responseJson;
 	} catch (error) {
 		return jsonError(
 			safeApiErrorMessage(error, 'Unable to activate account'),

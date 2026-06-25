@@ -40,8 +40,6 @@ import {
 } from '@/lib/registration-status';
 import {
 	UNIVERSAL_ROLE_CODES,
-	ensureAccuraMembershipRole,
-	ensureIssuerMembershipRole,
 	ensureSignaturaPlatformRole,
 } from '@/lib/universalIdentity';
 import {
@@ -441,13 +439,6 @@ export async function POST(req: Request) {
 				issuerAuthorizationRecord.issuerId &&
 				issuerAuthorizationRecord.tenantId
 			) {
-				await ensureIssuerMembershipRole(tx, {
-					identityId: userId,
-					tenantId: issuerAuthorizationRecord.tenantId,
-					issuerId: issuerAuthorizationRecord.issuerId,
-					issuerName: issuerAuthorizationRecord.label || 'Issuer',
-					roleCode: UNIVERSAL_ROLE_CODES.ISSUER_ADMIN,
-				});
 				await tx.issuerUser.create({
 					data: {
 						id: crypto.randomUUID(),
@@ -456,9 +447,8 @@ export async function POST(req: Request) {
 						userId,
 						email,
 						role: ROLES.ISSUER_ADMIN,
-						status: 'active',
+						status: 'pending_activation',
 						invitedAt: new Date(),
-						activatedAt: new Date(),
 					},
 				});
 			}
@@ -469,17 +459,6 @@ export async function POST(req: Request) {
 					userId,
 					UNIVERSAL_ROLE_CODES.SIGNATURA_SYSTEM_ADMIN,
 				);
-			}
-
-			if (isAccuraRegistration) {
-				await ensureAccuraMembershipRole(tx, {
-					identityId: userId,
-					companyId,
-					companyCode,
-					companyName,
-					rolePrefix,
-					roleName,
-				});
 			}
 
 			return created;

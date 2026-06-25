@@ -50,7 +50,19 @@ export async function POST(req: Request) {
 				})
 			: null;
 		if (!user) {
-			const createdIdentity = await createPendingInvitationIdentity(prisma);
+			const createdIdentity = await prisma.$transaction(async (tx) => {
+				const identity = await createPendingInvitationIdentity(tx);
+				if (invitation.issuerUserId) {
+					await tx.issuerUser.update({
+						where: { id: invitation.issuerUserId },
+						data: {
+							userId: identity.id,
+							status: 'pending_activation',
+						},
+					});
+				}
+				return identity;
+			});
 			user = await prisma.user.findUnique({
 				where: { id: createdIdentity.id },
 				include: { credentials: true },

@@ -14,12 +14,22 @@ function IssuerActivationForm({ token }) {
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
 	const [isActivated, setIsActivated] = useState(false);
+	const [bootstrapAccount, setBootstrapAccount] = useState(null);
+	const [registrationSessionId, setRegistrationSessionId] = useState('');
+	const [recoveryPhrase, setRecoveryPhrase] = useState('');
+	const [recoveryPhraseAlreadyIssued, setRecoveryPhraseAlreadyIssued] = useState(false);
+	const [recoveryPhraseSaved, setRecoveryPhraseSaved] = useState(false);
 	const hasToken = useMemo(() => Boolean(token), [token]);
 
 	async function submit(event) {
 		event.preventDefault();
 		setError('');
 		setIsActivated(false);
+		setBootstrapAccount(null);
+		setRegistrationSessionId('');
+		setRecoveryPhrase('');
+		setRecoveryPhraseAlreadyIssued(false);
+		setRecoveryPhraseSaved(false);
 		setStatus('Preparing trusted-device activation...');
 
 		if (!hasToken) {
@@ -79,9 +89,60 @@ function IssuerActivationForm({ token }) {
 			const finishData = await finishResponse.json();
 			if (!finishResponse.ok) throw new Error(finishData.error);
 
+			if (finishData.requiresRecovery) {
+				setStatus('Trusted device registered. Preparing your recovery phrase...');
+				const recoveryResponse = await fetch('/api/auth/register/recovery', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						userId: finishData.user?.id || startData.userId,
+						registrationSessionId: finishData.registrationSessionId,
+					}),
+				});
+				const recoveryData = await recoveryResponse.json();
+				if (!recoveryResponse.ok) throw new Error(recoveryData.error);
+				setBootstrapAccount(recoveryData.user || finishData.user);
+				setRegistrationSessionId(
+					recoveryData.registrationSessionId || finishData.registrationSessionId || '',
+				);
+				setRecoveryPhrase(recoveryData.recoveryPhrase || '');
+				setRecoveryPhraseAlreadyIssued(
+					Boolean(recoveryData.recoveryPhraseAlreadyIssued),
+				);
+				setStatus(
+					recoveryData.recoveryPhraseAlreadyIssued
+						? 'Recovery phrase already exists. Confirm it was saved to activate issuer access.'
+						: 'Save this recovery phrase before activating issuer access.',
+				);
+				return;
+			}
+
 			setStatus('Activation complete. Opening issuer portal...');
 			setIsActivated(true);
 			window.location.href = finishData.next || '/issuer';
+		} catch (activationError) {
+			setError(activationError.message);
+			setStatus('');
+		}
+	}
+
+	async function activateBootstrapAccount() {
+		setError('');
+		setStatus('Activating issuer access...');
+		try {
+			const response = await fetch('/api/auth/register/activate', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					userId: bootstrapAccount?.id,
+					registrationSessionId,
+				}),
+			});
+			const data = await response.json();
+			if (!response.ok) throw new Error(data.error);
+			setStatus('Activation complete. Opening issuer portal...');
+			setIsActivated(true);
+			window.location.href = data.redirectTo || '/issuer';
 		} catch (activationError) {
 			setError(activationError.message);
 			setStatus('');
@@ -123,6 +184,48 @@ function IssuerActivationForm({ token }) {
 					Activate issuer account
 				</button>
 			</form>
+
+			{bootstrapAccount ? (
+				<section className="mt-6 rounded-2xl border border-red-400/30 bg-red-950/30 p-5">
+					<p className="text-xs font-bold uppercase tracking-[0.18em] text-red-200">
+						Recovery kit
+					</p>
+					<h2 className="mt-2 text-xl font-black">Save your recovery phrase.</h2>
+					{recoveryPhrase ? (
+						<pre className="mt-4 whitespace-pre-wrap rounded-xl border border-white/10 bg-slate-950 p-4 font-mono text-sm leading-6 text-white">
+							{recoveryPhrase}
+						</pre>
+					) : (
+						<p className="mt-3 text-sm leading-6 text-slate-300">
+							Your recovery phrase was already generated. Confirm that you saved
+							it before activating issuer access.
+						</p>
+					)}
+					<label className="mt-4 flex items-start gap-3 text-sm font-semibold text-slate-100">
+						<input
+							type="checkbox"
+							checked={recoveryPhraseSaved}
+							onChange={(event) => setRecoveryPhraseSaved(event.target.checked)}
+							className="mt-1 h-4 w-4 accent-red-500"
+						/>
+						<span>
+							I saved my recovery phrase in a secure offline location.
+						</span>
+					</label>
+					<button
+						type="button"
+						disabled={!recoveryPhraseSaved || isActivated}
+						onClick={activateBootstrapAccount}
+						className="mt-5 w-full rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
+						Activate issuer access
+					</button>
+					{recoveryPhraseAlreadyIssued ? (
+						<p className="mt-3 text-xs leading-5 text-red-100">
+							Signatura will not show an existing recovery phrase again.
+						</p>
+					) : null}
+				</section>
+			) : null}
 
 			{status ? <p className="mt-4 text-sm text-slate-200">{status}</p> : null}
 			{error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}

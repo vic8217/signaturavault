@@ -33,27 +33,41 @@ test('identity creation is centralized in the Signatura Identity Service', async
 	assert.doesNotMatch(accuraRoleRoute, /createUniqueAccuraSignaturaId/);
 });
 
-test('issuer invitation bootstrap attaches membership after passkey or trusted-device approval', async () => {
+test('new issuer invitation bootstrap continues to recovery before membership activation', async () => {
 	const finishRoute = await readFile(
 		new URL('../src/app/api/issuer-invitations/activation/finish/route.ts', import.meta.url),
 		'utf8',
 	);
+	const activateRoute = await readFile(
+		new URL('../src/app/api/auth/register/activate/route.ts', import.meta.url),
+		'utf8',
+	);
 	const transactionBody = finishRoute.slice(
-		finishRoute.indexOf('const user = await prisma.$transaction'),
+		finishRoute.indexOf('const result = await prisma.$transaction'),
 		finishRoute.indexOf("await logSecurityEvent(req, 'issuer_trusted_device_registered'"),
+	);
+	const registrationModeBlock = transactionBody.slice(
+		transactionBody.indexOf("if (mode === 'registration')"),
+		transactionBody.indexOf('const updated = await tx.issuerInvitation.updateMany'),
+	);
+	const activationBody = activateRoute.slice(
+		activateRoute.indexOf('const updatedUser = await prisma.$transaction'),
+		activateRoute.indexOf("await logSecurityEvent(req, 'account_activated'"),
 	);
 
 	assert.match(transactionBody, /tx\.webAuthnCredential\.(update|create)/);
 	assert.match(transactionBody, /tx\.trustedDevice\.(updateMany|create)/);
-	assert.match(transactionBody, /ensureIssuerMembershipRole/);
-	assert.match(transactionBody, /accountStatus: 'active'/);
+	assert.match(registrationModeBlock, /type: 'REGISTER_ACCOUNT'/);
+	assert.match(registrationModeBlock, /REGISTRATION_STATUSES\.TRUSTED_DEVICE_REGISTERED/);
+	assert.match(registrationModeBlock, /requiresRecovery: true/);
+	assert.doesNotMatch(registrationModeBlock, /ensureIssuerMembershipRole/);
+	assert.match(activateRoute, /recoveryCode/);
+	assert.match(activateRoute, /trustedDeviceCount/);
+	assert.match(activationBody, /ensureIssuerMembershipRole/);
+	assert.match(activationBody, /accountStatus: 'active'/);
 	assert.ok(
-		transactionBody.indexOf('ensureIssuerMembershipRole') >
-			transactionBody.indexOf('tx.trustedDevice'),
-	);
-	assert.ok(
-		transactionBody.indexOf("accountStatus: 'active'") >
-			transactionBody.indexOf('ensureIssuerMembershipRole'),
+		activationBody.indexOf("accountStatus: 'active'") >
+			activationBody.indexOf('ensureIssuerMembershipRole'),
 	);
 });
 

@@ -8,6 +8,10 @@ import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
 import { userPublicIdentity } from '@/lib/identity';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
+import {
+	REGISTRATION_STATUSES,
+} from '@/lib/registration-status';
+import { registrationSessionExpiresAt } from '@/lib/registration-session';
 import { setSessionCookie } from '@/lib/session';
 import {
 	UNIVERSAL_ROLE_CODES,
@@ -156,23 +160,7 @@ export async function POST(req: Request) {
 			newCredentialForCreate = credential;
 		}
 
-		const user = await prisma.$transaction(async (tx) => {
-			const updated = await tx.issuerInvitation.updateMany({
-				where: {
-					id: invitation.id,
-					usedAt: null,
-					expiresAt: { gt: now },
-				},
-				data: {
-					usedAt: now,
-					activatedAt: now,
-				},
-			});
-
-			if (updated.count !== 1) {
-				throw new Error('Activation token was already used');
-			}
-
+		const result = await prisma.$transaction(async (tx) => {
 			const activatedUser = await tx.user.findUnique({ where: { id: userId } });
 			if (!activatedUser) throw new Error('User not found');
 
@@ -224,6 +212,60 @@ export async function POST(req: Request) {
 						isTrusted: true,
 					},
 				});
+			}
+
+			if (mode === 'registration') {
+				const registrationSessionId = crypto.randomUUID();
+				const existingSession = await tx.authChallenge.findFirst({
+					where: {
+						userId,
+						issuerInvitationId: invitation.id,
+						type: 'REGISTER_ACCOUNT',
+						usedAt: null,
+					},
+					orderBy: { createdAt: 'desc' },
+				});
+				const registrationSession =
+					existingSession ||
+					(await tx.authChallenge.create({
+						data: {
+							id: registrationSessionId,
+							userId,
+							issuerInvitationId: invitation.id,
+							type: 'REGISTER_ACCOUNT',
+							challenge: crypto.randomBytes(32).toString('base64url'),
+							deviceName,
+							userAgent,
+							expiresAt: registrationSessionExpiresAt(),
+						},
+					}));
+				const setupUser = await tx.user.update({
+					where: { id: userId },
+					data: {
+						accountStatus: REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED,
+					},
+				});
+				return {
+					user: setupUser,
+					registrationSessionId: registrationSession.id,
+					requiresRecovery: true,
+				};
+			}
+
+			const updated = await tx.issuerInvitation.updateMany({
+				where: {
+					id: invitation.id,
+					usedAt: null,
+					expiresAt: { gt: now },
+				},
+				data: {
+					usedAt: now,
+					activatedAt: now,
+				},
+			});
+
+			if (updated.count !== 1) {
+				throw new Error('Activation token was already used');
 			}
 
 			if (invitation.issuerUserId) {
@@ -278,6 +320,7 @@ export async function POST(req: Request) {
 
 			return activeUser;
 		});
+		const user = result.user;
 
 		await logSecurityEvent(req, 'issuer_trusted_device_registered', user.id, {
 			invitationId: invitation.id,
@@ -285,6 +328,19 @@ export async function POST(req: Request) {
 			credentialId,
 			mode,
 		});
+
+		if (result.requiresRecovery) {
+			return NextResponse.json({
+				ok: true,
+				next: '/issuer',
+				requiresRecovery: true,
+				registrationSessionId: result.registrationSessionId,
+				currentStep: REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED,
+				user: userPublicIdentity(user),
+				tenantId: invitation.tenantId,
+				issuerId: invitation.issuerId,
+			});
+		}
 
 		const responseJson = NextResponse.json({
 			ok: true,

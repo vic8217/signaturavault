@@ -278,7 +278,7 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(registerRoute, /appLinkModel\.create/);
 	assert.match(registerRoute, /existingSignaturaId/);
 	assert.match(registerRoute, /linkedToCompany/);
-	assert.match(registerRoute, /ensureAccuraMembershipRole/);
+	assert.doesNotMatch(registerRoute, /ensureAccuraMembershipRole/);
 	assert.match(schema, /model SignaturaAppLink/);
 	assert.match(schema, /model AccuraRegistrationHandoff/);
 	assert.match(schema, /rolePrefix\s+String\?/);
@@ -307,6 +307,7 @@ test('ACCURA callback receives signed source and company registration status', a
 	assert.match(registerForm, /serverReturnUrl/);
 	assert.match(registerForm, /if \(isAccuraRegistration\) return ''/);
 	assert.match(activateRoute, /buildAccuraRegistrationReturnUrl/);
+	assert.match(activateRoute, /ensureAccuraMembershipRole/);
 	assert.match(activateRoute, /registrationStatus: 'SUCCESS'/);
 	assert.match(activateRoute, /accuraRegistrationKeyId/);
 });
@@ -347,7 +348,7 @@ test('ACCURA registration lookup is scoped by app company role and contact', asy
 	assert.match(registerRoute, /createSignaturaIdentity/);
 	assert.doesNotMatch(registerRoute, /createUniqueSignaturaId/);
 	assert.doesNotMatch(registerRoute, /createUniqueAccuraSignaturaId/);
-	assert.match(registerRoute, /ensureAccuraMembershipRole/);
+	assert.doesNotMatch(registerRoute, /ensureAccuraMembershipRole/);
 	assert.match(registerRoute, /masterSignaturaId/);
 });
 
