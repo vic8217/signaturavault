@@ -165,11 +165,17 @@ function AdminSetupQrPanel({ userId, registrationSessionId, signaturaId }) {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ token, userId, registrationSessionId }),
+					cache: 'no-store',
 				});
 				const data = await response.json().catch(() => ({}));
 				if (cancelled) return;
 
-				if (response.ok && data.requiresRecovery) {
+				if (!response.ok) {
+					setError(data.error || 'Unable to check admin setup status.');
+					return;
+				}
+
+				if (data.requiresRecovery) {
 					setStatus(
 						data.message ||
 							'Admin passkey created on your phone. Complete recovery setup on the phone to activate admin access.',
@@ -177,17 +183,21 @@ function AdminSetupQrPanel({ userId, registrationSessionId, signaturaId }) {
 					return;
 				}
 
-				if (response.ok && data.next) {
-					setStatus('Admin passkey created on your phone. Opening admin dashboard...');
+				if (data.next) {
+					setStatus('Admin setup complete. Opening admin dashboard...');
 					router.replace(data.next || '/admin');
 					return;
 				}
-				if (response.ok && data.status === 'EXPIRED') {
+				if (data.status === 'EXPIRED') {
 					setError(data.message || 'This setup QR has expired.');
 					setStatus('');
 				}
-			} catch {
-				// Keep the QR usable even if one poll fails.
+			} catch (pollError) {
+				setError(
+					pollError instanceof Error
+						? pollError.message
+						: 'Unable to check admin setup status.',
+				);
 			}
 		}
 

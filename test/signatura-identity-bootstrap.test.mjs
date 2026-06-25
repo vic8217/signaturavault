@@ -93,6 +93,10 @@ test('admin phone setup requires recovery before admin session activation', asyn
 		new URL('../src/components/AdminSetupPasskeyForm.js', import.meta.url),
 		'utf8',
 	);
+	const registerForm = await readFile(
+		new URL('../src/components/RegisterPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
 	const activateRoute = await readFile(
 		new URL('../src/app/api/auth/register/activate/route.ts', import.meta.url),
 		'utf8',
@@ -116,4 +120,7 @@ test('admin phone setup requires recovery before admin session activation', asyn
 	assert.match(adminStatusRoute, /completedSession/);
 	assert.match(adminStatusRoute, /type: 'REGISTER_ACCOUNT'/);
 	assert.match(adminStatusRoute, /admin_setup_desktop_session_created/);
+	assert.match(registerForm, /cache: 'no-store'/);
+	assert.match(registerForm, /data\.next/);
+	assert.match(registerForm, /setError\(data\.error/);
 });
