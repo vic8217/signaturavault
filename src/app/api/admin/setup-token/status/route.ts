@@ -21,11 +21,22 @@ export async function POST(req: Request) {
 			return jsonError('token, userId, and registrationSessionId are required', 400);
 		}
 
-		const session = await findRegistrationSession({
+		const activeSession = await findRegistrationSession({
 			registrationSessionId,
 			userId,
 			renewIfExpired: true,
 		});
+		const completedSession =
+			activeSession ||
+			(await prisma.authChallenge.findFirst({
+				where: {
+					id: registrationSessionId,
+					userId,
+					type: 'REGISTER_ACCOUNT',
+				},
+				orderBy: { createdAt: 'desc' },
+			}));
+		const session = activeSession || completedSession;
 		if (!session) {
 			return jsonError('Registration session expired. Sign in from /admin.', 404);
 		}

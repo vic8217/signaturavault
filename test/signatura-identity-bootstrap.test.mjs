@@ -97,6 +97,10 @@ test('admin phone setup requires recovery before admin session activation', asyn
 		new URL('../src/app/api/auth/register/activate/route.ts', import.meta.url),
 		'utf8',
 	);
+	const adminStatusRoute = await readFile(
+		new URL('../src/app/api/admin/setup-token/status/route.ts', import.meta.url),
+		'utf8',
+	);
 
 	assert.match(adminFinishRoute, /requiresRecovery: true/);
 	assert.match(adminFinishRoute, /REGISTRATION_STATUSES\.TRUSTED_DEVICE_REGISTERED/);
@@ -109,4 +113,7 @@ test('admin phone setup requires recovery before admin session activation', asyn
 	assert.match(activateRoute, /isAdminIdentity/);
 	assert.match(activateRoute, /ROLES\.SIGNATURA_ADMIN/);
 	assert.match(activateRoute, /redirectTo = issuerInvitation[\s\S]+\? '\/admin'/);
+	assert.match(adminStatusRoute, /completedSession/);
+	assert.match(adminStatusRoute, /type: 'REGISTER_ACCOUNT'/);
+	assert.match(adminStatusRoute, /admin_setup_desktop_session_created/);
 });
