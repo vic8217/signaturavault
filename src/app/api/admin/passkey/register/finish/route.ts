@@ -7,7 +7,7 @@ import {
 	validateAdminSetupToken,
 } from '@/lib/adminSetupToken';
 import { REGISTRATION_STATUSES } from '@/lib/registration-status';
-import { createAuthenticatedLoginResponse } from '@/lib/auth/loginSession';
+import { registrationSessionExpiresAt } from '@/lib/registration-session';
 import {
 	assertSecureWebAuthnRequest,
 	consumeChallenge,
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
 		const userAgent = getUserAgent(req);
 		const now = new Date();
 
-		const updatedUser = await prisma.$transaction(async (tx) => {
+		const result = await prisma.$transaction(async (tx) => {
 			const consumeResult = await adminSetupTokenModel(tx).updateMany({
 				where: {
 					id: tokenResult.record.id,
@@ -160,13 +160,26 @@ export async function POST(req: Request) {
 				],
 			});
 
-			return tx.user.update({
-				where: { id: user.id },
+			const registrationSession = await tx.authChallenge.create({
 				data: {
-					accountStatus: 'active',
-					trustLevel: 2,
+					id: crypto.randomUUID(),
+					userId: user.id,
+					type: 'REGISTER_ACCOUNT',
+					challenge: crypto.randomBytes(32).toString('base64url'),
+					deviceName,
+					userAgent,
+					expiresAt: registrationSessionExpiresAt(),
 				},
 			});
+
+			const updatedUser = await tx.user.update({
+				where: { id: user.id },
+				data: {
+					accountStatus: REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED,
+				},
+			});
+
+			return { updatedUser, registrationSession };
 		});
 
 		await logSecurityEvent(req, 'admin_setup_passkey_registration_completed', user.id, {
@@ -175,14 +188,21 @@ export async function POST(req: Request) {
 			credentialDeviceType,
 			credentialBackedUp,
 			authenticatorAttachment,
-			currentStep: REGISTRATION_STATUSES.COMPLETED,
+			currentStep: REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED,
 		});
 
-		return createAuthenticatedLoginResponse({
-			req,
-			user: updatedUser,
-			nextPath: '/admin',
-			eventName: 'admin_setup_login_created',
+		return Response.json({
+			ok: true,
+			requiresRecovery: true,
+			next: '/admin',
+			user: {
+				id: result.updatedUser.id,
+				signaturaId: result.updatedUser.signaturaId,
+				accountStatus: result.updatedUser.accountStatus,
+				trustLevel: result.updatedUser.trustLevel,
+			},
+			registrationSessionId: result.registrationSession.id,
+			currentStep: REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED,
 			eventDetails: {
 				tokenId: tokenResult.record.id,
 				deviceName,

@@ -5,6 +5,7 @@ import {
 	adminSetupTokenModel,
 	hashAdminSetupToken,
 } from '@/lib/adminSetupToken';
+import { REGISTRATION_STATUSES } from '@/lib/registration-status';
 import { findRegistrationSession } from '@/lib/registration-session';
 import { createAuthenticatedLoginResponse } from '@/lib/auth/loginSession';
 import { logSecurityEvent } from '@/lib/webauthn';
@@ -66,6 +67,20 @@ export async function POST(req: Request) {
 		}
 
 		const user = await prisma.user.findUnique({ where: { id: userId } });
+		if (
+			user &&
+			user.accountStatus !== 'active' &&
+			user.accountStatus !== REGISTRATION_STATUSES.COMPLETED
+		) {
+			return Response.json({
+				ok: true,
+				status: record.status,
+				used: true,
+				requiresRecovery: true,
+				currentStep: user.accountStatus,
+				message: 'Admin passkey is registered. Complete recovery setup on your phone before opening the admin portal.',
+			});
+		}
 		if (!user || user.accountStatus !== 'active' || user.trustLevel < 2) {
 			return jsonError('Admin setup is not active yet.', 409);
 		}

@@ -23,9 +23,11 @@ import {
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
 import { setSessionCookie } from '@/lib/session';
 import {
+	APPLICATION_CODES,
 	UNIVERSAL_ROLE_CODES,
 	ensureAccuraMembershipRole,
 	ensureIssuerMembershipRole,
+	identityHasUniversalRole,
 } from '@/lib/universalIdentity';
 
 function signaturaAppLinkModel(client = prisma) {
@@ -334,7 +336,19 @@ export async function POST(req: Request) {
 			await notifyAccuraRegistrationCallback(accuraReturnUrl).catch(() => null);
 		}
 
-		const redirectTo = issuerInvitation ? '/issuer' : accuraReturnUrl || '/login';
+		const isAdminIdentity =
+			!issuerInvitation &&
+			!accuraReturnUrl &&
+			(await identityHasUniversalRole(updatedUser.id, {
+				applicationCode: APPLICATION_CODES.SIGNATURA,
+				roleCodes: [UNIVERSAL_ROLE_CODES.SIGNATURA_SYSTEM_ADMIN],
+				organizationId: null,
+			}));
+		const redirectTo = issuerInvitation
+			? '/issuer'
+			: isAdminIdentity
+				? '/admin'
+				: accuraReturnUrl || '/login';
 		const responseJson = NextResponse.json({
 			ok: true,
 			user: userPublicIdentity(updatedUser),
@@ -342,9 +356,10 @@ export async function POST(req: Request) {
 			redirectTo,
 			accuraReturnUrl,
 		});
-		if (issuerInvitation) {
-			const portalRole =
-				issuerInvitation.role === ROLES.ISSUER_ADMIN
+		if (issuerInvitation || isAdminIdentity) {
+			const portalRole = isAdminIdentity
+				? ROLES.SIGNATURA_ADMIN
+				: issuerInvitation.role === ROLES.ISSUER_ADMIN
 					? ROLES.ISSUER_ADMIN
 					: ROLES.ISSUER_STAFF;
 			setSessionCookie(responseJson, req, {

@@ -37,6 +37,11 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 	const [standalone, setStandalone] = useState(false);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [redirectTarget, setRedirectTarget] = useState('/admin');
+	const [bootstrapAccount, setBootstrapAccount] = useState(null);
+	const [registrationSessionId, setRegistrationSessionId] = useState('');
+	const [recoveryPhrase, setRecoveryPhrase] = useState('');
+	const [recoveryPhraseAlreadyIssued, setRecoveryPhraseAlreadyIssued] = useState(false);
+	const [recoveryPhraseSaved, setRecoveryPhraseSaved] = useState(false);
 
 	const canInstall = Boolean(installPrompt && !standalone);
 	const tokenMissing = !String(token || '').trim();
@@ -127,6 +132,11 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 		setError('');
 		setStatus('Preparing admin passkey setup...');
 		setIsSubmitting(true);
+		setBootstrapAccount(null);
+		setRegistrationSessionId('');
+		setRecoveryPhrase('');
+		setRecoveryPhraseAlreadyIssued(false);
+		setRecoveryPhraseSaved(false);
 
 		try {
 			if (!browserSupportsWebAuthn()) {
@@ -170,6 +180,39 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 				throw new Error(finishData.error || 'Unable to finish admin passkey setup.');
 			}
 
+			if (finishData.requiresRecovery) {
+				setStatus('Admin passkey created. Preparing your recovery phrase...');
+				const recoveryResponse = await fetch('/api/auth/register/recovery', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({
+						userId: finishData.user?.id,
+						registrationSessionId: finishData.registrationSessionId,
+					}),
+				});
+				const recoveryData = await recoveryResponse.json().catch(() => ({}));
+				if (!recoveryResponse.ok) {
+					throw new Error(
+						recoveryData.error || 'Unable to generate admin recovery phrase.',
+					);
+				}
+				setBootstrapAccount(recoveryData.user || finishData.user || null);
+				setRegistrationSessionId(
+					recoveryData.registrationSessionId || finishData.registrationSessionId || '',
+				);
+				setRecoveryPhrase(recoveryData.recoveryPhrase || '');
+				setRecoveryPhraseAlreadyIssued(
+					Boolean(recoveryData.recoveryPhraseAlreadyIssued),
+				);
+				setState('recovery');
+				setStatus(
+					recoveryData.recoveryPhraseAlreadyIssued
+						? 'Recovery phrase already exists. Confirm it was saved to activate admin access.'
+						: 'Save this recovery phrase before activating admin access.',
+				);
+				return;
+			}
+
 			setState('success');
 			setRedirectTarget(finishData.next || '/admin');
 			setStatus('Admin access is ready. Opening the admin dashboard...');
@@ -181,6 +224,41 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 				setupError instanceof Error
 					? setupError.message
 					: 'Unable to create admin passkey.',
+			);
+			setStatus('');
+		} finally {
+			setIsSubmitting(false);
+		}
+	}
+
+	async function activateAdminAccount() {
+		setError('');
+		setStatus('Activating admin access...');
+		setIsSubmitting(true);
+		try {
+			const response = await fetch('/api/auth/register/activate', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					userId: bootstrapAccount?.id,
+					registrationSessionId,
+				}),
+			});
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) {
+				throw new Error(data.error || 'Unable to activate admin access.');
+			}
+			setState('success');
+			setRedirectTarget(data.redirectTo || '/admin');
+			setStatus('Admin access is active. Opening the admin dashboard...');
+			window.setTimeout(() => {
+				router.replace(data.redirectTo || '/admin');
+			}, 1500);
+		} catch (activationError) {
+			setError(
+				activationError instanceof Error
+					? activationError.message
+					: 'Unable to activate admin access.',
 			);
 			setStatus('');
 		} finally {
@@ -201,7 +279,7 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 				</p>
 			) : null}
 
-			{state === 'ready' || state === 'success' ? (
+			{state === 'ready' || state === 'success' || state === 'recovery' ? (
 				<div className="mt-5 space-y-4">
 					<div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
 						<dl className="grid gap-3 text-sm">
@@ -230,6 +308,44 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 								Open admin dashboard
 							</Link>
 						</div>
+					) : state === 'recovery' ? (
+						<div className="rounded-lg border border-red-400/30 bg-red-950/30 p-4">
+							<p className="text-xs font-bold uppercase tracking-[0.18em] text-red-200">
+								Recovery kit
+							</p>
+							<h2 className="mt-2 text-xl font-black">Save your recovery phrase.</h2>
+							{recoveryPhrase ? (
+								<pre className="mt-4 whitespace-pre-wrap rounded-lg border border-white/10 bg-slate-950 p-4 font-mono text-sm leading-6 text-white">
+									{recoveryPhrase}
+								</pre>
+							) : (
+								<p className="mt-3 text-sm leading-6 text-slate-300">
+									Your recovery phrase was already generated. Confirm that you saved
+									it before activating admin access.
+								</p>
+							)}
+							<label className="mt-4 flex items-start gap-3 text-sm font-semibold text-slate-100">
+								<input
+									type="checkbox"
+									checked={recoveryPhraseSaved}
+									onChange={(event) => setRecoveryPhraseSaved(event.target.checked)}
+									className="mt-1 h-4 w-4 accent-red-500"
+								/>
+								<span>I saved my recovery phrase in a secure offline location.</span>
+							</label>
+							<button
+								type="button"
+								disabled={!recoveryPhraseSaved || isSubmitting}
+								onClick={activateAdminAccount}
+								className="mt-5 w-full rounded-lg bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
+								{isSubmitting ? 'Activating...' : 'Activate Admin Access'}
+							</button>
+							{recoveryPhraseAlreadyIssued ? (
+								<p className="mt-3 text-xs leading-5 text-red-100">
+									Signatura will not show an existing recovery phrase again.
+								</p>
+							) : null}
+						</div>
 					) : standalone ? null : (
 						<div className="rounded-lg border border-red-300/25 bg-red-500/10 p-4">
 							<p className="text-sm font-semibold text-red-100">
@@ -250,7 +366,7 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 						</div>
 					)}
 
-					{state === 'success' ? null : (
+					{state === 'success' || state === 'recovery' ? null : (
 						<>
 							<label className="grid gap-2 text-sm font-semibold text-slate-200">
 								Device name

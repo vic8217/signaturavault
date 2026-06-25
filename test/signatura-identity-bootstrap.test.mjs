@@ -83,3 +83,30 @@ test('ACCURA role endpoint keeps one Signatura ID and attaches role membership',
 	assert.doesNotMatch(route, /SIG-ACCURA-\$\{/);
 	assert.doesNotMatch(route, /createUniqueAccuraSignaturaId/);
 });
+
+test('admin phone setup requires recovery before admin session activation', async () => {
+	const adminFinishRoute = await readFile(
+		new URL('../src/app/api/admin/passkey/register/finish/route.ts', import.meta.url),
+		'utf8',
+	);
+	const adminSetupForm = await readFile(
+		new URL('../src/components/AdminSetupPasskeyForm.js', import.meta.url),
+		'utf8',
+	);
+	const activateRoute = await readFile(
+		new URL('../src/app/api/auth/register/activate/route.ts', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(adminFinishRoute, /requiresRecovery: true/);
+	assert.match(adminFinishRoute, /REGISTRATION_STATUSES\.TRUSTED_DEVICE_REGISTERED/);
+	assert.match(adminFinishRoute, /type: 'REGISTER_ACCOUNT'/);
+	assert.doesNotMatch(adminFinishRoute, /createAuthenticatedLoginResponse/);
+	assert.doesNotMatch(adminFinishRoute, /accountStatus: 'active'/);
+	assert.match(adminSetupForm, /\/api\/auth\/register\/recovery/);
+	assert.match(adminSetupForm, /Save your recovery phrase/);
+	assert.match(adminSetupForm, /\/api\/auth\/register\/activate/);
+	assert.match(activateRoute, /isAdminIdentity/);
+	assert.match(activateRoute, /ROLES\.SIGNATURA_ADMIN/);
+	assert.match(activateRoute, /redirectTo = issuerInvitation[\s\S]+\? '\/admin'/);
+});

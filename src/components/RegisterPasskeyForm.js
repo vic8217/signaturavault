@@ -169,6 +169,14 @@ function AdminSetupQrPanel({ userId, registrationSessionId, signaturaId }) {
 				const data = await response.json().catch(() => ({}));
 				if (cancelled) return;
 
+				if (response.ok && data.requiresRecovery) {
+					setStatus(
+						data.message ||
+							'Admin passkey created on your phone. Complete recovery setup on the phone to activate admin access.',
+					);
+					return;
+				}
+
 				if (response.ok && data.next) {
 					setStatus('Admin passkey created on your phone. Opening admin dashboard...');
 					router.replace(data.next || '/admin');
