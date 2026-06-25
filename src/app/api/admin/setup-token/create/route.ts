@@ -10,6 +10,11 @@ import { assertPhoneReachableSignaturaOrigin } from '@/lib/publicOrigin';
 import { findRegistrationSession } from '@/lib/registration-session';
 import { createAdminSetupTokenRecord } from '@/lib/adminSetupToken';
 import { assertSecureWebAuthnRequest } from '@/lib/webauthn';
+import {
+	APPLICATION_CODES,
+	UNIVERSAL_ROLE_CODES,
+	identityHasUniversalRole,
+} from '@/lib/universalIdentity';
 
 export async function POST(req: Request) {
 	try {
@@ -41,7 +46,14 @@ export async function POST(req: Request) {
 			},
 		});
 		if (!user) return jsonError('Admin account not found', 404);
-		if (getSignaturaAccountType(user.signaturaId) !== SIGNATURA_ACCOUNT_TYPES.ADMIN) {
+		const hasAdminMembership = await identityHasUniversalRole(user.id, {
+			applicationCode: APPLICATION_CODES.SIGNATURA,
+			roleCodes: [UNIVERSAL_ROLE_CODES.SIGNATURA_SYSTEM_ADMIN],
+			organizationId: null,
+		});
+		const hasLegacyAdminId =
+			getSignaturaAccountType(user.signaturaId) === SIGNATURA_ACCOUNT_TYPES.ADMIN;
+		if (!hasAdminMembership && !hasLegacyAdminId) {
 			return jsonError('Setup QR can only be created for admin accounts', 403);
 		}
 		if (user.accountStatus === 'active' || user.trustLevel >= 2) {

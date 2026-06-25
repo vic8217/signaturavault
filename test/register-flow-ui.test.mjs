@@ -170,7 +170,7 @@ test('account activation renews registration session and uses safe API parsing',
 	assert.match(activateAccountBody, /Account activation/);
 });
 
-test('account duplicate contact check is scoped by Signatura account type', async () => {
+test('account duplicate contact check protects one universal Signatura identity', async () => {
 	const route = await readFile(
 		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
 		'utf8',
@@ -180,12 +180,10 @@ test('account duplicate contact check is scoped by Signatura account type', asyn
 		'utf8',
 	);
 
-	assert.match(route, /getSignaturaAccountType/);
-	assert.match(route, /matchingContactUsers\.find/);
-	assert.match(
-		route,
-		/getSignaturaAccountType\(user\.signaturaId\) === accountType/,
-	);
+	assert.match(route, /matchingContactUsers\[0\]/);
+	assert.match(route, /A Signatura identity already exists/);
+	assert.match(route, /attach the new role to the existing Signatura ID/);
+	assert.match(route, /linkRequired: true/);
 	assert.doesNotMatch(schema, /emailLookupHash\s+String\?\s+@unique/);
 	assert.doesNotMatch(schema, /mobileLookupHash\s+String\?\s+@unique/);
 	assert.match(schema, /@@index\(\[emailLookupHash\]\)/);
@@ -272,13 +270,15 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(registerForm, /accuraHandoffToken/);
 	assert.match(registerForm, /role: isAccuraRegistration \? '' : accuraRole/);
 	assert.match(registerForm, /rolePrefix: isAccuraRegistration \? '' : accuraRolePrefix/);
-	assert.match(registerRoute, /createUniqueSignaturaId/);
+	assert.match(registerRoute, /createSignaturaIdentity/);
+	assert.doesNotMatch(registerRoute, /createUniqueSignaturaId/);
 	assert.match(registerRoute, /validateAccuraRegistrationContext/);
 	assert.match(registerRoute, /verifyAccuraRegistrationHandoffToken/);
 	assert.match(registerRoute, /signaturaAppLinkModel/);
 	assert.match(registerRoute, /appLinkModel\.create/);
 	assert.match(registerRoute, /existingSignaturaId/);
 	assert.match(registerRoute, /linkedToCompany/);
+	assert.match(registerRoute, /ensureAccuraMembershipRole/);
 	assert.match(schema, /model SignaturaAppLink/);
 	assert.match(schema, /model AccuraRegistrationHandoff/);
 	assert.match(schema, /rolePrefix\s+String\?/);
@@ -344,8 +344,10 @@ test('ACCURA registration lookup is scoped by app company role and contact', asy
 	assert.match(registerRoute, /tokenId/);
 	assert.match(registerRoute, /ACCURA company-role Signatura ID already exists/);
 	assert.match(registerRoute, /linkRequired: true/);
-	assert.match(registerRoute, /createUniqueSignaturaId/);
-	assert.match(registerRoute, /createUniqueAccuraSignaturaId/);
+	assert.match(registerRoute, /createSignaturaIdentity/);
+	assert.doesNotMatch(registerRoute, /createUniqueSignaturaId/);
+	assert.doesNotMatch(registerRoute, /createUniqueAccuraSignaturaId/);
+	assert.match(registerRoute, /ensureAccuraMembershipRole/);
 	assert.match(registerRoute, /masterSignaturaId/);
 });
 
@@ -389,7 +391,7 @@ test('duplicate user registration returns existing Signatura ID and setup state'
 
 	assert.match(
 		registerRoute,
-		/error: 'Account already exists'[\s\S]+existingSignaturaId: existing\.signaturaId[\s\S]+setupIncomplete/,
+		/A Signatura identity already exists[\s\S]+existingSignaturaId: existing\.signaturaId[\s\S]+setupIncomplete[\s\S]+linkRequired: true/,
 	);
 	assert.match(registerForm, /setupIncomplete/);
 	assert.match(registerForm, /Continue setup/);

@@ -7,6 +7,7 @@ import { jsonError, safeApiErrorMessage } from '@/lib/api';
 import { normalizeSignaturaId } from '@/lib/identity';
 import { prisma } from '@/lib/prisma';
 import { LOGIN_CHALLENGE_STATUS } from '@/lib/trustedDeviceLoginChallenge';
+import { getIdentityContexts } from '@/lib/universalIdentity';
 
 const DEFAULT_ACCURA_CLIENT_ID = 'accura';
 
@@ -435,6 +436,15 @@ export async function POST(req) {
 		}
 
 		const accura = sanitizeAccuraAppMetadata(appLink);
+		const contexts = await getIdentityContexts(user.id);
+		const activeContext =
+			contexts.find(
+				(context) =>
+					context.application?.code === sourceApp &&
+					(!appLink?.companyId ||
+						context.organization?.id === appLink.companyId ||
+						context.organization?.id === appLink.tenantId),
+			) || null;
 		const redeemResult = await prisma.trustedDeviceLoginChallenge.updateMany({
 			where: {
 				id: challenge.id,
@@ -471,6 +481,7 @@ export async function POST(req) {
 		return Response.json({
 			active: true,
 			subject: user.id,
+			identityId: user.id,
 			signaturaId: user.signaturaId,
 			rolePrefix: challenge.rolePrefix || appLink?.rolePrefix || null,
 			sessionType: 'trusted-device',
@@ -487,6 +498,11 @@ export async function POST(req) {
 			sourceApp,
 			requesterOrigin: challenge.requesterOrigin || null,
 			expiresAt: challenge.expiresAt,
+			application: activeContext?.application || null,
+			organization: activeContext?.organization || null,
+			roles: activeContext?.roles || [],
+			permissions: activeContext?.permissions || [],
+			membershipStatus: activeContext?.status || appLink?.status || null,
 			accura,
 		});
 	} catch (error) {

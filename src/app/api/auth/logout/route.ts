@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { resolvePublicSignaturaOrigin } from '@/lib/publicOrigin';
 import { ROLE_COOKIE } from '@/lib/roles';
 import { clearSessionCookie, getSession } from '@/lib/session';
 import { logSecurityEvent } from '@/lib/webauthn';
@@ -48,7 +49,9 @@ export async function GET(req: Request) {
 	const session = await tryGetSession();
 	const url = new URL(req.url);
 	const redirectTo = safeRedirectTarget(url.searchParams.get('redirect') || '/login', req);
-	const response = NextResponse.redirect(new URL(redirectTo, req.url));
+	const response = NextResponse.redirect(
+		new URL(redirectTo, resolvePublicSignaturaOrigin(req)),
+	);
 	await tryLogLogout(req, session?.userId, { reason: 'logout_redirect' });
 	clearAuthCookies(response, req);
 	return response;

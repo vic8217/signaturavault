@@ -14,10 +14,33 @@ import {
 	isIssuerPortalPath,
 } from '@/lib/roles';
 import { setSessionCookie } from '@/lib/session';
+import {
+	APPLICATION_CODES,
+	UNIVERSAL_ROLE_CODES,
+	getIdentityContexts,
+	identityHasUniversalRole,
+} from '@/lib/universalIdentity';
 
 async function resolvePortalRole(userId, nextPath) {
 	let portalRole = null;
 	if (isIssuerPortalPath(nextPath)) {
+		if (
+			await identityHasUniversalRole(userId, {
+				applicationCode: APPLICATION_CODES.SIGNATURA,
+				roleCodes: [
+					UNIVERSAL_ROLE_CODES.ISSUER_ADMIN,
+					UNIVERSAL_ROLE_CODES.ISSUER_STAFF,
+				],
+				organizationId: undefined,
+			})
+		) {
+			const isIssuerAdmin = await identityHasUniversalRole(userId, {
+				applicationCode: APPLICATION_CODES.SIGNATURA,
+				roleCodes: [UNIVERSAL_ROLE_CODES.ISSUER_ADMIN],
+				organizationId: undefined,
+			});
+			return isIssuerAdmin ? ROLES.ISSUER_ADMIN : ROLES.ISSUER_STAFF;
+		}
 		const user = await prisma.user.findUnique({
 			where: { id: userId },
 			select: { signaturaId: true },
@@ -45,6 +68,23 @@ async function resolvePortalRole(userId, nextPath) {
 				? ROLES.ISSUER_ADMIN
 				: ROLES.ISSUER_STAFF;
 	} else if (nextPath.startsWith('/admin')) {
+		if (
+			await identityHasUniversalRole(userId, {
+				applicationCode: APPLICATION_CODES.SIGNATURA,
+				roleCodes: [
+					UNIVERSAL_ROLE_CODES.SIGNATURA_SYSTEM_ADMIN,
+					UNIVERSAL_ROLE_CODES.SIGNATURA_STAFF,
+				],
+				organizationId: null,
+			})
+		) {
+			const isSystemAdmin = await identityHasUniversalRole(userId, {
+				applicationCode: APPLICATION_CODES.SIGNATURA,
+				roleCodes: [UNIVERSAL_ROLE_CODES.SIGNATURA_SYSTEM_ADMIN],
+				organizationId: null,
+			});
+			return isSystemAdmin ? ROLES.SIGNATURA_ADMIN : ROLES.SIGNATURA_STAFF;
+		}
 		const user = await prisma.user.findUnique({
 			where: { id: userId },
 			select: { signaturaId: true },
@@ -95,6 +135,7 @@ async function createAuthenticatedLoginResponse({
 		ok: true,
 		next: allowedNext,
 		user: userPublicIdentity(user),
+		contexts: await getIdentityContexts(user.id),
 		canRegisterDevice,
 	});
 	setSessionCookie(responseJson, req, {

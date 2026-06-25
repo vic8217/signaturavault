@@ -1,10 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
-import {
-	createUniqueAccuraSignaturaId,
-	normalizeSignaturaId,
-} from '@/lib/identity';
+import { normalizeSignaturaId } from '@/lib/identity';
 import { normalizeAccuraRole, normalizeAccuraRolePrefix } from '@/lib/registrationSource';
+import { ensureAccuraMembershipRole } from '@/lib/universalIdentity';
 
 export async function POST(req) {
 	try {
@@ -23,13 +21,10 @@ export async function POST(req) {
 		}
 
 		if (masterSignaturaId.startsWith('SIG-ACCURA-')) {
-			return Response.json({
-				ok: true,
-				masterSignaturaId,
-				roleSignaturaId: masterSignaturaId,
-				rolePrefix,
-				repaired: false,
-			});
+			return jsonError(
+				'ACCURA role-specific Signatura IDs are deprecated. Use the user master Signatura ID.',
+				409,
+			);
 		}
 
 		const user = await prisma.user.findUnique({
@@ -52,16 +47,7 @@ export async function POST(req) {
 		});
 
 		let repaired = false;
-		let roleSignaturaId = String(link?.signaturaId || '').trim().toUpperCase();
-
-		if (!roleSignaturaId.startsWith('SIG-ACCURA-')) {
-			roleSignaturaId = await createUniqueAccuraSignaturaId(
-				prisma,
-				rolePrefix === 'SADM' ? companyCode : link?.companyCode || companyCode,
-				rolePrefix,
-			);
-			repaired = true;
-		}
+		const roleSignaturaId = user.signaturaId;
 
 		const registrationContext =
 			link?.registrationContext && typeof link.registrationContext === 'object'
@@ -72,7 +58,16 @@ export async function POST(req) {
 			link &&
 			(!link.role || normalizeAccuraRole(link.role) !== normalizedRole);
 
-		if (link && (repaired || needsRoleRepair || link.signaturaId !== roleSignaturaId)) {
+		await ensureAccuraMembershipRole(prisma, {
+			identityId: user.id,
+			companyId: rolePrefix === 'SADM' ? 'accura-platform' : link?.companyId || companyCode,
+			companyCode,
+			companyName: link?.companyName || companyCode,
+			rolePrefix,
+			roleName: normalizedRole,
+		});
+
+		if (link && (needsRoleRepair || link.signaturaId !== roleSignaturaId)) {
 			link = await prisma.signaturaAppLink.update({
 				where: { id: link.id },
 				data: {
@@ -83,13 +78,6 @@ export async function POST(req) {
 			});
 			repaired = true;
 		} else if (!link) {
-			if (!roleSignaturaId.startsWith('SIG-ACCURA-')) {
-				roleSignaturaId = await createUniqueAccuraSignaturaId(
-					prisma,
-					rolePrefix === 'SADM' ? companyCode : companyCode,
-					rolePrefix,
-				);
-			}
 			link = await prisma.signaturaAppLink.create({
 				data: {
 					userId: user.id,
@@ -111,6 +99,7 @@ export async function POST(req) {
 			masterSignaturaId: user.signaturaId,
 			roleSignaturaId,
 			rolePrefix,
+			universalIdentity: true,
 			repaired,
 		});
 	} catch (error) {

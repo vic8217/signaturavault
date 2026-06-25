@@ -12,12 +12,9 @@ import {
 	notifyAccuraRegistrationCallback,
 	verifyAccuraRegistrationHandoffToken,
 } from '@/lib/accuraRegistrationHandoff';
-import {
-	createUniqueAccuraSignaturaId,
-	resolveAccuraLinkedSignaturaId,
-	userPublicIdentity,
-} from '@/lib/identity';
+import { userPublicIdentity } from '@/lib/identity';
 import { sourceAppLabel } from '@/lib/registrationSource';
+import { ensureAccuraMembershipRole } from '@/lib/universalIdentity';
 import {
 	assertSecureWebAuthnRequest,
 	getOrigin,
@@ -168,14 +165,7 @@ export async function POST(req: Request) {
 				})
 			: null;
 
-		const existingLinkedId = String(existingLink?.signaturaId || '').trim().toUpperCase();
-		const accuraRoleSignaturaId = existingLinkedId.startsWith('SIG-ACCURA-')
-			? existingLinkedId
-			: await createUniqueAccuraSignaturaId(
-					prisma,
-					context.companyCode,
-					context.roleCode,
-				);
+		const linkedSignaturaId = user.signaturaId;
 
 		await prisma.$transaction(async (tx) => {
 			const transactionHandoffModel = accuraRegistrationHandoffModel(tx);
@@ -207,7 +197,7 @@ export async function POST(req: Request) {
 							returnUrl: context.returnUrl,
 							status: 'PROCESSING',
 							userId: user.id,
-							signaturaId: accuraRoleSignaturaId,
+							signaturaId: linkedSignaturaId,
 							expiresAt: new Date(context.expiresAt),
 						},
 					});
@@ -247,7 +237,7 @@ export async function POST(req: Request) {
 				await linkModel.update({
 					where: { id: existingLink.id },
 					data: {
-						signaturaId: accuraRoleSignaturaId,
+						signaturaId: linkedSignaturaId,
 						registrationContext,
 						trustedDeviceStatus: 'TRUSTED',
 					},
@@ -257,7 +247,7 @@ export async function POST(req: Request) {
 					data: {
 						id: crypto.randomUUID(),
 						userId: user.id,
-						signaturaId: accuraRoleSignaturaId,
+						signaturaId: linkedSignaturaId,
 						sourceApp: sourceAppLabel('accura'),
 						companyCode: context.companyCode,
 						companyName: context.companyName,
@@ -272,6 +262,15 @@ export async function POST(req: Request) {
 				});
 			}
 
+			await ensureAccuraMembershipRole(tx, {
+				identityId: user.id,
+				companyId: context.companyId,
+				companyCode: context.companyCode,
+				companyName: context.companyName,
+				rolePrefix: context.roleCode,
+				roleName: context.roleName,
+			});
+
 			await transactionHandoffModel?.updateMany({
 				where: {
 					tokenId: context.jti,
@@ -281,14 +280,14 @@ export async function POST(req: Request) {
 					status: 'COMPLETED',
 					completedAt: new Date(),
 					userId: user.id,
-					signaturaId: accuraRoleSignaturaId,
+					signaturaId: linkedSignaturaId,
 				},
 			});
 		});
 
 		const accuraReturnUrl =
 			buildAccuraRegistrationReturnUrl(context.returnUrl, {
-				signaturaId: accuraRoleSignaturaId,
+				signaturaId: linkedSignaturaId,
 				userId: user.id,
 				signaturaSubjectId: user.id,
 				companyId: context.companyId,
@@ -308,7 +307,7 @@ export async function POST(req: Request) {
 			userId: user.id,
 			context,
 			details: {
-				signaturaId: accuraRoleSignaturaId,
+				signaturaId: linkedSignaturaId,
 				masterSignaturaId: user.signaturaId,
 			},
 		});
@@ -318,7 +317,7 @@ export async function POST(req: Request) {
 			userId: user.id,
 			context,
 			details: {
-				signaturaId: accuraRoleSignaturaId,
+				signaturaId: linkedSignaturaId,
 				masterSignaturaId: user.signaturaId,
 				accuraReturnUrl,
 			},

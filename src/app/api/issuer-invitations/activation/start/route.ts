@@ -5,7 +5,7 @@ import {
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
-import { createUniqueSignaturaId } from '@/lib/identity';
+import { createPendingInvitationIdentity } from '@/lib/signaturaIdentityService';
 import {
 	RP_NAME,
 	assertSecureWebAuthnRequest,
@@ -43,22 +43,19 @@ export async function POST(req: Request) {
 					select: { userId: true },
 				})
 			: null;
-		const user = issuerUser?.userId
+		let user = issuerUser?.userId
 			? await prisma.user.findUnique({
 					where: { id: issuerUser.userId },
 					include: { credentials: true },
 				})
-			: await prisma.user.create({
-					data: {
-						id: crypto.randomUUID(),
-						signaturaId: await createUniqueSignaturaId(prisma, 'issuer'),
-						email: null,
-						name: null,
-						accountStatus: 'active',
-						trustLevel: 1,
-					},
-					include: { credentials: true },
-				});
+			: null;
+		if (!user) {
+			const createdIdentity = await createPendingInvitationIdentity(prisma);
+			user = await prisma.user.findUnique({
+				where: { id: createdIdentity.id },
+				include: { credentials: true },
+			});
+		}
 
 		if (!user) return jsonError('Activation user could not be prepared', 400);
 

@@ -23,7 +23,7 @@ test('trusted device QR panel preserves ACCURA assertion until introspection', a
 
 	assert.match(source, /completeExternalReturn/);
 	assert.match(source, /if \(externalReturnUrl\)/);
-	assert.match(source, /Generic QR scanners on unregistered phones cannot approve/);
+	assert.match(source, /qrUrl: body\.qrUrl/);
 	const approvedBlock = source.slice(
 		source.indexOf("if (body.status === 'APPROVED')"),
 		source.indexOf('if (body.status === \'EXPIRED\''),

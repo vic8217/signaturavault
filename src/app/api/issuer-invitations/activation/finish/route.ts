@@ -10,6 +10,10 @@ import { userPublicIdentity } from '@/lib/identity';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
 import { setSessionCookie } from '@/lib/session';
 import {
+	UNIVERSAL_ROLE_CODES,
+	ensureIssuerMembershipRole,
+} from '@/lib/universalIdentity';
+import {
 	assertSecureWebAuthnRequest,
 	consumeChallenge,
 	getOrigin,
@@ -233,6 +237,26 @@ export async function POST(req: Request) {
 				});
 			}
 
+			const universalRole =
+				invitation.role === ROLES.ISSUER_ADMIN
+					? UNIVERSAL_ROLE_CODES.ISSUER_ADMIN
+					: UNIVERSAL_ROLE_CODES.ISSUER_STAFF;
+			await ensureIssuerMembershipRole(tx, {
+				identityId: userId,
+				tenantId: invitation.tenantId,
+				issuerId: invitation.issuerId,
+				issuerName: invitation.issuerId || invitation.tenantId,
+				roleCode: universalRole,
+			});
+
+			const activeUser = await tx.user.update({
+				where: { id: userId },
+				data: {
+					accountStatus: 'active',
+					trustLevel: Math.max(Number(activatedUser.trustLevel || 1), 2),
+				},
+			});
+
 			await tx.securityEventLog.create({
 				data: {
 					id: crypto.randomUUID(),
@@ -252,7 +276,7 @@ export async function POST(req: Request) {
 				},
 			});
 
-			return activatedUser;
+			return activeUser;
 		});
 
 		await logSecurityEvent(req, 'issuer_trusted_device_registered', user.id, {

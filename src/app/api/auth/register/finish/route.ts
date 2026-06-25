@@ -17,6 +17,11 @@ import {
 	getUserAgent,
 	logSecurityEvent,
 } from '@/lib/webauthn';
+import {
+	APPLICATION_CODES,
+	UNIVERSAL_ROLE_CODES,
+	identityHasUniversalRole,
+} from '@/lib/universalIdentity';
 
 function passkeySummaryFromCredential(
 	credential: {
@@ -115,8 +120,14 @@ export async function POST(req: Request) {
 		const result = await prisma.$transaction(async (tx) => {
 			const user = await tx.user.findUnique({ where: { id: userId } });
 			if (!user) throw new Error('User not found');
-			const isAdminAccount =
+			const hasLegacyAdminId =
 				getSignaturaAccountType(user.signaturaId) === SIGNATURA_ACCOUNT_TYPES.ADMIN;
+			const hasAdminMembership = await identityHasUniversalRole(user.id, {
+				applicationCode: APPLICATION_CODES.SIGNATURA,
+				roleCodes: [UNIVERSAL_ROLE_CODES.SIGNATURA_SYSTEM_ADMIN],
+				organizationId: null,
+			});
+			const isAdminAccount = hasLegacyAdminId || hasAdminMembership;
 			if (
 				isAdminAccount &&
 				!isAdminLocalPlatformRegistration({

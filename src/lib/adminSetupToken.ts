@@ -5,6 +5,11 @@ import {
 	getSignaturaAccountType,
 } from '@/lib/identity';
 import { REGISTRATION_STATUSES } from '@/lib/registration-status';
+import {
+	APPLICATION_CODES,
+	UNIVERSAL_ROLE_CODES,
+	identityHasUniversalRole,
+} from '@/lib/universalIdentity';
 import { getUserAgent, logSecurityEvent } from '@/lib/webauthn';
 
 export const ADMIN_SETUP_TOKEN_PURPOSE = 'ADMIN_PASSKEY_SETUP';
@@ -206,9 +211,14 @@ export async function validateAdminSetupToken(
 		};
 	}
 
-	if (
-		getSignaturaAccountType(record.user.signaturaId) !== SIGNATURA_ACCOUNT_TYPES.ADMIN
-	) {
+	const hasAdminMembership = await identityHasUniversalRole(record.userId, {
+		applicationCode: APPLICATION_CODES.SIGNATURA,
+		roleCodes: [UNIVERSAL_ROLE_CODES.SIGNATURA_SYSTEM_ADMIN],
+		organizationId: null,
+	});
+	const hasLegacyAdminId =
+		getSignaturaAccountType(record.user.signaturaId) === SIGNATURA_ACCOUNT_TYPES.ADMIN;
+	if (!hasAdminMembership && !hasLegacyAdminId) {
 		await logSecurityEvent(req, 'admin_setup_token_failed', userId, {
 			tokenId: record.id,
 			reason: 'not_admin_account',

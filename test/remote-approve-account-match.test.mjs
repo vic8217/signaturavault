@@ -7,15 +7,15 @@ import { buildRemoteLoginQrUrl } from '@/lib/trustedDeviceLoginChallenge.js';
 test('remote approve QR URL includes expected Signatura ID', () => {
 	const url = new URL(
 		buildRemoteLoginQrUrl('https://signatura.example', 'challenge-1', 'ABC123', {
-			signaturaId: 'SIG-ACCURA-SADM-183791-4E18',
+			signaturaId: 'SIG-U-1837-914E',
 		}),
 	);
-	assert.equal(url.pathname, '/login/remote-approve');
+	assert.equal(url.pathname, '/app/qr-login');
 	assert.equal(url.searchParams.get('cid'), 'challenge-1');
 	assert.equal(url.searchParams.get('code'), 'ABC123');
 	assert.equal(
 		url.searchParams.get('signaturaId'),
-		'SIG-ACCURA-SADM-183791-4E18',
+		'SIG-U-1837-914E',
 	);
 });
 

@@ -28,6 +28,8 @@ model User {
   trustedDeviceLoginChallenges TrustedDeviceLoginChallenge[]
   accountRecoveryRequests      AccountRecoveryRequest[]
   adminSetupTokens            AdminSetupToken[]
+  memberships                 Membership[]
+  invitedMemberships          Membership[] @relation("MembershipInviter")
 
   @@index([emailLookupHash])
   @@index([mobileLookupHash])
@@ -260,6 +262,122 @@ model Tenant {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("tenants")
+}
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  type        String
+  externalRef String?      @map("external_ref")
+  status      String       @default("ACTIVE")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  memberships Membership[]
+  roles       Role[]
+
+  @@index([type, status])
+  @@index([externalRef])
+  @@map("organizations")
+}
+
+model Application {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  name        String
+  status      String       @default("ACTIVE")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  memberships Membership[]
+  roles       Role[]
+  permissions Permission[]
+
+  @@index([status])
+  @@map("applications")
+}
+
+model Membership {
+  id             String           @id @default(cuid())
+  identityId     String           @map("identity_id")
+  organizationId String?          @map("organization_id")
+  applicationId  String           @map("application_id")
+  status         String           @default("ACTIVE")
+  invitedById    String?          @map("invited_by_id")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  identity       User             @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  invitedBy      User?            @relation("MembershipInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+  organization   Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  application    Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  roles          MembershipRole[]
+
+  @@index([identityId, status])
+  @@index([organizationId, status])
+  @@index([applicationId, status])
+  @@unique([identityId, applicationId, organizationId])
+  @@map("memberships")
+}
+
+model Role {
+  id             String           @id @default(cuid())
+  applicationId  String           @map("application_id")
+  organizationId String?          @map("organization_id")
+  code           String
+  name           String
+  scope          String
+  status         String           @default("ACTIVE")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  application    Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  organization   Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships    MembershipRole[]
+  permissions    RolePermission[]
+
+  @@index([applicationId, status])
+  @@index([organizationId, status])
+  @@unique([applicationId, organizationId, code])
+  @@map("roles")
+}
+
+model MembershipRole {
+  id           String     @id @default(cuid())
+  membershipId String     @map("membership_id")
+  roleId       String     @map("role_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, roleId])
+  @@index([roleId])
+  @@map("membership_roles")
+}
+
+model Permission {
+  id            String           @id @default(cuid())
+  applicationId String           @map("application_id")
+  code          String
+  description   String?
+  status        String           @default("ACTIVE")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  roles         RolePermission[]
+
+  @@unique([applicationId, code])
+  @@index([status])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String     @map("role_id")
+  permissionId String     @map("permission_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
 }
 
 model PrivateFieldKeyReference {

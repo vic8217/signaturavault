@@ -20,6 +20,11 @@ import {
 	assertPhoneReachableSignaturaOrigin,
 } from '@/lib/publicOrigin';
 import { getOrigin, getUserAgent } from '@/lib/webauthn';
+import {
+	APPLICATION_CODES,
+	UNIVERSAL_ROLE_CODES,
+	identityHasUniversalRole,
+} from '@/lib/universalIdentity';
 
 const KNOWN_SOURCE_APPS = new Set([
 	'ACCURA',
@@ -89,9 +94,18 @@ export async function POST(req) {
 			return jsonError('Signatura ID not found', 404);
 		}
 		const isAdminLogin = nextPath === '/admin' || nextPath.startsWith('/admin/');
+		const hasAdminMembership = isAdminLogin
+			? await identityHasUniversalRole(user.id, {
+					applicationCode: APPLICATION_CODES.SIGNATURA,
+					roleCodes: [UNIVERSAL_ROLE_CODES.SIGNATURA_SYSTEM_ADMIN],
+					organizationId: null,
+				})
+			: false;
+		const hasLegacyAdminId =
+			getSignaturaAccountType(user.signaturaId) === SIGNATURA_ACCOUNT_TYPES.ADMIN;
 		if (
 			isAdminLogin &&
-			(getSignaturaAccountType(user.signaturaId) !== SIGNATURA_ACCOUNT_TYPES.ADMIN ||
+			((!hasAdminMembership && !hasLegacyAdminId) ||
 				user.accountStatus !== 'active' ||
 				user.trustLevel < 2)
 		) {

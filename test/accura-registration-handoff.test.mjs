@@ -187,9 +187,8 @@ test('ACCURA account registration trusts signed handoff over forged body fields 
 		assert.equal(link.companyId, 'company-road');
 		assert.equal(link.companyCode, 'ROAD-9B2D7B');
 		assert.equal(link.rolePrefix, 'CASH');
-		assert.match(link.signaturaId, /^SIG-ACCURA-ROAD-9B2D7B-CASH-/);
+		assert.equal(link.signaturaId, body.user.signaturaId);
 		assert.equal(link.registrationContext.masterSignaturaId, body.user.signaturaId);
-		assert.notEqual(link.signaturaId, body.user.signaturaId);
 		assert.equal(link.registrationContext.accuraRegistrationKeyId, 'key-cadm-cash-1');
 		assert.equal(
 			link.registrationContext.returnUrl,
@@ -263,7 +262,7 @@ test('ACCURA reuses an existing Signatura identity for an additional role', asyn
 	}
 });
 
-test('ACCURA SADM registration allocates SIG-ACCURA-SADM role ID linked to SIG-U master', async () => {
+test('ACCURA SADM registration attaches platform role to same Signatura identity', async () => {
 	resetHarness();
 	const restore = withSecret();
 	try {
@@ -293,7 +292,7 @@ test('ACCURA SADM registration allocates SIG-ACCURA-SADM role ID linked to SIG-U
 		assert.equal(response.status, 200);
 		assert.match(body.user.signaturaId, /^SIG-U-/);
 		const link = prisma.signaturaAppLink.__rows[0];
-		assert.match(link.signaturaId, /^SIG-ACCURA-SADM-[0-9A-F]{6}-[0-9A-F]{4}$/);
+		assert.equal(link.signaturaId, body.user.signaturaId);
 		assert.equal(link.registrationContext.masterSignaturaId, body.user.signaturaId);
 	} finally {
 		restore();

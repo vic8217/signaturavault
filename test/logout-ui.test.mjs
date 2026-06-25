@@ -30,6 +30,17 @@ test('admin sign out returns to the admin portal login', async () => {
 	assert.match(source, /href=\{adminLogoutHref\}/);
 });
 
+test('issuer sign out returns to issuer web login', async () => {
+	const source = await readFile(
+		new URL('../src/app/issuer/layout.js', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(source, /issuerLogoutHref/);
+	assert.match(source, /\/login\?next=\/issuer/);
+	assert.match(source, /href=\{issuerLogoutHref\}/);
+});
+
 test('logout route redirects to login and clears auth cookies defensively', async () => {
 	const source = await readFile(
 		new URL('../src/app/api/auth/logout/route.ts', import.meta.url),
@@ -40,7 +51,8 @@ test('logout route redirects to login and clears auth cookies defensively', asyn
 	assert.match(source, /clearAuthCookies/);
 	assert.match(source, /ROLE_COOKIE/);
 	assert.match(source, /tryLogLogout/);
-	assert.match(source, /NextResponse\.redirect\(new URL\(redirectTo, req\.url\)\)/);
+	assert.match(source, /resolvePublicSignaturaOrigin/);
+	assert.match(source, /new URL\(redirectTo, resolvePublicSignaturaOrigin\(req\)\)/);
 });
 
 test('owner mobile others page exposes a visible sign out row', async () => {

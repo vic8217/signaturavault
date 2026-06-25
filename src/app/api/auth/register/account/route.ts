@@ -4,20 +4,16 @@ import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
 import {
 	SIGNATURA_ACCOUNT_TYPES,
-	createUniqueAccuraSignaturaId,
-	createUniqueSignaturaId,
-	getSignaturaAccountType,
 	normalizeSignaturaAccountType,
 	userPublicIdentity,
 } from '@/lib/identity';
 import {
 	accountLookupHashes,
-	encryptedAccountContactFields,
-	ensureAccountPrivateFieldKeyReference,
 	normalizeEmail,
 	normalizeFullName,
 	normalizeHandphone,
 } from '@/lib/account-private-fields';
+import { createSignaturaIdentity } from '@/lib/signaturaIdentityService';
 import { verifyIssuerAuthorizationCode } from '@/lib/issuer-authorization';
 import { normalizeExternalReturnUrl } from '@/lib/externalReturnUrl';
 import { verifyAccuraRegistrationHandoffToken } from '@/lib/accuraRegistrationHandoff';
@@ -42,6 +38,12 @@ import {
 	currentRegistrationStep,
 	REGISTRATION_STATUSES,
 } from '@/lib/registration-status';
+import {
+	UNIVERSAL_ROLE_CODES,
+	ensureAccuraMembershipRole,
+	ensureIssuerMembershipRole,
+	ensureSignaturaPlatformRole,
+} from '@/lib/universalIdentity';
 import {
 	assertSecureWebAuthnRequest,
 	getUserAgent,
@@ -324,9 +326,7 @@ export async function POST(req: Request) {
 				);
 			}
 		} else {
-			const existing = matchingContactUsers.find(
-				(user) => getSignaturaAccountType(user.signaturaId) === accountType,
-			);
+			const existing = matchingContactUsers[0];
 			if (existing) {
 				const setupStep = currentRegistrationStep(existing);
 				const setupIncomplete =
@@ -334,9 +334,10 @@ export async function POST(req: Request) {
 					existing.accountStatus !== 'active';
 				return NextResponse.json(
 					{
-						error: 'Account already exists',
+						error: 'A Signatura identity already exists for these contact details. Sign in and attach the new role to the existing Signatura ID.',
 						existingSignaturaId: existing.signaturaId,
 						setupIncomplete,
+						linkRequired: true,
 					},
 					{ status: 409 },
 				);
@@ -344,20 +345,21 @@ export async function POST(req: Request) {
 		}
 
 		const userId = crypto.randomUUID();
-		const signaturaId = await createUniqueSignaturaId(prisma, accountType);
-		const accuraRoleSignaturaId = isAccuraRegistration
-			? await createUniqueAccuraSignaturaId(prisma, companyCode, rolePrefix)
-			: null;
 		const registrationToken = crypto.randomBytes(32).toString('base64url');
 		const registrationSessionId = crypto.randomUUID();
-		const encryptedFields = encryptedAccountContactFields({
-			userId,
-			fullName,
-			handphone,
-			email,
-		});
 
 		const user = await prisma.$transaction(async (tx) => {
+			const created = await createSignaturaIdentity(tx, {
+				userId,
+				fullName,
+				handphone,
+				email,
+				emailLookupHash,
+				mobileLookupHash,
+				accountStatus: 'pending_passkey_creation',
+				trustLevel: 1,
+			});
+			const linkedSignaturaId = created.signaturaId;
 			const handoffModel = accuraRegistrationHandoffModel(tx);
 			if (isAccuraRegistration && handoffModel) {
 				try {
@@ -372,7 +374,7 @@ export async function POST(req: Request) {
 							returnUrl,
 							status: 'CLAIMED',
 							userId,
-							signaturaId: accuraRoleSignaturaId || signaturaId,
+							signaturaId: linkedSignaturaId,
 							expiresAt: new Date(accuraHandoffExpiresAt),
 						},
 					});
@@ -383,20 +385,6 @@ export async function POST(req: Request) {
 				}
 			}
 
-			const created = await tx.user.create({
-				data: {
-					id: userId,
-					signaturaId,
-					email: null,
-					name: null,
-					emailLookupHash,
-					mobileLookupHash,
-					accountStatus: 'pending_passkey_creation',
-					trustLevel: 1,
-				},
-			});
-			await ensureAccountPrivateFieldKeyReference(tx, userId);
-			await tx.encryptedPrivateField.createMany({ data: encryptedFields });
 			await tx.authChallenge.create({
 				data: {
 					id: registrationSessionId,
@@ -415,7 +403,7 @@ export async function POST(req: Request) {
 					data: {
 						id: crypto.randomUUID(),
 						userId,
-						signaturaId: accuraRoleSignaturaId || signaturaId,
+						signaturaId: linkedSignaturaId,
 						sourceApp: sourceAppLabel(registrationSource.source),
 						companyCode: isAccuraRegistration ? companyCode : null,
 						companyName: isAccuraRegistration ? companyName : null,
@@ -438,7 +426,7 @@ export async function POST(req: Request) {
 									nonce: accuraNonce,
 									clientId: accuraClientId,
 									registeredAt: new Date().toISOString(),
-									masterSignaturaId: signaturaId,
+									masterSignaturaId: created.signaturaId,
 								}
 							: null,
 						trustedDeviceStatus: isAccuraRegistration ? 'PENDING' : null,
@@ -453,6 +441,13 @@ export async function POST(req: Request) {
 				issuerAuthorizationRecord.issuerId &&
 				issuerAuthorizationRecord.tenantId
 			) {
+				await ensureIssuerMembershipRole(tx, {
+					identityId: userId,
+					tenantId: issuerAuthorizationRecord.tenantId,
+					issuerId: issuerAuthorizationRecord.issuerId,
+					issuerName: issuerAuthorizationRecord.label || 'Issuer',
+					roleCode: UNIVERSAL_ROLE_CODES.ISSUER_ADMIN,
+				});
 				await tx.issuerUser.create({
 					data: {
 						id: crypto.randomUUID(),
@@ -465,6 +460,25 @@ export async function POST(req: Request) {
 						invitedAt: new Date(),
 						activatedAt: new Date(),
 					},
+				});
+			}
+
+			if (accountType === SIGNATURA_ACCOUNT_TYPES.ADMIN) {
+				await ensureSignaturaPlatformRole(
+					tx,
+					userId,
+					UNIVERSAL_ROLE_CODES.SIGNATURA_SYSTEM_ADMIN,
+				);
+			}
+
+			if (isAccuraRegistration) {
+				await ensureAccuraMembershipRole(tx, {
+					identityId: userId,
+					companyId,
+					companyCode,
+					companyName,
+					rolePrefix,
+					roleName,
 				});
 			}
 
@@ -525,7 +539,7 @@ export async function POST(req: Request) {
 					clientId: accuraClientId,
 				},
 				details: {
-					signaturaId: accuraRoleSignaturaId || user.signaturaId,
+					signaturaId: user.signaturaId,
 					masterSignaturaId: user.signaturaId,
 				},
 			});
