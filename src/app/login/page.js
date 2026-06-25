@@ -19,6 +19,7 @@ export default async function LoginPage({ searchParams }) {
 	const externalReturnUrl = externalReturnUrlFromParams(params);
 	const registrationContext = registrationContextFromParams(params);
 	const requestedSignaturaId = normalizeSignaturaId(firstParam(params?.signaturaId));
+	const preferredMethod = firstParam(params?.method) === 'qr' ? 'qr' : '';
 	const session = await requireSession();
 	const homePath = (await resolveSignaturaHomePath()) ?? '/signatura/dashboard';
 	const nextPath = normalizeLoginNextPath(
@@ -74,6 +75,7 @@ export default async function LoginPage({ searchParams }) {
 						nextPath={nextPath}
 						externalReturnUrl={externalReturnUrl}
 						appRegistrationContext={registrationContext}
+						preferredMethod={preferredMethod}
 					/>
 				</section>
 			</div>

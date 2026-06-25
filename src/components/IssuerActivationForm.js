@@ -15,7 +15,7 @@ function IssuerActivationForm({ token, isSignedIn = false, signedInSignaturaId =
 	const [activatedUser, setActivatedUser] = useState(null);
 	const hasToken = useMemo(() => Boolean(token), [token]);
 	const activationPath = `/issuer/activate?token=${encodeURIComponent(token || '')}`;
-	const loginHref = `/login?next=${encodeURIComponent(activationPath)}`;
+	const loginHref = `/login?next=${encodeURIComponent(activationPath)}&method=qr`;
 	const createHref = `/register?next=${encodeURIComponent(activationPath)}&issuerInvitationToken=${encodeURIComponent(token || '')}`;
 
 	async function submit(event) {

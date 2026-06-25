@@ -64,6 +64,7 @@ function LoginPasskeyForm({
 	nextPath = '/signatura/dashboard',
 	externalReturnUrl = '',
 	appRegistrationContext = {},
+	preferredMethod = '',
 }) {
 	const [signaturaId, setSignaturaId] = useState('');
 	const [step, setStep] = useState('id');
@@ -79,6 +80,9 @@ function LoginPasskeyForm({
 	});
 	const normalizedSignaturaId = signaturaId.trim();
 	const loginAccountType = accountTypeForNextPath(nextPath);
+	const isIssuerLogin = loginAccountType === 'issuer';
+	const isAdminLogin = loginAccountType === 'admin';
+	const qrPrimary = isIssuerLogin;
 	const registrationSource = String(appRegistrationContext.source || '').toLowerCase();
 	const remoteLoginContext =
 		registrationSource === 'accura'
@@ -102,6 +106,13 @@ function LoginPasskeyForm({
 							requesterOrigin:
 								typeof window !== 'undefined' ? window.location.origin : '',
 						}
+					: loginAccountType === 'issuer'
+						? {
+								clientId: 'signatura_issuer',
+								sourceApp: 'SIGNATURA_ISSUER',
+								requesterOrigin:
+									typeof window !== 'undefined' ? window.location.origin : '',
+							}
 				: {};
 	const registrationContextQuery =
 		registrationSource === 'accura'
@@ -116,9 +127,7 @@ function LoginPasskeyForm({
 	const createAccountHref =
 		loginAccountType === 'admin'
 			? `/admin/register?next=${encodeURIComponent(nextPath)}`
-			: `/register?next=${encodeURIComponent(nextPath)}${
-					loginAccountType === 'issuer' ? '&accountType=issuer' : ''
-				}${registrationContextQuery}${
+			: `/register?next=${encodeURIComponent(nextPath)}${registrationContextQuery}${
 					externalReturnUrl
 						? `&returnUrl=${encodeURIComponent(externalReturnUrl)}`
 						: ''
@@ -153,6 +162,10 @@ function LoginPasskeyForm({
 				setSignaturaId(signaturaIdFromUrl);
 			}
 			if (externalReturnUrl && signaturaIdFromUrl) {
+				setStep('qr');
+				return;
+			}
+			if (preferredMethod === 'qr' && signaturaIdFromUrl) {
 				setStep('qr');
 				return;
 			}
@@ -196,7 +209,7 @@ function LoginPasskeyForm({
 			window.clearTimeout(autofillTimer);
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [externalReturnUrl]);
+	}, [externalReturnUrl, preferredMethod]);
 
 	function updateSignaturaId(value) {
 		setSignaturaId(value);
@@ -343,7 +356,9 @@ function LoginPasskeyForm({
 					<p className="mt-6 max-w-xl text-base leading-7 text-slate-400 sm:text-lg">
 						{accountSwitchContext.requiredRolePrefix
 									? `Enter your ${accountSwitchContext.requiredRolePrefix} Signatura ID, then verify with the registered device biometric or screen lock.`
-									: 'Enter your Signatura ID, then use your fingerprint, face, or device screen lock.'}
+									: isIssuerLogin
+										? 'Enter your Signatura ID, then approve this issuer portal sign-in with the Signatura app or PWA wallet.'
+										: 'Enter your Signatura ID, then use your fingerprint, face, or device screen lock.'}
 					</p>
 					{accountSwitchContext.active ? (
 						<p className="mt-4 rounded-lg border border-amber-400/30 bg-amber-400/10 p-4 text-sm leading-6 text-amber-50">
@@ -387,40 +402,54 @@ function LoginPasskeyForm({
 							</label>
 							<button
 								type="button"
-								onClick={() => startLocalPasskeyLogin()}
-								disabled={isSubmitting}
-								className="group flex h-16 w-full min-w-0 max-w-full items-center justify-center gap-3 rounded-lg bg-red-500 px-4 text-base font-bold text-white shadow-[0_14px_34px_rgba(239,68,68,0.32)] transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:shadow-none sm:gap-4 sm:px-5 sm:text-lg">
-								<Fingerprint
-									className="h-6 w-6"
-									aria-hidden="true"
-								/>
-								<span>
-									{isSubmitting ? 'Opening biometrics...' : 'Sign in with biometrics'}
-								</span>
-								<ArrowRight
-									className="h-5 w-5 transition group-hover:translate-x-1"
-									aria-hidden="true"
-								/>
-							</button>
-							<button
-								type="button"
 								onClick={() => {
 									setError('');
 									setStatus('');
 									setStep('qr');
 								}}
 								disabled={!normalizedSignaturaId}
-								className="rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white disabled:cursor-not-allowed disabled:border-white/5 disabled:text-slate-600">
-								{loginAccountType === 'admin'
+								className={
+									qrPrimary
+										? 'group flex h-16 w-full min-w-0 max-w-full items-center justify-center gap-3 rounded-lg bg-red-500 px-4 text-base font-bold text-white shadow-[0_14px_34px_rgba(239,68,68,0.32)] transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:shadow-none sm:gap-4 sm:px-5 sm:text-lg'
+										: 'rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white disabled:cursor-not-allowed disabled:border-white/5 disabled:text-slate-600'
+								}>
+								<Smartphone className={qrPrimary ? 'h-6 w-6' : 'hidden'} aria-hidden="true" />
+								{isAdminLogin || isIssuerLogin
 									? 'Sign in with Signatura QR'
 									: 'Use another trusted device (QR)'}
+								{qrPrimary ? (
+									<ArrowRight
+										className="h-5 w-5 transition group-hover:translate-x-1"
+										aria-hidden="true"
+									/>
+								) : null}
 							</button>
-							{loginAccountType === 'admin' ? (
+							{isAdminLogin || isIssuerLogin ? (
 								<p className="text-sm leading-6 text-slate-400">
 									Use your Signatura app or PWA wallet to scan and approve this
-									admin sign-in.
+									{isIssuerLogin ? ' issuer portal sign-in' : ' admin sign-in'}.
 								</p>
 							) : null}
+							<button
+								type="button"
+								onClick={() => startLocalPasskeyLogin()}
+								disabled={isSubmitting}
+								className={
+									qrPrimary
+										? 'flex items-center justify-center gap-3 rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white disabled:cursor-not-allowed disabled:border-white/5 disabled:text-slate-600'
+										: 'group flex h-16 w-full min-w-0 max-w-full items-center justify-center gap-3 rounded-lg bg-red-500 px-4 text-base font-bold text-white shadow-[0_14px_34px_rgba(239,68,68,0.32)] transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:shadow-none sm:gap-4 sm:px-5 sm:text-lg'
+								}>
+								<Fingerprint className="h-6 w-6" aria-hidden="true" />
+								<span>
+									{isSubmitting ? 'Opening biometrics...' : 'Sign in with biometrics'}
+								</span>
+								{!qrPrimary ? (
+									<ArrowRight
+										className="h-5 w-5 transition group-hover:translate-x-1"
+										aria-hidden="true"
+									/>
+								) : null}
+							</button>
 
 							<div className="flex items-center gap-6 py-4 text-sm font-semibold text-slate-400">
 								<span className="h-px flex-1 bg-white/10" />
@@ -481,14 +510,14 @@ function LoginPasskeyForm({
 									setStep('qr');
 								}}
 								className="rounded-lg border border-white/15 px-5 py-4 text-base font-bold text-red-100 transition hover:border-red-300 hover:text-white">
-								{loginAccountType === 'admin'
+								{isAdminLogin || isIssuerLogin
 									? 'Sign in with Signatura QR'
 									: 'Use another trusted device (QR)'}
 							</button>
-							{loginAccountType === 'admin' ? (
+							{isAdminLogin || isIssuerLogin ? (
 								<p className="text-sm leading-6 text-slate-400">
 									Use your Signatura app or PWA wallet to scan and approve this
-									admin sign-in.
+									{isIssuerLogin ? ' issuer portal sign-in' : ' admin sign-in'}.
 								</p>
 							) : null}
 							</div>
@@ -504,8 +533,8 @@ function LoginPasskeyForm({
 									<p className="mt-2 text-sm leading-6 text-slate-300">
 										{externalReturnUrl
 											? 'Approve this ACCURA login on a trusted Signatura phone. ACCURA will not accept passkey-only sign-in for this return flow.'
-											: loginAccountType === 'admin'
-												? 'Use your Signatura app or PWA wallet to scan and approve this admin sign-in for'
+											: isAdminLogin || isIssuerLogin
+												? `Use your Signatura app or PWA wallet to scan and approve this ${isIssuerLogin ? 'issuer portal' : 'admin'} sign-in for`
 												: 'Scan and approve on a device already registered for'}{' '}
 										<span className="font-mono text-white">
 											{normalizedSignaturaId}
