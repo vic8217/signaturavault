@@ -25,50 +25,68 @@ test('identity creation is centralized in the Signatura Identity Service', async
 	assert.match(service, /client\.user\.create/);
 	assert.match(service, /SIGNATURA_ACCOUNT_TYPES\.DOCUMENT_OWNER/);
 	assert.match(registerRoute, /createSignaturaIdentity/);
-	assert.match(issuerStartRoute, /createPendingInvitationIdentity/);
+	assert.match(issuerStartRoute, /requireSession/);
 	assert.doesNotMatch(registerRoute, /createUniqueSignaturaId/);
 	assert.doesNotMatch(issuerStartRoute, /createUniqueSignaturaId/);
+	assert.doesNotMatch(issuerStartRoute, /createPendingInvitationIdentity/);
 	assert.doesNotMatch(registerRoute, /tx\.user\.create|prisma\.user\.create/);
 	assert.doesNotMatch(issuerStartRoute, /tx\.user\.create|prisma\.user\.create/);
 	assert.doesNotMatch(accuraRoleRoute, /createUniqueAccuraSignaturaId/);
 });
 
-test('new issuer invitation bootstrap continues to recovery before membership activation', async () => {
+test('issuer invitation activation links an existing Signatura ID instead of creating one', async () => {
+	const startRoute = await readFile(
+		new URL('../src/app/api/issuer-invitations/activation/start/route.ts', import.meta.url),
+		'utf8',
+	);
 	const finishRoute = await readFile(
 		new URL('../src/app/api/issuer-invitations/activation/finish/route.ts', import.meta.url),
+		'utf8',
+	);
+	const registerRoute = await readFile(
+		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
 		'utf8',
 	);
 	const activateRoute = await readFile(
 		new URL('../src/app/api/auth/register/activate/route.ts', import.meta.url),
 		'utf8',
 	);
+	const activationForm = await readFile(
+		new URL('../src/components/IssuerActivationForm.js', import.meta.url),
+		'utf8',
+	);
 	const transactionBody = finishRoute.slice(
 		finishRoute.indexOf('const result = await prisma.$transaction'),
 		finishRoute.indexOf("await logSecurityEvent(req, 'issuer_trusted_device_registered'"),
-	);
-	const registrationModeBlock = transactionBody.slice(
-		transactionBody.indexOf("if (mode === 'registration')"),
-		transactionBody.indexOf('const updated = await tx.issuerInvitation.updateMany'),
 	);
 	const activationBody = activateRoute.slice(
 		activateRoute.indexOf('const updatedUser = await prisma.$transaction'),
 		activateRoute.indexOf("await logSecurityEvent(req, 'account_activated'"),
 	);
 
-	assert.match(transactionBody, /tx\.webAuthnCredential\.(update|create)/);
-	assert.match(transactionBody, /tx\.trustedDevice\.(updateMany|create)/);
-	assert.match(registrationModeBlock, /type: 'REGISTER_ACCOUNT'/);
-	assert.match(registrationModeBlock, /REGISTRATION_STATUSES\.TRUSTED_DEVICE_REGISTERED/);
-	assert.match(registrationModeBlock, /requiresRecovery: true/);
-	assert.doesNotMatch(registrationModeBlock, /ensureIssuerMembershipRole/);
+	assert.match(startRoute, /requireSession/);
+	assert.match(startRoute, /generateAuthenticationOptions/);
+	assert.doesNotMatch(startRoute, /generateRegistrationOptions/);
+	assert.match(finishRoute, /mode !== 'authentication'/);
+	assert.match(transactionBody, /tx\.webAuthnCredential\.update/);
+	assert.match(transactionBody, /tx\.trustedDevice\.updateMany/);
+	assert.doesNotMatch(transactionBody, /REGISTRATION_STATUSES\.TRUSTED_DEVICE_REGISTERED/);
+	assert.match(transactionBody, /roleCode: UNIVERSAL_ROLE_CODES\.ISSUER_ADMIN/);
+	assert.match(registerRoute, /issuerInvitationToken/);
+	assert.match(registerRoute, /issuerInvitationId: issuerInvitation\?\.id/);
 	assert.match(activateRoute, /recoveryCode/);
 	assert.match(activateRoute, /trustedDeviceCount/);
 	assert.match(activationBody, /ensureIssuerMembershipRole/);
+	assert.match(activationBody, /roleCode: UNIVERSAL_ROLE_CODES\.ISSUER_ADMIN/);
 	assert.match(activationBody, /accountStatus: 'active'/);
 	assert.ok(
 		activationBody.indexOf("accountStatus: 'active'") >
 			activationBody.indexOf('ensureIssuerMembershipRole'),
 	);
+	assert.match(activationForm, /Link issuer access to your Signatura ID/);
+	assert.match(activationForm, /Continue with existing Signatura ID/);
+	assert.match(activationForm, /Create Signatura ID/);
+	assert.doesNotMatch(activationForm, /startRegistration/);
 });
 
 test('ACCURA role endpoint keeps one Signatura ID and attaches role membership', async () => {

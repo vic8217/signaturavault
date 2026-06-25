@@ -45,6 +45,7 @@ import {
 import {
 	assertSecureWebAuthnRequest,
 	getUserAgent,
+	hashActivationToken,
 	logSecurityEvent,
 } from '@/lib/webauthn';
 
@@ -95,6 +96,7 @@ export async function POST(req: Request) {
 		const accountType = normalizeSignaturaAccountType(body.accountType);
 		const authorizationCode = String(body.authorizationCode || '').trim();
 		const adminProvisioningSecret = String(body.adminProvisioningSecret || '').trim();
+		const issuerInvitationToken = String(body.issuerInvitationToken || '').trim();
 		const handoffToken = String(body.accuraHandoffToken || body.handoffToken || '').trim();
 		let registrationSource = normalizeRegistrationSource(body.source);
 		let companyId = normalizeCompanyId(body.companyId);
@@ -193,6 +195,18 @@ export async function POST(req: Request) {
 			return jsonError(accuraContextError, 400);
 		}
 		let issuerAuthorizationRecord = null;
+		const issuerInvitation = issuerInvitationToken
+			? await prisma.issuerInvitation.findFirst({
+					where: {
+						tokenHash: hashActivationToken(issuerInvitationToken),
+						usedAt: null,
+						expiresAt: { gt: new Date() },
+					},
+				})
+			: null;
+		if (issuerInvitationToken && !issuerInvitation) {
+			return jsonError('Issuer invitation is invalid, expired, or already used', 400);
+		}
 
 		if (accountType === SIGNATURA_ACCOUNT_TYPES.ISSUER) {
 			issuerAuthorizationRecord = await verifyIssuerAuthorizationCode(authorizationCode);
@@ -388,11 +402,23 @@ export async function POST(req: Request) {
 					id: registrationSessionId,
 					userId,
 					type: 'REGISTER_ACCOUNT',
+					issuerInvitationId: issuerInvitation?.id || null,
 					challenge: registrationToken,
 					userAgent: getUserAgent(req),
 					expiresAt: registrationSessionExpiresAt(),
 				},
 			});
+
+			if (issuerInvitation?.issuerUserId) {
+				await tx.issuerUser.update({
+					where: { id: issuerInvitation.issuerUserId },
+					data: {
+						userId,
+						role: ROLES.ISSUER_ADMIN,
+						status: 'pending_activation',
+					},
+				});
+			}
 
 			const appLinkModel = (tx as unknown as { signaturaAppLink?: typeof tx.signaturaAppLink })
 				.signaturaAppLink;

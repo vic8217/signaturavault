@@ -20,6 +20,10 @@ export default async function RegisterPage({ searchParams }) {
 					returnUrl: externalReturnUrl,
 				});
 	const requestedSignaturaId = params?.signaturaId || '';
+	const issuerInvitationToken =
+		typeof params?.issuerInvitationToken === 'string'
+			? params.issuerInvitationToken
+			: '';
 	const setupMode = params?.setup === 'device' ? 'device' : '';
 	const requestedAccountType =
 		typeof params?.accountType === 'string' ? params.accountType : '';
@@ -58,6 +62,7 @@ export default async function RegisterPage({ searchParams }) {
 					externalReturnUrl={externalReturnUrl}
 					appRegistrationContext={registrationContext}
 					initialSignaturaId={initialSignaturaId}
+					issuerInvitationToken={issuerInvitationToken}
 					initialAccountType={accountType}
 					showIssuerRegistrationLink={
 						accountType === 'user' && !setupMode && registrationContext.source !== 'accura'

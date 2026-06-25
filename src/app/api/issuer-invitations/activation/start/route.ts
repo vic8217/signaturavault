@@ -1,13 +1,11 @@
 import {
 	generateAuthenticationOptions,
-	generateRegistrationOptions,
 } from '@simplewebauthn/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
-import { createPendingInvitationIdentity } from '@/lib/signaturaIdentityService';
+import { requireSession } from '@/lib/session';
 import {
-	RP_NAME,
 	assertSecureWebAuthnRequest,
 	challengeExpiresAt,
 	getRpID,
@@ -21,9 +19,14 @@ export async function POST(req: Request) {
 		assertSecureWebAuthnRequest(req);
 		const body = await req.json();
 		const token = String(body.token || '').trim();
-		const deviceName = String(body.deviceName || '').trim() || 'Issuer device';
+		const deviceName =
+			String(body.deviceName || '').trim() || 'Issuer trusted device';
 
 		if (!token) return jsonError('Activation token is required');
+		const session = await requireSession();
+		if (!session?.userId) {
+			return jsonError('Continue with your Signatura ID before linking issuer access', 401);
+		}
 
 		const invitation = await prisma.issuerInvitation.findFirst({
 			where: {
@@ -37,73 +40,30 @@ export async function POST(req: Request) {
 			return jsonError('Activation link is invalid, expired, or already used', 400);
 		}
 
-		const issuerUser = invitation.issuerUserId
-			? await prisma.issuerUser.findUnique({
-					where: { id: invitation.issuerUserId },
-					select: { userId: true },
-				})
-			: null;
-		let user = issuerUser?.userId
-			? await prisma.user.findUnique({
-					where: { id: issuerUser.userId },
-					include: { credentials: true },
-				})
-			: null;
-		if (!user) {
-			const createdIdentity = await prisma.$transaction(async (tx) => {
-				const identity = await createPendingInvitationIdentity(tx);
-				if (invitation.issuerUserId) {
-					await tx.issuerUser.update({
-						where: { id: invitation.issuerUserId },
-						data: {
-							userId: identity.id,
-							status: 'pending_activation',
-						},
-					});
-				}
-				return identity;
-			});
-			user = await prisma.user.findUnique({
-				where: { id: createdIdentity.id },
-				include: { credentials: true },
-			});
-		}
+		const user = await prisma.user.findUnique({
+			where: { id: session.userId },
+			include: { credentials: true },
+		});
 
-		if (!user) return jsonError('Activation user could not be prepared', 400);
+		if (!user || user.accountStatus !== 'active') {
+			return jsonError('Complete Signatura ID setup before linking issuer access', 409);
+		}
 
 		const trustedCredentials = user.credentials.filter(
 			(credential) => credential.isTrusted,
 		);
-		const mode =
-			trustedCredentials.length > 0 ? 'authentication' : 'registration';
-		const options =
-			mode === 'authentication'
-				? await generateAuthenticationOptions({
-						rpID: getRpID(req),
-						userVerification: 'required',
-						timeout: 60000,
-						allowCredentials: trustedCredentials.map((credential) => ({
-							id: credential.credentialId,
-							transports: credential.transports as never,
-						})),
-					})
-				: await generateRegistrationOptions({
-						rpName: RP_NAME,
-						rpID: getRpID(req),
-						userID: new TextEncoder().encode(user.id),
-						userName: user.signaturaId,
-						userDisplayName: user.signaturaId,
-						attestationType: 'none',
-						authenticatorSelection: {
-							residentKey: 'preferred',
-							userVerification: 'required',
-						},
-						excludeCredentials: user.credentials.map((credential) => ({
-							id: credential.credentialId,
-							transports: credential.transports as never,
-						})),
-						timeout: 60000,
-					});
+		if (!trustedCredentials.length) {
+			return jsonError('No trusted passkey is registered for this Signatura ID', 409);
+		}
+		const options = await generateAuthenticationOptions({
+			rpID: getRpID(req),
+			userVerification: 'required',
+			timeout: 60000,
+			allowCredentials: trustedCredentials.map((credential) => ({
+				id: credential.credentialId,
+				transports: credential.transports as never,
+			})),
+		});
 
 		await prisma.authChallenge.create({
 			data: {
@@ -122,14 +82,14 @@ export async function POST(req: Request) {
 			invitationId: invitation.id,
 			tenantId: invitation.tenantId,
 			deliveryChannel: invitation.deliveryChannel,
-			mode,
+			mode: 'authentication',
 		});
 
 		return Response.json({
 			userId: user.id,
 			signaturaId: user.signaturaId,
 			invitationId: invitation.id,
-			mode,
+			mode: 'authentication',
 			options,
 		});
 	} catch (error) {

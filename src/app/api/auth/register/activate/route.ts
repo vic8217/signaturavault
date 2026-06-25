@@ -190,10 +190,7 @@ export async function POST(req: Request) {
 					tenantId: issuerInvitation.tenantId,
 					issuerId: issuerInvitation.issuerId,
 					issuerName: issuerInvitation.issuerId || issuerInvitation.tenantId,
-					roleCode:
-						issuerInvitation.role === ROLES.ISSUER_ADMIN
-							? UNIVERSAL_ROLE_CODES.ISSUER_ADMIN
-							: UNIVERSAL_ROLE_CODES.ISSUER_STAFF,
+					roleCode: UNIVERSAL_ROLE_CODES.ISSUER_ADMIN,
 				});
 			}
 
@@ -359,9 +356,7 @@ export async function POST(req: Request) {
 		if (issuerInvitation || isAdminIdentity) {
 			const portalRole = isAdminIdentity
 				? ROLES.SIGNATURA_ADMIN
-				: issuerInvitation.role === ROLES.ISSUER_ADMIN
-					? ROLES.ISSUER_ADMIN
-					: ROLES.ISSUER_STAFF;
+				: ROLES.ISSUER_ADMIN;
 			setSessionCookie(responseJson, req, {
 				userId: updatedUser.id,
 				signaturaId: updatedUser.signaturaId,

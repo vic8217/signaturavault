@@ -5,32 +5,25 @@ import { useMemo, useState } from 'react';
 import {
 	browserSupportsWebAuthn,
 	startAuthentication,
-	startRegistration,
 } from '@simplewebauthn/browser';
 import { PasskeyNotice } from './PasskeyNotice';
 
-function IssuerActivationForm({ token }) {
-	const [deviceName, setDeviceName] = useState('');
+function IssuerActivationForm({ token, isSignedIn = false, signedInSignaturaId = '' }) {
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
 	const [isActivated, setIsActivated] = useState(false);
-	const [bootstrapAccount, setBootstrapAccount] = useState(null);
-	const [registrationSessionId, setRegistrationSessionId] = useState('');
-	const [recoveryPhrase, setRecoveryPhrase] = useState('');
-	const [recoveryPhraseAlreadyIssued, setRecoveryPhraseAlreadyIssued] = useState(false);
-	const [recoveryPhraseSaved, setRecoveryPhraseSaved] = useState(false);
+	const [activatedUser, setActivatedUser] = useState(null);
 	const hasToken = useMemo(() => Boolean(token), [token]);
+	const activationPath = `/issuer/activate?token=${encodeURIComponent(token || '')}`;
+	const loginHref = `/login?next=${encodeURIComponent(activationPath)}`;
+	const createHref = `/register?next=${encodeURIComponent(activationPath)}&issuerInvitationToken=${encodeURIComponent(token || '')}`;
 
 	async function submit(event) {
 		event.preventDefault();
 		setError('');
 		setIsActivated(false);
-		setBootstrapAccount(null);
-		setRegistrationSessionId('');
-		setRecoveryPhrase('');
-		setRecoveryPhraseAlreadyIssued(false);
-		setRecoveryPhraseSaved(false);
-		setStatus('Preparing trusted-device activation...');
+		setActivatedUser(null);
+		setStatus('Preparing issuer access confirmation...');
 
 		if (!hasToken) {
 			setError('Activation token is missing.');
@@ -50,27 +43,18 @@ function IssuerActivationForm({ token }) {
 				{
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ token, deviceName }),
+						body: JSON.stringify({ token }),
 				},
 			);
 			const startData = await startResponse.json();
 			if (!startResponse.ok) throw new Error(startData.error);
 
-			const isExistingPasskey = startData.mode === 'authentication';
-			setStatus(
-				isExistingPasskey
-					? 'Approve with your existing trusted passkey.'
-					: 'Approve the prompt on this device.',
-			);
-			const credentialResponse = isExistingPasskey
-				? await startAuthentication({
-						optionsJSON: startData.options,
-					})
-				: await startRegistration({
-						optionsJSON: startData.options,
-					});
+			setStatus('Approve with your existing trusted passkey.');
+			const credentialResponse = await startAuthentication({
+				optionsJSON: startData.options,
+			});
 
-			setStatus('Verifying activation and trusted device...');
+			setStatus('Linking issuer access to your Signatura ID...');
 			const finishResponse = await fetch(
 				'/api/issuer-invitations/activation/finish',
 				{
@@ -80,7 +64,6 @@ function IssuerActivationForm({ token }) {
 						token,
 						userId: startData.userId,
 						invitationId: startData.invitationId,
-						deviceName,
 						mode: startData.mode,
 						response: credentialResponse,
 					}),
@@ -89,60 +72,12 @@ function IssuerActivationForm({ token }) {
 			const finishData = await finishResponse.json();
 			if (!finishResponse.ok) throw new Error(finishData.error);
 
-			if (finishData.requiresRecovery) {
-				setStatus('Trusted device registered. Preparing your recovery phrase...');
-				const recoveryResponse = await fetch('/api/auth/register/recovery', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						userId: finishData.user?.id || startData.userId,
-						registrationSessionId: finishData.registrationSessionId,
-					}),
-				});
-				const recoveryData = await recoveryResponse.json();
-				if (!recoveryResponse.ok) throw new Error(recoveryData.error);
-				setBootstrapAccount(recoveryData.user || finishData.user);
-				setRegistrationSessionId(
-					recoveryData.registrationSessionId || finishData.registrationSessionId || '',
-				);
-				setRecoveryPhrase(recoveryData.recoveryPhrase || '');
-				setRecoveryPhraseAlreadyIssued(
-					Boolean(recoveryData.recoveryPhraseAlreadyIssued),
-				);
-				setStatus(
-					recoveryData.recoveryPhraseAlreadyIssued
-						? 'Recovery phrase already exists. Confirm it was saved to activate issuer access.'
-						: 'Save this recovery phrase before activating issuer access.',
-				);
-				return;
-			}
-
-			setStatus('Activation complete. Opening issuer portal...');
+			setStatus('Issuer access activated successfully. Opening issuer portal...');
+			setActivatedUser(finishData.user || null);
 			setIsActivated(true);
-			window.location.href = finishData.next || '/issuer';
-		} catch (activationError) {
-			setError(activationError.message);
-			setStatus('');
-		}
-	}
-
-	async function activateBootstrapAccount() {
-		setError('');
-		setStatus('Activating issuer access...');
-		try {
-			const response = await fetch('/api/auth/register/activate', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					userId: bootstrapAccount?.id,
-					registrationSessionId,
-				}),
-			});
-			const data = await response.json();
-			if (!response.ok) throw new Error(data.error);
-			setStatus('Activation complete. Opening issuer portal...');
-			setIsActivated(true);
-			window.location.href = data.redirectTo || '/issuer';
+			window.setTimeout(() => {
+				window.location.href = finishData.next || '/issuer';
+			}, 1800);
 		} catch (activationError) {
 			setError(activationError.message);
 			setStatus('');
@@ -155,7 +90,7 @@ function IssuerActivationForm({ token }) {
 				Issuer activation
 			</p>
 			<h1 className="mt-2 text-3xl font-black">
-				Activate issuer access with passkey security.
+				Link issuer access to your Signatura ID
 			</h1>
 
 			<div className="mt-5">
@@ -163,83 +98,65 @@ function IssuerActivationForm({ token }) {
 			</div>
 
 			<p className="mt-5 text-sm leading-6 text-slate-300">
-				The invitation channel only delivered this activation link. It does not
-				prove identity, and Signatura never sends passwords or recovery codes
-				through messaging apps.
+				Issuer access is a role on your universal Signatura identity. This
+				invitation will not create a second Signatura ID for the same person.
 			</p>
 
-			<form onSubmit={submit} className="mt-6 grid gap-4">
-					<label className="grid gap-2 text-sm font-semibold">
-					<span>Device name</span>
-					<input
-						value={deviceName}
-						onChange={(event) => setDeviceName(event.target.value)}
-						placeholder="Example: Finance office laptop"
-						className="rounded-xl border border-white/10 bg-white px-4 py-3 text-slate-950 outline-none ring-red-500 focus:ring-2"
-					/>
-				</label>
-				<button
-					disabled={isActivated}
-					className="rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
-					Activate issuer account
-				</button>
-			</form>
-
-			{bootstrapAccount ? (
-				<section className="mt-6 rounded-2xl border border-red-400/30 bg-red-950/30 p-5">
-					<p className="text-xs font-bold uppercase tracking-[0.18em] text-red-200">
-						Recovery kit
-					</p>
-					<h2 className="mt-2 text-xl font-black">Save your recovery phrase.</h2>
-					{recoveryPhrase ? (
-						<pre className="mt-4 whitespace-pre-wrap rounded-xl border border-white/10 bg-slate-950 p-4 font-mono text-sm leading-6 text-white">
-							{recoveryPhrase}
-						</pre>
-					) : (
-						<p className="mt-3 text-sm leading-6 text-slate-300">
-							Your recovery phrase was already generated. Confirm that you saved
-							it before activating issuer access.
-						</p>
-					)}
-					<label className="mt-4 flex items-start gap-3 text-sm font-semibold text-slate-100">
-						<input
-							type="checkbox"
-							checked={recoveryPhraseSaved}
-							onChange={(event) => setRecoveryPhraseSaved(event.target.checked)}
-							className="mt-1 h-4 w-4 accent-red-500"
-						/>
-						<span>
-							I saved my recovery phrase in a secure offline location.
-						</span>
-					</label>
-					<button
-						type="button"
-						disabled={!recoveryPhraseSaved || isActivated}
-						onClick={activateBootstrapAccount}
-						className="mt-5 w-full rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
-						Activate issuer access
-					</button>
-					{recoveryPhraseAlreadyIssued ? (
-						<p className="mt-3 text-xs leading-5 text-red-100">
-							Signatura will not show an existing recovery phrase again.
-						</p>
+			{isSignedIn ? (
+				<form onSubmit={submit} className="mt-6 grid gap-4">
+					{signedInSignaturaId ? (
+						<div className="rounded-xl border border-white/10 bg-slate-900/70 p-4">
+							<p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+								Signed in as
+							</p>
+							<p className="mt-2 font-mono text-sm font-bold text-white">
+								{signedInSignaturaId}
+							</p>
+						</div>
 					) : null}
-				</section>
+					<button
+						disabled={isActivated}
+						className="rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
+						Link issuer access to your Signatura ID
+					</button>
+				</form>
+			) : null}
+
+			{!isSignedIn ? (
+				<div className="mt-6 grid gap-3">
+					<Link
+						href={loginHref}
+						className="rounded-xl bg-red-500 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-400">
+						Continue with existing Signatura ID
+					</Link>
+					<Link
+						href={createHref}
+						className="rounded-xl border border-white/15 px-5 py-3 text-center text-sm font-bold text-slate-200 transition hover:border-red-400 hover:text-white">
+						Create Signatura ID
+					</Link>
+				</div>
 			) : null}
 
 			{status ? <p className="mt-4 text-sm text-slate-200">{status}</p> : null}
 			{error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}
 			{isActivated ? (
-				<div className="mt-5 flex flex-col gap-3 sm:flex-row">
+				<div className="mt-5 rounded-2xl border border-emerald-400/30 bg-emerald-950/20 p-5">
+					<p className="font-bold text-emerald-100">
+						Issuer access activated successfully.
+					</p>
+					<p className="mt-3 text-sm text-slate-200">
+						Signatura ID:{' '}
+						<span className="font-mono font-bold">
+							{activatedUser?.signaturaId || signedInSignaturaId}
+						</span>
+					</p>
+					<p className="mt-1 text-sm text-slate-200">
+						Role added: <span className="font-bold">Issuer Admin</span>
+					</p>
 					<Link
 						href="/issuer"
-						className="rounded-xl bg-red-500 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-400">
+						className="mt-4 inline-flex rounded-xl bg-red-500 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-400">
 						Open issuer portal
-					</Link>
-					<Link
-						href="/login?next=/issuer"
-						className="rounded-xl border border-white/15 px-5 py-3 text-center text-sm font-bold text-slate-200 transition hover:border-red-400 hover:text-white">
-						Go to issuer login
 					</Link>
 				</div>
 			) : null}

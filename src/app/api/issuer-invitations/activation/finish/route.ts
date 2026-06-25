@@ -1,6 +1,5 @@
 import {
 	verifyAuthenticationResponse,
-	verifyRegistrationResponse,
 } from '@simplewebauthn/server';
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
@@ -8,10 +7,6 @@ import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
 import { userPublicIdentity } from '@/lib/identity';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
-import {
-	REGISTRATION_STATUSES,
-} from '@/lib/registration-status';
-import { registrationSessionExpiresAt } from '@/lib/registration-session';
 import { setSessionCookie } from '@/lib/session';
 import {
 	UNIVERSAL_ROLE_CODES,
@@ -41,8 +36,8 @@ export async function POST(req: Request) {
 		if (!token || !invitationId || !userId || !response) {
 			return jsonError('token, invitationId, userId, and response are required');
 		}
-		if (mode !== 'authentication' && mode !== 'registration') {
-			return jsonError('Activation mode is invalid');
+		if (mode !== 'authentication') {
+			return jsonError('Continue with your Signatura ID before linking issuer access');
 		}
 
 		const invitation = await prisma.issuerInvitation.findFirst({
@@ -76,89 +71,55 @@ export async function POST(req: Request) {
 		let credentialId = '';
 		let existingCredentialForUpdate = null;
 		let newCounter = null;
-		let newCredentialForCreate = null;
 
-		if (mode === 'authentication') {
-			const existingCredential = await prisma.webAuthnCredential.findUnique({
-				where: { credentialId: response.id },
-			});
+		const existingCredential = await prisma.webAuthnCredential.findUnique({
+			where: { credentialId: response.id },
+		});
 
-			if (
-				!existingCredential ||
-				existingCredential.userId !== userId ||
-				!existingCredential.isTrusted
-			) {
-				return jsonError('Credential is not trusted for this account', 401);
-			}
-
-			const verification = await verifyAuthenticationResponse({
-				response,
-				expectedChallenge: challenge.challenge,
-				expectedOrigin: getOrigin(req),
-				expectedRPID: getRpID(req),
-				requireUserVerification: true,
-				credential: {
-					id: existingCredential.credentialId,
-					publicKey: existingCredential.publicKey,
-					counter: existingCredential.counter,
-					transports: existingCredential.transports as never,
-				},
-			});
-
-			await consumeChallenge({
-				challenge: challenge.challenge,
-				type: 'ISSUER_INVITATION_ACTIVATION',
-				userId,
-			});
-
-			if (!verification.verified) {
-				await logSecurityEvent(
-					req,
-					'issuer_activation_verification_failed',
-					userId,
-					{
-						invitationId: invitation.id,
-						mode,
-					},
-				);
-				return jsonError('Trusted-device verification failed', 401);
-			}
-
-			credentialId = existingCredential.credentialId;
-			existingCredentialForUpdate = existingCredential;
-			newCounter = verification.authenticationInfo.newCounter;
-		} else {
-			const verification = await verifyRegistrationResponse({
-				response,
-				expectedChallenge: challenge.challenge,
-				expectedOrigin: getOrigin(req),
-				expectedRPID: getRpID(req),
-				requireUserVerification: true,
-			});
-
-			await consumeChallenge({
-				challenge: challenge.challenge,
-				type: 'ISSUER_INVITATION_ACTIVATION',
-				userId,
-			});
-
-			if (!verification.verified || !verification.registrationInfo) {
-				await logSecurityEvent(
-					req,
-					'issuer_activation_verification_failed',
-					userId,
-					{
-						invitationId: invitation.id,
-						mode,
-					},
-				);
-				return jsonError('Trusted-device registration could not be verified', 400);
-			}
-
-			const { credential } = verification.registrationInfo;
-			credentialId = credential.id;
-			newCredentialForCreate = credential;
+		if (
+			!existingCredential ||
+			existingCredential.userId !== userId ||
+			!existingCredential.isTrusted
+		) {
+			return jsonError('Credential is not trusted for this account', 401);
 		}
+
+		const verification = await verifyAuthenticationResponse({
+			response,
+			expectedChallenge: challenge.challenge,
+			expectedOrigin: getOrigin(req),
+			expectedRPID: getRpID(req),
+			requireUserVerification: true,
+			credential: {
+				id: existingCredential.credentialId,
+				publicKey: existingCredential.publicKey,
+				counter: existingCredential.counter,
+				transports: existingCredential.transports as never,
+			},
+		});
+
+		await consumeChallenge({
+			challenge: challenge.challenge,
+			type: 'ISSUER_INVITATION_ACTIVATION',
+			userId,
+		});
+
+		if (!verification.verified) {
+			await logSecurityEvent(
+				req,
+				'issuer_activation_verification_failed',
+				userId,
+				{
+					invitationId: invitation.id,
+					mode,
+				},
+			);
+			return jsonError('Trusted-device verification failed', 401);
+		}
+
+		credentialId = existingCredential.credentialId;
+		existingCredentialForUpdate = existingCredential;
+		newCounter = verification.authenticationInfo.newCounter;
 
 		const result = await prisma.$transaction(async (tx) => {
 			const activatedUser = await tx.user.findUnique({ where: { id: userId } });
@@ -181,75 +142,6 @@ export async function POST(req: Request) {
 					},
 					data: { lastUsedAt: now },
 				});
-			} else if (newCredentialForCreate) {
-				await tx.webAuthnCredential.create({
-					data: {
-						id: crypto.randomUUID(),
-						userId,
-						credentialId: newCredentialForCreate.id,
-						publicKey: Buffer.from(newCredentialForCreate.publicKey),
-						counter: newCredentialForCreate.counter,
-						transports: newCredentialForCreate.transports || [],
-						deviceName,
-						userAgent,
-						lastUsedAt: now,
-						isTrusted: true,
-					},
-				});
-
-				await tx.trustedDevice.create({
-					data: {
-						id: crypto.randomUUID(),
-						userId,
-						credentialId: newCredentialForCreate.id,
-						deviceName,
-						deviceHash: crypto
-							.createHash('sha256')
-							.update(`${userId}:${newCredentialForCreate.id}`)
-							.digest('hex'),
-						userAgent,
-						lastUsedAt: now,
-						isTrusted: true,
-					},
-				});
-			}
-
-			if (mode === 'registration') {
-				const registrationSessionId = crypto.randomUUID();
-				const existingSession = await tx.authChallenge.findFirst({
-					where: {
-						userId,
-						issuerInvitationId: invitation.id,
-						type: 'REGISTER_ACCOUNT',
-						usedAt: null,
-					},
-					orderBy: { createdAt: 'desc' },
-				});
-				const registrationSession =
-					existingSession ||
-					(await tx.authChallenge.create({
-						data: {
-							id: registrationSessionId,
-							userId,
-							issuerInvitationId: invitation.id,
-							type: 'REGISTER_ACCOUNT',
-							challenge: crypto.randomBytes(32).toString('base64url'),
-							deviceName,
-							userAgent,
-							expiresAt: registrationSessionExpiresAt(),
-						},
-					}));
-				const setupUser = await tx.user.update({
-					where: { id: userId },
-					data: {
-						accountStatus: REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED,
-					},
-				});
-				return {
-					user: setupUser,
-					registrationSessionId: registrationSession.id,
-					requiresRecovery: true,
-				};
 			}
 
 			const updated = await tx.issuerInvitation.updateMany({
@@ -279,16 +171,12 @@ export async function POST(req: Request) {
 				});
 			}
 
-			const universalRole =
-				invitation.role === ROLES.ISSUER_ADMIN
-					? UNIVERSAL_ROLE_CODES.ISSUER_ADMIN
-					: UNIVERSAL_ROLE_CODES.ISSUER_STAFF;
 			await ensureIssuerMembershipRole(tx, {
 				identityId: userId,
 				tenantId: invitation.tenantId,
 				issuerId: invitation.issuerId,
 				issuerName: invitation.issuerId || invitation.tenantId,
-				roleCode: universalRole,
+				roleCode: UNIVERSAL_ROLE_CODES.ISSUER_ADMIN,
 			});
 
 			const activeUser = await tx.user.update({
@@ -318,7 +206,7 @@ export async function POST(req: Request) {
 				},
 			});
 
-			return activeUser;
+			return { user: activeUser };
 		});
 		const user = result.user;
 
@@ -329,19 +217,6 @@ export async function POST(req: Request) {
 			mode,
 		});
 
-		if (result.requiresRecovery) {
-			return NextResponse.json({
-				ok: true,
-				next: '/issuer',
-				requiresRecovery: true,
-				registrationSessionId: result.registrationSessionId,
-				currentStep: REGISTRATION_STATUSES.TRUSTED_DEVICE_REGISTERED,
-				user: userPublicIdentity(user),
-				tenantId: invitation.tenantId,
-				issuerId: invitation.issuerId,
-			});
-		}
-
 		const responseJson = NextResponse.json({
 			ok: true,
 			next: '/issuer',
@@ -349,10 +224,7 @@ export async function POST(req: Request) {
 			tenantId: invitation.tenantId,
 			issuerId: invitation.issuerId,
 		});
-		const portalRole =
-			invitation.role === ROLES.ISSUER_ADMIN
-				? ROLES.ISSUER_ADMIN
-				: ROLES.ISSUER_STAFF;
+		const portalRole = ROLES.ISSUER_ADMIN;
 		setSessionCookie(responseJson, req, {
 			userId: user.id,
 			signaturaId: user.signaturaId,

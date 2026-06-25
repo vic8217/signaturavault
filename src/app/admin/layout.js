@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { PortalIcon } from '@/components/PortalIcon';
 
 const navItems = [
@@ -19,10 +20,33 @@ const adminLogoutHref = `/api/auth/logout?redirect=${encodeURIComponent('/admin/
 
 export default function AdminLayout({ children }) {
 	const pathname = usePathname();
+	const [currentUser, setCurrentUser] = useState(null);
 	const isAuthScreen =
 		pathname === '/admin/login' ||
 		pathname === '/admin/register' ||
 		pathname === '/admin/setup';
+
+	useEffect(() => {
+		if (isAuthScreen) return;
+		let cancelled = false;
+		async function loadCurrentUser() {
+			try {
+				const response = await fetch('/api/auth/current-user', {
+					cache: 'no-store',
+				});
+				const data = await response.json().catch(() => ({}));
+				if (!cancelled && response.ok) {
+					setCurrentUser(data.user || null);
+				}
+			} catch {
+				if (!cancelled) setCurrentUser(null);
+			}
+		}
+		loadCurrentUser();
+		return () => {
+			cancelled = true;
+		};
+	}, [isAuthScreen]);
 
 	if (isAuthScreen) {
 		return children;
@@ -53,6 +77,18 @@ export default function AdminLayout({ children }) {
 					</p>
 					<p className="mt-1 text-sm text-slate-300">
 						System controls and tenant oversight
+					</p>
+				</div>
+
+				<div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/8 px-4 py-3">
+					<p className="text-xs font-bold uppercase tracking-[0.18em] text-red-200">
+						Signed In
+					</p>
+					<p className="mt-2 truncate font-mono text-sm font-bold text-white">
+						{currentUser?.signaturaId || 'Loading...'}
+					</p>
+					<p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+						{currentUser?.role || 'Admin Session'}
 					</p>
 				</div>
 
@@ -98,6 +134,14 @@ export default function AdminLayout({ children }) {
 							href={adminLogoutHref}>
 							Sign Out
 						</a>
+					</div>
+					<div className="mt-3 rounded-lg border border-red-400/20 bg-red-500/8 px-3 py-2">
+						<p className="text-[10px] font-bold uppercase tracking-[0.18em] text-red-200">
+							Signed In
+						</p>
+						<p className="mt-1 truncate font-mono text-xs font-bold text-white">
+							{currentUser?.signaturaId || 'Loading...'}
+						</p>
 					</div>
 					<nav className="mt-4 flex gap-2 overflow-x-auto pb-1 text-xs font-bold text-slate-200">
 						{navItems.map(([icon, label, href]) => (

@@ -30,6 +30,24 @@ test('admin sign out returns to the admin portal login', async () => {
 	assert.match(source, /href=\{adminLogoutHref\}/);
 });
 
+test('admin layout shows the currently signed-in Signatura identity', async () => {
+	const source = await readFile(
+		new URL('../src/app/admin/layout.js', import.meta.url),
+		'utf8',
+	);
+	const currentUserRoute = await readFile(
+		new URL('../src/app/api/auth/current-user/route.ts', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(source, /\/api\/auth\/current-user/);
+	assert.match(source, /Signed In/);
+	assert.match(source, /currentUser\?\.signaturaId/);
+	assert.match(currentUserRoute, /requireSession/);
+	assert.match(currentUserRoute, /signaturaId: session\.signaturaId/);
+	assert.doesNotMatch(currentUserRoute, /email|handphone|fullName/);
+});
+
 test('issuer sign out returns to issuer web login', async () => {
 	const source = await readFile(
 		new URL('../src/app/issuer/layout.js', import.meta.url),
