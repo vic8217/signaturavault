@@ -31,6 +31,7 @@ const KNOWN_SOURCE_APPS = new Set([
 	'HAVEN',
 	'SIGNATURA',
 	'SIGNATURA_ADMIN',
+	'SIGNATURA_ISSUER',
 ]);
 
 function normalizeOptionalText(value) {
@@ -94,6 +95,7 @@ export async function POST(req) {
 			return jsonError('Signatura ID not found', 404);
 		}
 		const isAdminLogin = nextPath === '/admin' || nextPath.startsWith('/admin/');
+		const isIssuerLogin = nextPath === '/issuer' || nextPath.startsWith('/issuer/');
 		const hasAdminMembership = isAdminLogin
 			? await identityHasUniversalRole(user.id, {
 					applicationCode: APPLICATION_CODES.SIGNATURA,
@@ -111,6 +113,34 @@ export async function POST(req) {
 		) {
 			return jsonError('This Signatura ID is not provisioned for admin access.', 403);
 		}
+		const hasIssuerMembership = isIssuerLogin
+			? await identityHasUniversalRole(user.id, {
+					applicationCode: APPLICATION_CODES.SIGNATURA,
+					roleCodes: [
+						UNIVERSAL_ROLE_CODES.ISSUER_ADMIN,
+						UNIVERSAL_ROLE_CODES.ISSUER_STAFF,
+					],
+					organizationId: undefined,
+				})
+			: false;
+		const hasIssuerUser = isIssuerLogin
+			? Boolean(
+					await prisma.issuerUser.findFirst({
+						where: { userId: user.id, status: 'active' },
+						select: { id: true },
+					}),
+				)
+			: false;
+		const hasLegacyIssuerId =
+			getSignaturaAccountType(user.signaturaId) === SIGNATURA_ACCOUNT_TYPES.ISSUER;
+		if (
+			isIssuerLogin &&
+			((!hasIssuerMembership && !hasIssuerUser && !hasLegacyIssuerId) ||
+				user.accountStatus !== 'active' ||
+				user.trustLevel < 2)
+		) {
+			return jsonError('This Signatura ID is not activated for issuer access.', 403);
+		}
 		if (user.trustedDevices.length === 0) {
 			return jsonError(
 				'No trusted device is registered for this Signatura ID. Register a trusted device first.',
@@ -125,6 +155,8 @@ export async function POST(req) {
 			clientId: normalizeOptionalText(body.clientId),
 			sourceApp: isAdminLogin
 				? 'SIGNATURA_ADMIN'
+				: isIssuerLogin
+					? 'SIGNATURA_ISSUER'
 				: normalizeSourceApp(body.sourceApp || body.source),
 			requesterOrigin: normalizeOptionalText(body.requesterOrigin) || getOrigin(req),
 			requestedAssuranceLevel: normalizeAssuranceLevel(

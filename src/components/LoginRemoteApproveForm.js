@@ -23,9 +23,18 @@ function formatExpiry(value) {
 
 function appLabelForChallenge(challenge) {
 	if (challenge?.sourceApp === 'SIGNATURA_ADMIN') return 'Signatura Admin Portal';
+	if (challenge?.sourceApp === 'SIGNATURA_ISSUER') return 'Signatura Issuer Portal';
 	if (challenge?.sourceApp === 'ACCURA') return 'ACCURA';
 	if (challenge?.sourceApp === 'HAVEN') return 'HAVEN';
 	return 'Signatura';
+}
+
+function isAdminQr(challenge) {
+	return challenge?.sourceApp === 'SIGNATURA_ADMIN';
+}
+
+function isIssuerQr(challenge) {
+	return challenge?.sourceApp === 'SIGNATURA_ISSUER';
 }
 
 function formatCountdown(expiresAt) {
@@ -93,11 +102,16 @@ export function LoginRemoteApproveForm({
 
 	useEffect(() => {
 		if (!challenge?.expiresAt) return;
-		setCountdown(formatCountdown(challenge.expiresAt));
+		const initialTimer = window.setTimeout(() => {
+			setCountdown(formatCountdown(challenge.expiresAt));
+		}, 0);
 		const timer = window.setInterval(() => {
 			setCountdown(formatCountdown(challenge.expiresAt));
 		}, 1000);
-		return () => window.clearInterval(timer);
+		return () => {
+			window.clearTimeout(initialTimer);
+			window.clearInterval(timer);
+		};
 	}, [challenge?.expiresAt]);
 
 	async function approveLogin() {
@@ -135,8 +149,10 @@ export function LoginRemoteApproveForm({
 
 			setApproved(true);
 			setStatus(
-				challenge?.sourceApp === 'SIGNATURA_ADMIN'
+				isAdminQr(challenge)
 					? 'Admin sign-in approved. You may return to your desktop.'
+					: isIssuerQr(challenge)
+						? 'Issuer portal sign-in approved. You may return to your desktop.'
 					: 'Browser sign-in approved. You can return to the other device; it should sign in automatically.',
 			);
 		} catch (approveError) {
@@ -193,18 +209,24 @@ export function LoginRemoteApproveForm({
 	return (
 		<section className="mx-auto w-full max-w-3xl rounded-2xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl">
 			<p className="text-sm font-bold uppercase tracking-[0.18em] text-red-300">
-				{challenge?.sourceApp === 'SIGNATURA_ADMIN'
+				{isAdminQr(challenge)
 					? 'Admin QR sign-in'
+					: isIssuerQr(challenge)
+						? 'Issuer QR sign-in'
 					: 'Trusted device login'}
 			</p>
 			<h1 className="mt-2 text-3xl font-black">
-				{challenge?.sourceApp === 'SIGNATURA_ADMIN'
+				{isAdminQr(challenge)
 					? 'Approve Admin Sign-in'
+					: isIssuerQr(challenge)
+						? 'Approve Issuer Sign-in'
 					: 'Approve browser sign-in'}
 			</h1>
 			<p className="mt-3 text-sm leading-6 text-slate-300">
-				{challenge?.sourceApp === 'SIGNATURA_ADMIN'
+				{isAdminQr(challenge)
 					? 'Signatura Admin Portal is requesting access. Verify with your passkey on this trusted device to approve the desktop session.'
+					: isIssuerQr(challenge)
+						? 'Signatura Issuer Portal is requesting access. Verify with your passkey on this trusted device to approve the desktop session.'
 					: 'Another browser is requesting access to Signatura. Verify with your passkey on this trusted device to approve the session.'}
 			</p>
 			{expectedSignaturaId ? (
@@ -255,8 +277,10 @@ export function LoginRemoteApproveForm({
 					className="mt-6 w-full rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
 					{isSubmitting
 						? 'Approving...'
-						: challenge?.sourceApp === 'SIGNATURA_ADMIN'
+						: isAdminQr(challenge)
 							? 'Approve Admin Sign-in'
+							: isIssuerQr(challenge)
+								? 'Approve Issuer Sign-in'
 							: 'Approve with passkey'}
 				</button>
 			)}

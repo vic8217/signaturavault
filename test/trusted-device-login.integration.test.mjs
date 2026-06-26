@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { POST as approveRemoteLogin } from '@/app/api/auth/login/remote/approve/route.js';
+import { POST as finishRemoteLogin } from '@/app/api/auth/login/remote/finish/route.js';
 import { cookieJar, makeSessionCookie, prisma, resetHarness } from './harness/state.mjs';
 import {
 	approveTrustedDeviceLoginChallenge,
@@ -64,6 +65,58 @@ test('trusted device login challenge approves and consumes once', async () => {
 			}),
 		/already used/,
 	);
+});
+
+test('issuer QR login finish opens issuer portal after approval', async () => {
+	resetHarness();
+	const userId = seedUser('issuer-qr-login');
+	prisma.issuerUser.__rows.push({
+		id: 'issuer-user-qr-login',
+		userId,
+		tenantId: 'tenant-issuer-qr-login',
+		issuerId: 'issuer-qr-login',
+		role: 'ISSUER_ADMIN',
+		status: 'active',
+		activatedAt: new Date(),
+	});
+
+	const { challenge, browserSecret } = await createTrustedDeviceLoginChallenge({
+		userId,
+		nextPath: '/issuer',
+		browserUserAgent: 'desktop browser',
+		clientId: 'signatura_issuer',
+		sourceApp: 'SIGNATURA_ISSUER',
+	});
+	await approveTrustedDeviceLoginChallenge({
+		challengeId: challenge.id,
+		shortCode: challenge.shortCode,
+		approverUserId: userId,
+		credentialId: 'cred-phone',
+		trustedDeviceId: 'device-phone',
+	});
+	const poll = await pollTrustedDeviceLoginChallenge({
+		challengeId: challenge.id,
+		browserSecret,
+	});
+	assert.equal(poll.status, 'APPROVED');
+	assert.ok(poll.approvalToken);
+
+	const response = await finishRemoteLogin(
+		new Request('https://signatura.test/api/auth/login/remote/finish', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				challengeId: challenge.id,
+				browserSecret,
+				approvalToken: poll.approvalToken,
+			}),
+		}),
+	);
+	const body = await response.json();
+	assert.equal(response.status, 200);
+	assert.equal(body.ok, true);
+	assert.equal(body.next, '/issuer');
+	assert.equal(body.user.signaturaId, 'SIG-ISSUER-QR-LOGIN');
 });
 
 test('expired trusted device login challenge cannot be consumed', async () => {

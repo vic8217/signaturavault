@@ -114,6 +114,8 @@ test('admin login keeps local biometric fallback and offers Signatura QR approva
 	assert.match(loginForm, /Sign in with Signatura QR/);
 	assert.match(loginForm, /Use your Signatura app or PWA wallet/);
 	assert.match(loginForm, /sourceApp: 'SIGNATURA_ADMIN'/);
+	assert.match(loginForm, /sourceApp: 'SIGNATURA_ISSUER'/);
+	assert.match(loginForm, /qrPrimary = isIssuerLogin/);
 	assert.match(loginForm, /next: nextPath/);
 	assert.match(startRoute, /requireLocalPlatformCredential = isAdminPath\(nextPath\)/);
 	assert.match(startRoute, /transports\.includes\('internal'\)/);
@@ -129,6 +131,7 @@ test('admin login keeps local biometric fallback and offers Signatura QR approva
 	assert.match(registerFinishRoute, /credentialBackedUp === false/);
 	assert.match(registerFinishRoute, /Phone QR, synced, or backed-up passkeys are not allowed/);
 	assert.match(remoteStartRoute, /SIGNATURA_ADMIN/);
+	assert.match(remoteStartRoute, /SIGNATURA_ISSUER/);
 	assert.match(remoteStartRoute, /This Signatura ID is not provisioned for admin access/);
 	assert.match(remoteStartRoute, /accountStatus !== 'active'/);
 	assert.match(remoteStartRoute, /trustLevel < 2/);
