@@ -16,12 +16,18 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
+    "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "demo:seed-signatura": "node scripts/demo-seed-signatura.mjs",
     "demo:presentation-token": "node scripts/demo-presentation-token.mjs",
     "check:hoa-signatura-dev": "node scripts/check-hoa-signatura-dev.mjs",
+    "migrate:legacy-issuers": "node scripts/migrate-legacy-issuer-json-to-prisma.mjs",
+    "sandbox:reset": "node scripts/reset-signatura-sandbox.mjs",
     "reset:dev": "node ../havenxsig/scripts/reset-dev-environment.mjs",
     "reset:dbjson": "node -e \"require('fs').rmSync('data/db.json', { force: true }); console.log('Removed data/db.json')\""
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

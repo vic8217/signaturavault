@@ -1,5 +1,6 @@
 import crypto from 'crypto';
-import { loadDb, saveDb, generateId, now } from '@/lib/db';
+import { generateId, now } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 
 const CODE_PREFIX = 'ISSR';
 
@@ -29,7 +30,30 @@ async function createIssuerAuthorizationCode({
 	const codeHash = hashAuthorizationCode(code);
 	const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-	const db = dbOverride || (await loadDb());
+	if (!dbOverride) {
+		await prisma.issuerAuthorizationCode.create({
+			data: {
+				id: generateId('authcode'),
+				issuerId: issuerId || null,
+				tenantId: tenantId || null,
+				codeHash,
+				label,
+				expiresAt: new Date(expiresAt),
+				status: 'active',
+				usedAt: null,
+			},
+		});
+
+		return {
+			code,
+			expiresAt,
+			label,
+			issuerId: issuerId || null,
+			tenantId: tenantId || null,
+		};
+	}
+
+	const db = dbOverride;
 	const records = Array.isArray(db.issuer_authorization_codes)
 		? db.issuer_authorization_codes
 		: [];
@@ -47,9 +71,6 @@ async function createIssuerAuthorizationCode({
 	});
 
 	db.issuer_authorization_codes = records;
-	if (!dbOverride) {
-		await saveDb(db);
-	}
 
 	return {
 		code,
@@ -64,8 +85,18 @@ async function verifyIssuerAuthorizationCode(value, { db: dbOverride } = {}) {
 	const normalized = normalizeCode(value);
 	if (!normalized) return false;
 
-	const db = dbOverride || (await loadDb());
 	const hash = hashAuthorizationCode(normalized);
+	if (!dbOverride) {
+		return prisma.issuerAuthorizationCode.findFirst({
+			where: {
+				codeHash: hash,
+				status: { not: 'revoked' },
+				expiresAt: { gt: new Date() },
+			},
+		});
+	}
+
+	const db = dbOverride;
 
 	return (
 		(db.issuer_authorization_codes || []).find((record) => {

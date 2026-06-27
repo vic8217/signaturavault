@@ -23,6 +23,9 @@ function valueMatches(actual, expected) {
 	}
 
 	if (isPlainObject(expected)) {
+		if ('not' in expected) {
+			return !valueMatches(actual, expected.not);
+		}
 		if ('gt' in expected) {
 			const bound = expected.gt;
 			const actualTime = actual instanceof Date ? actual.getTime() : actual;
@@ -228,8 +231,12 @@ function createModel(compositeKeyNames = [], uniqueFieldNames = []) {
 export function createFakePrisma() {
 	const models = {
 		user: createModel(),
+		tenant: createModel(),
 		issuer: createModel(),
 		issuerUser: createModel(),
+		issuerApiClient: createModel([], ['clientId']),
+		issuerApiKey: createModel(),
+		issuerAuthorizationCode: createModel([], ['codeHash']),
 		documentType: createModel(),
 		documentTemplate: createModel(),
 		documentRequest: createModel(),

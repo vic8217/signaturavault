@@ -316,6 +316,15 @@ export function LoginTrustedDeviceQrPanel({
 							Register trusted device
 						</Link>
 					) : null}
+					<button
+						type="button"
+						onClick={() => {
+							resetChallenge();
+							onCancel?.();
+						}}
+						className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-white/15 px-5 py-3 text-sm font-bold text-white transition hover:border-red-300 hover:text-red-100">
+						Cancel
+					</button>
 				</div>
 			) : null}
 			{submitting && !error ? (

@@ -553,7 +553,11 @@ function LoginPasskeyForm({
 								nextPath={nextPath}
 								externalReturnUrl={externalReturnUrl}
 								remoteLoginContext={remoteLoginContext}
-								onCancel={() => setStep('id')}
+								onCancel={() => {
+									setError('');
+									setStatus('');
+									setStep('id');
+								}}
 							/>
 						</div>
 					) : null}

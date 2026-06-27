@@ -31,7 +31,6 @@ import {
 	sourceAppLabel,
 	validateAccuraRegistrationContext,
 } from '@/lib/registrationSource';
-import { loadDb, saveDb } from '@/lib/db';
 import { ROLES } from '@/lib/roles';
 import { registrationSessionExpiresAt } from '@/lib/registration-session';
 import {
@@ -495,22 +494,13 @@ export async function POST(req: Request) {
 			issuerAuthorizationRecord &&
 			issuerAuthorizationRecord.id
 		) {
-			const db = await loadDb();
-			const records = Array.isArray(db.issuer_authorization_codes)
-				? db.issuer_authorization_codes
-				: [];
-			const recordIndex = records.findIndex(
-				(item) => item.id === issuerAuthorizationRecord.id,
-			);
-			if (recordIndex >= 0) {
-				records[recordIndex] = {
-					...records[recordIndex],
+			await prisma.issuerAuthorizationCode.update({
+				where: { id: issuerAuthorizationRecord.id },
+				data: {
 					status: 'used',
-					usedAt: new Date().toISOString(),
-				};
-				db.issuer_authorization_codes = records;
-				await saveDb(db);
-			}
+					usedAt: new Date(),
+				},
+			});
 		}
 
 		await logSecurityEvent(req, 'account_created_private_fields_encrypted', user.id, {

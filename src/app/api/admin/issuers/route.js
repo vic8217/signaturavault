@@ -1,4 +1,4 @@
-import { loadDb } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 import { requireSession } from '@/lib/session';
 import { ROLE_COOKIE, ROLES } from '@/lib/roles';
 import { redactIssuerForProvider } from '@/lib/security';
@@ -22,22 +22,28 @@ export async function GET(req) {
 		return Response.json({ error: 'Admin role required' }, { status: 403 });
 	}
 
-	const db = await loadDb();
-	const tenantsById = new Map(
-		db.tenants.map((tenant) => [tenant.id, tenant]),
-	);
+	const issuerRows = await prisma.issuer.findMany({
+		orderBy: { createdAt: 'desc' },
+	});
+	const tenantRows = await prisma.tenant.findMany({
+		where: {
+			id: {
+				in: Array.from(new Set(issuerRows.map((issuer) => issuer.tenantId))),
+			},
+		},
+	});
+	const tenantsById = new Map(tenantRows.map((tenant) => [tenant.id, tenant]));
 
 	const issuersByIdentity = new Map();
-
-	for (const issuer of db.issuers) {
+	for (const issuer of issuerRows) {
 		const identity =
-			normalizeIdentity(issuer.registration_number) ||
+			normalizeIdentity(issuer.registrationNumber) ||
 			normalizeIdentity(issuer.name);
 		const currentIssuer = issuersByIdentity.get(identity);
 
 		if (
 			!currentIssuer ||
-			new Date(issuer.created_at) > new Date(currentIssuer.created_at)
+			new Date(issuer.createdAt) > new Date(currentIssuer.createdAt)
 		) {
 			issuersByIdentity.set(identity, issuer);
 		}

@@ -85,6 +85,7 @@ async function resetDatabase() {
   await prisma.documentRequest.deleteMany();
   await prisma.issuerInvitation.deleteMany();
   await prisma.issuerUser.deleteMany();
+  await prisma.issuerAuthorizationCode.deleteMany();
   await prisma.issuerApiKey.deleteMany();
   await prisma.issuerApiClient.deleteMany();
   await prisma.issuer.deleteMany();
