@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
+import { resolvePublicSignaturaOrigin } from '@/lib/publicOrigin';
 
 const SIGNATURA_ISSUERS_PRESENTATION_SLUG = 'signatura-issuers';
 const SIGNATURA_ISSUERS_SLIDE_COUNT = 15;
@@ -68,7 +69,9 @@ function publicPresentationLink(link) {
 }
 
 function presentationShareUrl(req, token) {
-	const url = new URL('/presentation/signatura-issuers', req.url);
+	const origin =
+		req ? resolvePublicSignaturaOrigin(req) : 'http://localhost:3000';
+	const url = new URL('/presentation/signatura-issuers', origin);
 	url.searchParams.set('token', token);
 	return url.toString();
 }

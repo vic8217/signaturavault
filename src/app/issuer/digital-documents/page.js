@@ -1,255 +1,234 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { requireIssuerContext, templateToApi } from '@/lib/issuer-templates';
+import { requireIssuerContext } from '@/lib/issuer-templates';
 import { PortalIcon } from '@/components/PortalIcon';
 
-const sampleFields = [
-	'Given Name',
-	'Middle Name',
-	'Surname',
-	'SSS Number',
-	'Photo',
-];
+function statusClass(status) {
+	const normalized = String(status || '').toLowerCase();
+	if (normalized === 'valid' || normalized === 'issued') {
+		return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200';
+	}
+	if (normalized === 'revoked') {
+		return 'border-red-400/30 bg-red-400/10 text-red-100';
+	}
+	if (normalized === 'expired') {
+		return 'border-amber-300/30 bg-amber-300/10 text-amber-100';
+	}
+	return 'border-slate-400/20 bg-slate-400/10 text-slate-300';
+}
 
-async function getTemplates() {
+function formatDate(value) {
+	if (!value) return 'Not issued';
+	return new Intl.DateTimeFormat('en', {
+		dateStyle: 'medium',
+		timeStyle: 'short',
+	}).format(new Date(value));
+}
+
+function shortHash(value) {
+	const text = String(value || '');
+	if (text.length <= 20) return text;
+	return `${text.slice(0, 10)}...${text.slice(-8)}`;
+}
+
+async function getIssuedDocuments() {
 	const context = await requireIssuerContext();
-	if (context.error) return { templates: [], unavailable: true };
+	if (context.error) return { documents: [], unavailable: true };
 
-	const templates = await prisma.documentTemplate.findMany({
+	const records = await prisma.documentRecord.findMany({
 		where: {
 			tenantId: context.tenantId,
 			...(context.issuerId ? { issuerId: context.issuerId } : {}),
 		},
-		include: {
-			templateFields: { orderBy: { sortOrder: 'asc' } },
-			extractionLogs: { orderBy: { createdAt: 'desc' }, take: 1 },
-		},
-		orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }],
+		orderBy: { issuedAt: 'desc' },
+		take: 100,
 	});
 
-	return { templates: templates.map(templateToApi), unavailable: false };
-}
-
-function statusClass(status) {
-	if (status === 'published') return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200';
-	if (status === 'archived') return 'border-slate-400/20 bg-slate-400/10 text-slate-300';
-	return 'border-amber-300/30 bg-amber-300/10 text-amber-100';
-}
-
-function fieldBoxStyle(field) {
 	return {
-		left: `${Math.max(0, Math.min(96, Number(field.x_position || 0)))}%`,
-		top: `${Math.max(0, Math.min(96, Number(field.y_position || 0)))}%`,
-		width: `${Math.max(8, Math.min(96, Number(field.width || 22)))}%`,
-		height: `${Math.max(5, Math.min(96, Number(field.height || 7)))}%`,
+		unavailable: false,
+		documents: records.filter((record) => record.metadata?.credential?.mode === 'template_issuance').map((record) => {
+			const credential = record.metadata?.credential || {};
+			return {
+				id: record.id,
+				templateName: credential.templateName || 'Digital credential',
+				templateVersion: credential.templateVersion || null,
+				documentNumber: credential.documentNumber || record.externalId,
+				status: record.status,
+				anchorStatus: record.anchorStatus,
+				documentHash: record.documentHash || record.hash,
+				verificationUrl: credential.verificationUrl || `/verify?token=${record.qrToken}`,
+				recipientNameHash: credential.recipientNameHash || '',
+				issuedAt: record.issuedAt,
+				privateValuesEncrypted: Boolean(credential.fieldValuesEncrypted),
+				publicFields: credential.publicFields || {},
+			};
+		}),
 	};
 }
 
-function RedactedDocumentPreview({ template }) {
-	return (
-		<div className="rounded-xl border border-white/10 bg-slate-950/70 p-3">
-			{template.preview_image_url ? (
-				<div className="relative mx-auto w-fit max-w-full overflow-hidden rounded-lg border border-white/10 bg-slate-900 shadow-inner">
-					<Image
-						src={template.preview_image_url}
-						alt={`${template.name} redacted sample`}
-						width={720}
-						height={455}
-						unoptimized
-						className="block max-h-72 max-w-full object-contain"
-					/>
-					{template.fields.map((field) => (
-						<div
-							key={field.id}
-							style={fieldBoxStyle(field)}
-							className="absolute rounded border border-white/70 bg-white/95 shadow-sm backdrop-blur-md"
-							aria-label={`${field.field_label} hidden`}
-						/>
-					))}
-					{template.fields.length === 0 ? (
-						<div className="absolute inset-0 grid place-items-center text-sm font-semibold text-slate-400">
-							No personal fields marked
-						</div>
-					) : null}
-				</div>
-			) : (
-				<div className="relative mx-auto aspect-[1.58] max-h-72 w-full overflow-hidden rounded-lg border border-white/10 bg-slate-900 shadow-inner">
-					<div className="absolute inset-0 bg-white">
-						<div className="absolute inset-x-6 top-5 border-b border-slate-200 pb-3">
-							<p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400">
-								{template.document_type || 'Digital document'}
-							</p>
-						</div>
-					</div>
-					{template.fields.map((field) => (
-						<div
-							key={field.id}
-							style={fieldBoxStyle(field)}
-							className="absolute rounded border border-white/70 bg-white/95 shadow-sm backdrop-blur-md"
-							aria-label={`${field.field_label} hidden`}
-						/>
-					))}
-					{template.fields.length === 0 ? (
-						<div className="absolute inset-0 grid place-items-center text-sm font-semibold text-slate-400">
-							No personal fields marked
-						</div>
-					) : null}
-				</div>
-			)}
-		</div>
-	);
-}
-
-function TemplatePreview({ template }) {
+function DocumentCard({ document }) {
 	return (
 		<article className="rounded-2xl border border-white/10 bg-white/4 p-5">
-			<div className="flex items-start justify-between gap-4">
+			<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 				<div>
-					<p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-300">
-						Digitized template
+					<p className="text-xs font-bold uppercase tracking-[0.2em] text-red-300">
+						Issued Digital Credential
 					</p>
-					<h2 className="mt-2 text-xl font-bold text-white">{template.name}</h2>
-					<p className="mt-1 text-sm text-slate-300">
-						{template.document_type || 'Unclassified'} · v{template.version}
+					<h2 className="mt-2 text-xl font-bold text-white">
+						{document.templateName}
+						{document.templateVersion ? ` v${document.templateVersion}` : ''}
+					</h2>
+					<p className="mt-1 font-mono text-sm text-slate-300">
+						{document.documentNumber}
 					</p>
 				</div>
 				<span
-					className={`rounded-full border px-3 py-1 text-xs font-bold uppercase ${statusClass(
-						template.status,
+					className={`w-fit rounded-full border px-3 py-1 text-xs font-bold uppercase ${statusClass(
+						document.status,
 					)}`}>
-					{template.status}
+					{document.status === 'valid' ? 'issued' : document.status}
 				</span>
 			</div>
 
-			<div className="mt-5 grid gap-5 lg:grid-cols-[0.85fr_1fr]">
-				<RedactedDocumentPreview template={template} />
-
-				<div>
-					<h3 className="text-sm font-bold uppercase tracking-[0.18em] text-slate-300">
-						Digital fields
-					</h3>
-					<div className="mt-3 grid gap-2 sm:grid-cols-2">
-						{template.fields.map((field) => (
-							<div
-								key={field.id}
-								className="rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2">
-								<p className="text-sm font-semibold text-white">{field.field_label}</p>
-								<p className="mt-1 text-xs text-slate-400">
-									{field.field_type}
-									{field.required ? ' · required' : ''}
-								</p>
-							</div>
-						))}
-						{template.fields.length === 0 ? (
-							<p className="rounded-lg border border-dashed border-white/15 p-4 text-sm text-slate-300 sm:col-span-2">
-								No fields reviewed yet.
-							</p>
-						) : null}
-					</div>
+			<div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+				<div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+					<p className="text-xs uppercase tracking-wide text-slate-500">
+						Issued at
+					</p>
+					<p className="mt-1 text-sm text-slate-100">
+						{formatDate(document.issuedAt)}
+					</p>
 				</div>
+				<div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+					<p className="text-xs uppercase tracking-wide text-slate-500">
+						Anchor
+					</p>
+					<p className="mt-1 text-sm capitalize text-slate-100">
+						{document.anchorStatus || 'pending'}
+					</p>
+				</div>
+				<div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+					<p className="text-xs uppercase tracking-wide text-slate-500">
+						Document hash
+					</p>
+					<p className="mt-1 font-mono text-sm text-slate-100">
+						{shortHash(document.documentHash)}
+					</p>
+				</div>
+				<div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+					<p className="text-xs uppercase tracking-wide text-slate-500">
+						Private fields
+					</p>
+					<p className="mt-1 text-sm text-slate-100">
+						{document.privateValuesEncrypted ? 'Encrypted' : 'Not stored'}
+					</p>
+				</div>
+			</div>
+
+			<div className="mt-4 rounded-xl border border-white/10 bg-slate-950/60 p-3">
+				<p className="text-xs uppercase tracking-wide text-slate-500">
+					Verification link
+				</p>
+				<p className="mt-1 break-all text-sm text-slate-100">
+					{document.verificationUrl}
+				</p>
 			</div>
 		</article>
 	);
 }
 
 export default async function DigitalDocumentsPage() {
-	const { templates, unavailable } = await getTemplates();
-	const published = templates.filter((template) => template.status === 'published');
-	const drafts = templates.filter((template) => template.status === 'draft');
-	const featured = published[0] || templates[0];
+	const { documents, unavailable } = await getIssuedDocuments();
+	const issued = documents.filter((document) => document.status === 'valid');
+	const revoked = documents.filter((document) => document.status === 'revoked');
+	const pendingAnchor = documents.filter(
+		(document) => document.anchorStatus === 'pending',
+	);
 
 	return (
 		<div className="space-y-8">
 			<section className="rounded-2xl border border-white/10 bg-white/4 p-10 shadow-[0_0_80px_rgba(15,23,42,0.45)]">
-				<div className="max-w-3xl">
-					<p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
-						Digital Documents
-					</p>
-					<h1 className="mt-4 text-4xl font-bold tracking-tight text-white">
-						Digitized documents and reusable samples.
-					</h1>
-					<p className="mt-4 text-lg leading-8 text-slate-300">
-						Review published digital document templates, their captured fields,
-						and the sample document layout issuers can reuse for new applications.
-					</p>
+				<div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+					<div className="max-w-3xl">
+						<p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
+							Digital Documents
+						</p>
+						<h1 className="mt-4 text-4xl font-bold tracking-tight text-white">
+							Issued credentials and verification activity.
+						</h1>
+						<p className="mt-4 text-lg leading-8 text-slate-300">
+							This page shows issued digital credentials. Reusable source layouts
+							live in Templates; issuance combines a published template with
+							recipient data to create a verifiable credential.
+						</p>
+					</div>
+					<Link
+						href="/issuer/issuance"
+						className="inline-flex w-fit items-center gap-2 rounded-lg bg-red-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-600">
+						<PortalIcon name="document" className="h-4 w-4" />
+						New issuance
+					</Link>
 				</div>
 			</section>
 
-			<section className="grid gap-4 sm:grid-cols-3">
+			<section className="grid gap-4 sm:grid-cols-4">
 				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
-					<p className="text-sm text-slate-400">Published</p>
-					<p className="mt-2 text-3xl font-bold text-white">{published.length}</p>
+					<p className="text-sm text-slate-400">Issued</p>
+					<p className="mt-2 text-3xl font-bold text-white">{issued.length}</p>
 				</div>
 				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
-					<p className="text-sm text-slate-400">Drafts</p>
-					<p className="mt-2 text-3xl font-bold text-white">{drafts.length}</p>
+					<p className="text-sm text-slate-400">Revoked</p>
+					<p className="mt-2 text-3xl font-bold text-white">{revoked.length}</p>
 				</div>
 				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
-					<p className="text-sm text-slate-400">Total fields</p>
+					<p className="text-sm text-slate-400">Pending Anchor</p>
 					<p className="mt-2 text-3xl font-bold text-white">
-						{templates.reduce((sum, template) => sum + template.fields.length, 0)}
+						{pendingAnchor.length}
+					</p>
+				</div>
+				<div className="rounded-2xl border border-white/10 bg-white/4 p-5">
+					<p className="text-sm text-slate-400">Verification Ready</p>
+					<p className="mt-2 text-3xl font-bold text-white">
+						{documents.filter((document) => document.verificationUrl).length}
 					</p>
 				</div>
 			</section>
 
 			{unavailable ? (
 				<section className="rounded-2xl border border-red-400/20 bg-red-400/10 p-6 text-sm text-red-100">
-					Sign in as an issuer to view digitized documents.
+					Sign in as an issuer to view issued digital documents.
 				</section>
 			) : null}
 
-			{featured ? (
-				<TemplatePreview template={featured} />
+			{documents.length ? (
+				<section className="grid gap-6">
+					{documents.map((document) => (
+						<DocumentCard key={document.id} document={document} />
+					))}
+				</section>
 			) : (
 				<section className="rounded-2xl border border-white/10 bg-white/4 p-6">
-					<div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-						<div className="rounded-xl border border-white/10 bg-slate-950/70 p-5">
-							<div className="aspect-[1.58] rounded-lg border border-slate-300 bg-white p-5 shadow-inner">
-								<p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-									Blank digital document
-								</p>
-								<div className="mt-8 h-20 w-20 rounded-lg border border-dashed border-slate-300 bg-slate-50" />
-								<div className="mt-6 space-y-2">
-									<div className="h-2 w-44 rounded bg-slate-200" />
-									<div className="h-2 w-36 rounded bg-slate-200" />
-									<div className="h-2 w-52 rounded bg-slate-200" />
-								</div>
-							</div>
-						</div>
-						<div>
-							<div className="mb-5 grid h-12 w-12 place-items-center rounded-xl border border-red-500/40 bg-red-500/10 text-red-300">
-								<PortalIcon name="template" className="h-6 w-6" />
-							</div>
-							<h2 className="text-2xl font-bold text-white">No digitized templates yet</h2>
-							<p className="mt-3 text-sm leading-7 text-slate-300">
-								Upload a sample ID, certificate, or card in Templates, run OCR, review
-								the captured fields, then publish it to make it reusable here.
-							</p>
-							<div className="mt-5 flex flex-wrap gap-2">
-								{sampleFields.map((field) => (
-									<span
-										key={field}
-										className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-1 text-xs font-semibold text-slate-200">
-										{field}
-									</span>
-								))}
-							</div>
-							<Link
-								href="/issuer/templates"
-								className="mt-6 inline-flex rounded-lg bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-600">
-								Create template
-							</Link>
-						</div>
+					<h2 className="text-2xl font-bold text-white">
+						No issued digital documents yet
+					</h2>
+					<p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
+						Publish a reusable template, then issue a credential from the Issuance
+						module. Uploaded samples are never treated as issued documents.
+					</p>
+					<div className="mt-5 flex flex-wrap gap-3">
+						<Link
+							href="/issuer/templates"
+							className="rounded-lg border border-white/10 px-4 py-2 text-sm font-bold text-slate-100 transition hover:border-red-400 hover:text-red-200">
+							Create template
+						</Link>
+						<Link
+							href="/issuer/issuance"
+							className="rounded-lg bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-600">
+							New issuance
+						</Link>
 					</div>
 				</section>
 			)}
-
-			<section className="grid gap-6 xl:grid-cols-2">
-				{templates.map((template) => (
-					<TemplatePreview key={template.id} template={template} />
-				))}
-			</section>
 		</div>
 	);
 }

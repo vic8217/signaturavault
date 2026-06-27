@@ -170,6 +170,28 @@ function VerifyDocumentPanel() {
 								</div>
 								<div>
 									<dt className="text-xs uppercase tracking-wide text-slate-500">
+										Template
+									</dt>
+									<dd>
+										{result.template_name
+											? `${result.template_name}${
+													result.template_version
+														? ` v${result.template_version}`
+														: ''
+												}`
+											: '—'}
+									</dd>
+								</div>
+								<div>
+									<dt className="text-xs uppercase tracking-wide text-slate-500">
+										Document number
+									</dt>
+									<dd className="break-all font-mono text-xs">
+										{result.document_number || '—'}
+									</dd>
+								</div>
+								<div>
+									<dt className="text-xs uppercase tracking-wide text-slate-500">
 										Private fields
 									</dt>
 									<dd>
@@ -187,6 +209,21 @@ function VerifyDocumentPanel() {
 									</dd>
 								</div>
 							</dl>
+							{result.public_fields && Object.keys(result.public_fields).length ? (
+								<div className="rounded-lg border border-emerald-400/20 bg-slate-900/50 p-3">
+									<p className="text-xs uppercase tracking-wide text-slate-500">
+										Public credential fields
+									</p>
+									<dl className="mt-2 grid gap-2 text-sm text-slate-200">
+										{Object.entries(result.public_fields).map(([key, value]) => (
+											<div key={key}>
+												<dt className="font-mono text-xs text-slate-500">{key}</dt>
+												<dd>{String(value || '—')}</dd>
+											</div>
+										))}
+									</dl>
+								</div>
+							) : null}
 						</div>
 					) : null}
 

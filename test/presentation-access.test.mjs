@@ -24,6 +24,8 @@ test('presentation access uses hashed tokens and server-side validation', async 
 	assert.match(accessLib, /createCipheriv\('aes-256-gcm'/);
 	assert.match(accessLib, /tokenCipher: encryptPresentationToken\(token\)/);
 	assert.match(accessLib, /shareUrl/);
+	assert.match(accessLib, /resolvePublicSignaturaOrigin/);
+	assert.doesNotMatch(accessLib, /new URL\('\/presentation\/signatura-issuers', req\.url\)/);
 	assert.match(accessLib, /presentationAccessView\.create/);
 	assert.match(accessLib, /viewCount: \{ increment: 1 \}/);
 	assert.match(accessLib, /Presentation link expired or invalid\./);
@@ -60,6 +62,8 @@ test('admin presentation generator requires admin access and never returns store
 	assert.match(adminApi, /publicPresentationLink/);
 	assert.doesNotMatch(adminPage, /tokenHash/);
 	assert.match(adminPage, /Generate access token/);
+	assert.match(adminPage, /const form = event\.currentTarget/);
+	assert.match(adminPage, /form\.reset\(\)/);
 	assert.match(adminPage, /Share link/);
 	assert.match(adminPage, /copyShareUrl/);
 	assert.match(adminPage, /Revoke/);

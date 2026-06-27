@@ -90,10 +90,11 @@ export default function AdminPresentationAccessPage() {
 
 	async function createLink(event) {
 		event.preventDefault();
+		const form = event.currentTarget;
 		setIsSubmitting(true);
 		setError('');
 		setLatestUrl('');
-		const formData = new FormData(event.currentTarget);
+		const formData = new FormData(form);
 		const payload = {
 			viewerName: formData.get('viewerName'),
 			viewerEmail: formData.get('viewerEmail'),
@@ -114,7 +115,7 @@ export default function AdminPresentationAccessPage() {
 			if (!response.ok) throw new Error(data.error || 'Unable to create link');
 			setLatestUrl(data.url);
 			setLinks((current) => [{ ...data.link, shareUrl: data.url }, ...current]);
-			event.currentTarget.reset();
+			form.reset();
 			setExpiresAt(defaultExpirationValue());
 		} catch (submitError) {
 			setError(submitError.message);
