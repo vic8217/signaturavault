@@ -7,6 +7,10 @@ import {
 	browserSupportsWebAuthn,
 	startRegistration,
 } from '@simplewebauthn/browser';
+import {
+	createDeviceBindingSecret,
+	storeDeviceBindingSecret,
+} from '@/lib/trustedDeviceBindingClient';
 
 function isStandalonePwa() {
 	if (typeof window === 'undefined') return false;
@@ -26,15 +30,16 @@ function formatCountdown(expiresAt) {
 
 export function AdminSetupPasskeyForm({ token = '' }) {
 	const router = useRouter();
-	const [state, setState] = useState('loading');
+	const tokenMissing = !String(token || '').trim();
+	const [state, setState] = useState(tokenMissing ? 'invalid' : 'loading');
 	const [user, setUser] = useState(null);
 	const [expiresAt, setExpiresAt] = useState('');
 	const [countdown, setCountdown] = useState('');
-	const [error, setError] = useState('');
+	const [error, setError] = useState(tokenMissing ? 'Invalid setup link.' : '');
 	const [status, setStatus] = useState('');
 	const [deviceName, setDeviceName] = useState('Admin phone');
 	const [installPrompt, setInstallPrompt] = useState(null);
-	const [standalone, setStandalone] = useState(false);
+	const [standalone, setStandalone] = useState(() => isStandalonePwa());
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [redirectTarget, setRedirectTarget] = useState('/admin');
 	const [bootstrapAccount, setBootstrapAccount] = useState(null);
@@ -44,10 +49,8 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 	const [recoveryPhraseSaved, setRecoveryPhraseSaved] = useState(false);
 
 	const canInstall = Boolean(installPrompt && !standalone);
-	const tokenMissing = !String(token || '').trim();
 
 	useEffect(() => {
-		setStandalone(isStandalonePwa());
 		function handleBeforeInstallPrompt(event) {
 			event.preventDefault();
 			setInstallPrompt(event);
@@ -60,8 +63,6 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 
 	useEffect(() => {
 		if (tokenMissing) {
-			setState('invalid');
-			setError('Invalid setup link.');
 			return;
 		}
 
@@ -151,6 +152,7 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 				throw new Error('Passkeys require HTTPS. Open the HTTPS Signatura setup link.');
 			}
 
+			const deviceBindingSecret = createDeviceBindingSecret();
 			const startResponse = await fetch('/api/admin/passkey/register/start', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
@@ -173,7 +175,12 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 			const finishResponse = await fetch('/api/admin/passkey/register/finish', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ token, deviceName, response: registration }),
+				body: JSON.stringify({
+					token,
+					deviceName,
+					response: registration,
+					deviceBindingSecret,
+				}),
 			});
 			const finishData = await finishResponse.json().catch(() => ({}));
 			if (!finishResponse.ok) {
@@ -204,6 +211,10 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 				setRecoveryPhraseAlreadyIssued(
 					Boolean(recoveryData.recoveryPhraseAlreadyIssued),
 				);
+				storeDeviceBindingSecret(
+					recoveryData.user?.signaturaId || finishData.user?.signaturaId || '',
+					deviceBindingSecret,
+				);
 				setState('recovery');
 				setStatus(
 					recoveryData.recoveryPhraseAlreadyIssued
@@ -215,6 +226,7 @@ export function AdminSetupPasskeyForm({ token = '' }) {
 
 			setState('success');
 			setRedirectTarget(finishData.next || '/admin');
+			storeDeviceBindingSecret(finishData.user?.signaturaId || '', deviceBindingSecret);
 			setStatus('Admin access is ready. Opening the admin dashboard...');
 			window.setTimeout(() => {
 				router.replace(finishData.next || '/admin');

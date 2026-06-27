@@ -9,6 +9,10 @@ import {
 import { REGISTRATION_STATUSES } from '@/lib/registration-status';
 import { registrationSessionExpiresAt } from '@/lib/registration-session';
 import {
+	normalizeDeviceBindingSecret,
+	trustedDeviceBindingHash,
+} from '@/lib/trustedDeviceBinding';
+import {
 	assertSecureWebAuthnRequest,
 	consumeChallenge,
 	getOrigin,
@@ -24,7 +28,13 @@ export async function POST(req: Request) {
 		const token = String(body.token || '').trim();
 		const response = body.response;
 		const deviceName = String(body.deviceName || '').trim() || 'Admin phone';
+		const deviceBindingSecret = normalizeDeviceBindingSecret(
+			body.deviceBindingSecret,
+		);
 		if (!response) return jsonError('response is required', 400);
+		if (!deviceBindingSecret) {
+			return jsonError('Trusted device binding secret is required', 400);
+		}
 
 		const tokenResult = await validateAdminSetupToken(req, token, {
 			auditEvent: 'admin_setup_passkey_registration_finishing',
@@ -123,10 +133,11 @@ export async function POST(req: Request) {
 					userId: user.id,
 					credentialId: credential.id,
 					deviceName,
-					deviceHash: crypto
-						.createHash('sha256')
-						.update(`${user.id}:${credential.id}`)
-						.digest('hex'),
+					deviceHash: trustedDeviceBindingHash({
+						userId: user.id,
+						credentialId: credential.id,
+						deviceBindingSecret,
+					}),
 					userAgent,
 					lastUsedAt: now,
 					isTrusted: true,

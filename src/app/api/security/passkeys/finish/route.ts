@@ -2,7 +2,12 @@ import { verifyRegistrationResponse } from '@simplewebauthn/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
+import { userPublicIdentity } from '@/lib/identity';
 import { requireSession } from '@/lib/session';
+import {
+	normalizeDeviceBindingSecret,
+	trustedDeviceBindingHash,
+} from '@/lib/trustedDeviceBinding';
 import {
 	assertSecureWebAuthnRequest,
 	consumeChallenge,
@@ -21,7 +26,13 @@ export async function POST(req: Request) {
 		const body = await req.json();
 		const response = body.response;
 		const deviceName = String(body.deviceName || '').trim() || 'Trusted device';
+		const deviceBindingSecret = normalizeDeviceBindingSecret(
+			body.deviceBindingSecret,
+		);
 		if (!response) return jsonError('response is required');
+		if (!deviceBindingSecret) {
+			return jsonError('Trusted device binding secret is required', 400);
+		}
 
 		const challenge = await prisma.authChallenge.findFirst({
 			where: {
@@ -78,10 +89,11 @@ export async function POST(req: Request) {
 					userId: session.userId,
 					credentialId: credential.id,
 					deviceName,
-					deviceHash: crypto
-						.createHash('sha256')
-						.update(`${session.userId}:${credential.id}`)
-						.digest('hex'),
+					deviceHash: trustedDeviceBindingHash({
+						userId: session.userId,
+						credentialId: credential.id,
+						deviceBindingSecret,
+					}),
 					userAgent,
 					lastUsedAt: new Date(),
 					isTrusted: true,
@@ -103,7 +115,15 @@ export async function POST(req: Request) {
 			}),
 		]);
 
-		return Response.json({ ok: true });
+		return Response.json({
+			ok: true,
+			user: userPublicIdentity({
+				id: session.userId,
+				signaturaId: session.signaturaId,
+				accountStatus: session.accountStatus,
+				trustLevel: session.trustLevel,
+			}),
+		});
 	} catch (error) {
 		return jsonError(
 			safeApiErrorMessage(error, 'Unable to finish passkey setup'),

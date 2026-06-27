@@ -11,6 +11,7 @@ import {
 	signaturaApiFetch,
 	signaturaApiRequest,
 } from '@/lib/registration-api-client';
+import { readDeviceBindingSecret } from '@/lib/trustedDeviceBindingClient';
 
 function formatExpiry(value) {
 	if (!value) return '';
@@ -70,8 +71,14 @@ export function LoginRemoteApproveForm({
 			setIsLoading(true);
 			setError('');
 			try {
+				const deviceBindingSecret = readDeviceBindingSecret(expectedSignaturaId);
+				if (!deviceBindingSecret) {
+					throw new Error(
+						'This phone is not registered for QR approval. Register it as a trusted device first.',
+					);
+				}
 				const response = await signaturaApiFetch(
-					`/api/auth/login/remote/lookup?cid=${encodeURIComponent(challengeId)}&code=${encodeURIComponent(normalizedCode)}`,
+					`/api/auth/login/remote/lookup?cid=${encodeURIComponent(challengeId)}&code=${encodeURIComponent(normalizedCode)}&deviceBindingSecret=${encodeURIComponent(deviceBindingSecret)}`,
 					{ cache: 'no-store' },
 				);
 				const body = await readSignaturaApiJson(response, 'Login challenge lookup');
@@ -98,7 +105,7 @@ export function LoginRemoteApproveForm({
 		return () => {
 			cancelled = true;
 		};
-	}, [challengeId, normalizedCode]);
+	}, [challengeId, normalizedCode, expectedSignaturaId]);
 
 	useEffect(() => {
 		if (!challenge?.expiresAt) return;
@@ -126,6 +133,12 @@ export function LoginRemoteApproveForm({
 			if (!approvalOptions) {
 				throw new Error('QR approval challenge is missing or expired.');
 			}
+			const deviceBindingSecret = readDeviceBindingSecret(challenge.signaturaId);
+			if (!deviceBindingSecret) {
+				throw new Error(
+					'This phone is not registered for QR approval. Register it as a trusted device first.',
+				);
+			}
 			const assertion = await startAuthentication({
 				optionsJSON: approvalOptions,
 			});
@@ -138,6 +151,7 @@ export function LoginRemoteApproveForm({
 					body: JSON.stringify({
 						challengeId: challenge.id,
 						shortCode: normalizedCode,
+						deviceBindingSecret,
 						response: assertion,
 					}),
 				},

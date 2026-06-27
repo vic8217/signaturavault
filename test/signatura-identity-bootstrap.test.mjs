@@ -127,8 +127,12 @@ test('admin phone setup requires recovery before admin session activation', asyn
 	assert.match(adminFinishRoute, /requiresRecovery: true/);
 	assert.match(adminFinishRoute, /REGISTRATION_STATUSES\.TRUSTED_DEVICE_REGISTERED/);
 	assert.match(adminFinishRoute, /type: 'REGISTER_ACCOUNT'/);
+	assert.match(adminFinishRoute, /deviceBindingSecret/);
+	assert.match(adminFinishRoute, /trustedDeviceBindingHash/);
 	assert.doesNotMatch(adminFinishRoute, /createAuthenticatedLoginResponse/);
 	assert.doesNotMatch(adminFinishRoute, /accountStatus: 'active'/);
+	assert.match(adminSetupForm, /createDeviceBindingSecret/);
+	assert.match(adminSetupForm, /storeDeviceBindingSecret/);
 	assert.match(adminSetupForm, /\/api\/auth\/register\/recovery/);
 	assert.match(adminSetupForm, /Save your recovery phrase/);
 	assert.match(adminSetupForm, /\/api\/auth\/register\/activate/);

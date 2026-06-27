@@ -2,6 +2,7 @@ import { generateAuthenticationOptions } from '@simplewebauthn/server';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import { requireSession } from '@/lib/session';
+import { verifyTrustedDeviceBinding } from '@/lib/trustedDeviceBinding';
 import {
 	QR_LOGIN_APPROVAL_TIMEOUT_MS,
 	getTrustedDeviceLoginApprovalMaterial,
@@ -19,8 +20,17 @@ export async function GET(req) {
 		const shortCode = String(url.searchParams.get('code') ?? '')
 			.trim()
 			.toUpperCase();
+		const deviceBindingSecret = String(
+			url.searchParams.get('deviceBindingSecret') ?? '',
+		).trim();
 		if (!challengeId || !shortCode) {
 			return jsonError('Challenge id and code are required', 400);
+		}
+		if (!deviceBindingSecret) {
+			return jsonError(
+				'This phone is not registered for QR approval. Register it as a trusted device first.',
+				403,
+			);
 		}
 
 		const challenge = await getTrustedDeviceLoginApprovalMaterial({
@@ -39,13 +49,22 @@ export async function GET(req) {
 				removedAt: null,
 				status: 'active',
 			},
-			select: { credentialId: true },
+			select: { credentialId: true, deviceHash: true },
 		});
-		const credentialIds = activeDevices
+		const boundDevices = activeDevices.filter((device) =>
+			verifyTrustedDeviceBinding(device, {
+				userId: session.userId,
+				deviceBindingSecret,
+			}),
+		);
+		const credentialIds = boundDevices
 			.map((device) => device.credentialId)
 			.filter(Boolean);
 		if (credentialIds.length === 0) {
-			return jsonError('Trusted active device proof required', 403);
+			return jsonError(
+				'This phone is not registered for QR approval. Register it as a trusted device first.',
+				403,
+			);
 		}
 
 		const credentials = await prisma.webAuthnCredential.findMany({

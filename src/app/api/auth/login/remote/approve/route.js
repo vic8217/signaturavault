@@ -25,12 +25,19 @@ export async function POST(req) {
 		const body = await req.json().catch(() => ({}));
 		const challengeId = String(body.challengeId ?? '').trim();
 		const shortCode = String(body.shortCode ?? '').trim().toUpperCase();
+		const deviceBindingSecret = String(body.deviceBindingSecret ?? '').trim();
 		const assertion = body.response;
 		if (!challengeId || !shortCode) {
 			return jsonError('Challenge and code are required', 400);
 		}
 		if (!assertion) {
 			return jsonError('WebAuthn assertion is required', 400);
+		}
+		if (!deviceBindingSecret) {
+			return jsonError(
+				'This phone is not registered for QR approval. Register it as a trusted device first.',
+				403,
+			);
 		}
 
 		const challenge = await findPendingTrustedDeviceLoginChallenge({
@@ -94,6 +101,7 @@ export async function POST(req) {
 		const trustedDevice = await requireTrustedActiveLoginDevice({
 			userId: session.userId,
 			credentialId,
+			deviceBindingSecret,
 		});
 
 		const approved = await approveTrustedDeviceLoginChallenge({

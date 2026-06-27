@@ -3,6 +3,10 @@ import {
 	startAuthentication,
 	startRegistration,
 } from '@simplewebauthn/browser';
+import {
+	createDeviceBindingSecret,
+	storeDeviceBindingSecret,
+} from '@/lib/trustedDeviceBindingClient';
 
 async function reverifyPasskey() {
 	if (!browserSupportsWebAuthn()) {
@@ -50,13 +54,15 @@ async function registerAdditionalPasskey(deviceName) {
 		optionsJSON: startData.options,
 	});
 
+	const deviceBindingSecret = createDeviceBindingSecret();
 	const finishResponse = await fetch('/api/security/passkeys/finish', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ deviceName, response: registration }),
+		body: JSON.stringify({ deviceName, response: registration, deviceBindingSecret }),
 	});
 	const finishData = await finishResponse.json();
 	if (!finishResponse.ok) throw new Error(finishData.error);
+	storeDeviceBindingSecret(finishData.user?.signaturaId || '', deviceBindingSecret);
 
 	return finishData;
 }

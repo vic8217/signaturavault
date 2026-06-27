@@ -24,6 +24,10 @@ import {
 	clearStoredTrustedDeviceSignaturaId,
 	storeTrustedDeviceSignaturaId,
 } from '@/lib/trustedDeviceLoginClient';
+import {
+	createDeviceBindingSecret,
+	storeDeviceBindingSecret,
+} from '@/lib/trustedDeviceBindingClient';
 import { isPhoneUnreachableAccuraReturnUrl } from '@/lib/externalReturnUrl';
 
 const REGISTRATION_STORAGE_KEY = 'signatura.pendingRegistration';
@@ -1136,6 +1140,7 @@ function RegisterPasskeyForm({
 		});
 
 		try {
+			const deviceBindingSecret = createDeviceBindingSecret();
 			const { response, data } = await registrationApiRequest(
 				'/api/auth/register/trusted-device',
 				{
@@ -1145,6 +1150,7 @@ function RegisterPasskeyForm({
 						registrationSessionId: activeSessionId,
 						deviceName:
 							form.deviceName || passkeySummary?.deviceName || 'Trusted device',
+						deviceBindingSecret,
 					}),
 				},
 				'Trusted device registration',
@@ -1165,6 +1171,10 @@ function RegisterPasskeyForm({
 			});
 			storeTrustedDeviceSignaturaId(
 				data.user?.signaturaId || createdAccount?.signaturaId || '',
+			);
+			storeDeviceBindingSecret(
+				data.user?.signaturaId || createdAccount?.signaturaId || '',
+				deviceBindingSecret,
 			);
 			setStatus('Trusted device registered successfully.');
 			setStep('trusted_device_success');

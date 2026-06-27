@@ -8,6 +8,7 @@ import { PortalIcon } from '@/components/PortalIcon';
 
 const navItems = [
 	['dashboard', 'Dashboard', '/admin'],
+	['identity', 'Signatura IDs', '/admin/signatura-ids'],
 	['bank', 'Issuers', '/admin/issuers'],
 	['template', 'Digitization', '/admin/digitization'],
 	['document', 'Presentations', '/admin/presentations/signatura-issuers'],

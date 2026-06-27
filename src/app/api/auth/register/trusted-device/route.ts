@@ -5,6 +5,10 @@ import { userPublicIdentity } from '@/lib/identity';
 import { logAuthAudit } from '@/lib/auth/authAudit';
 import { REGISTRATION_STATUSES } from '@/lib/registration-status';
 import {
+	normalizeDeviceBindingSecret,
+	trustedDeviceBindingHash,
+} from '@/lib/trustedDeviceBinding';
+import {
 	findRegistrationSession,
 	touchRegistrationSession,
 } from '@/lib/registration-session';
@@ -48,9 +52,15 @@ export async function POST(req: Request) {
 		const userId = String(body.userId || '').trim();
 		const registrationSessionId = String(body.registrationSessionId || '').trim();
 		const deviceName = String(body.deviceName || '').trim() || 'Trusted device';
+		const deviceBindingSecret = normalizeDeviceBindingSecret(
+			body.deviceBindingSecret,
+		);
 
 		if (!userId) {
 			return jsonError('userId is required', 400);
+		}
+		if (!deviceBindingSecret) {
+			return jsonError('Trusted device binding secret is required', 400);
 		}
 
 		const session = await findRegistrationSession({
@@ -94,6 +104,18 @@ export async function POST(req: Request) {
 				});
 
 		if (existingTrustedDevice) {
+			if (existingTrustedDevice.credentialId) {
+				await prisma.trustedDevice.update({
+					where: { id: existingTrustedDevice.id },
+					data: {
+						deviceHash: trustedDeviceBindingHash({
+							userId,
+							credentialId: existingTrustedDevice.credentialId,
+							deviceBindingSecret,
+						}),
+					},
+				});
+			}
 			const userForResponse = [
 				REGISTRATION_STATUSES.PASSKEY_CREATED,
 				REGISTRATION_STATUSES.PENDING_TRUSTED_DEVICE_REGISTRATION,
@@ -155,10 +177,11 @@ export async function POST(req: Request) {
 					userId,
 					credentialId: credential.credentialId,
 					deviceName,
-					deviceHash: crypto
-						.createHash('sha256')
-						.update(`${userId}:${credential.credentialId}`)
-						.digest('hex'),
+					deviceHash: trustedDeviceBindingHash({
+						userId,
+						credentialId: credential.credentialId,
+						deviceBindingSecret,
+					}),
 					userAgent,
 					lastUsedAt: new Date(),
 					isTrusted: true,

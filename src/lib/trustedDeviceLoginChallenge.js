@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { buildExternalLoginReturnUrl } from '@/lib/externalLoginReturn';
 import { prisma } from '@/lib/prisma';
+import { verifyTrustedDeviceBinding } from '@/lib/trustedDeviceBinding';
 
 export const LOGIN_CHALLENGE_TTL_MS = 90 * 1000;
 export const ACCURA_AUTHORIZE_CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -255,7 +256,11 @@ export async function getTrustedDeviceLoginApprovalMaterial({
 	};
 }
 
-export async function requireTrustedActiveLoginDevice({ userId, credentialId }) {
+export async function requireTrustedActiveLoginDevice({
+	userId,
+	credentialId,
+	deviceBindingSecret,
+}) {
 	const trustedDevice = await prisma.trustedDevice.findFirst({
 		where: {
 			userId,
@@ -267,6 +272,18 @@ export async function requireTrustedActiveLoginDevice({ userId, credentialId }) 
 	});
 	if (!trustedDevice) {
 		const error = new Error('Trusted active device proof required');
+		error.status = 403;
+		throw error;
+	}
+	if (
+		!verifyTrustedDeviceBinding(trustedDevice, {
+			userId,
+			deviceBindingSecret,
+		})
+	) {
+		const error = new Error(
+			'This phone is not registered for QR approval. Register it as a trusted device first.',
+		);
 		error.status = 403;
 		throw error;
 	}

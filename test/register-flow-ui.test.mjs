@@ -84,6 +84,9 @@ test('registration supports session resume and explicit cancellation endpoints',
 	assert.match(registerForm, /Trusted Device Registered/);
 	assert.match(registerForm, /RegistrationStatusCard/);
 	assert.match(registerForm, /\/api\/auth\/register\/trusted-device/);
+	assert.match(registerForm, /createDeviceBindingSecret/);
+	assert.match(registerForm, /storeDeviceBindingSecret/);
+	assert.match(registerForm, /deviceBindingSecret/);
 	assert.match(sessionRoute, /registration_session_resumed/);
 	assert.match(cancelRoute, /registration_cancelled/);
 	assert.match(registerForm, /\/api\/auth\/register\/session\/\$\{encodeURIComponent\(pendingSessionId\)\}/);
@@ -116,6 +119,9 @@ test('trusted device registration retry returns existing trusted device success'
 
 	assert.match(trustedDeviceRoute, /function trustedDeviceSuccessResponse/);
 	assert.match(trustedDeviceRoute, /existingTrustedDevice/);
+	assert.match(trustedDeviceRoute, /normalizeDeviceBindingSecret/);
+	assert.match(trustedDeviceRoute, /trustedDeviceBindingHash/);
+	assert.match(trustedDeviceRoute, /deviceBindingSecret/);
 	assert.match(
 		trustedDeviceRoute,
 		/accountStatus: REGISTRATION_STATUSES\.TRUSTED_DEVICE_REGISTERED/,

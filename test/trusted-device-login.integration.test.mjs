@@ -12,6 +12,7 @@ import {
 	pollTrustedDeviceLoginChallenge,
 	requireTrustedActiveLoginDevice,
 } from '@/lib/trustedDeviceLoginChallenge.js';
+import { trustedDeviceBindingHash } from '@/lib/trustedDeviceBinding.js';
 
 function seedUser(userId = 'user-remote-login-test') {
 	prisma.user.__rows.push({
@@ -226,6 +227,7 @@ test('QR login challenge stores client app and requester origin context', async 
 test('trusted active device lookup rejects untrusted, inactive, and mismatched credentials', async () => {
 	resetHarness();
 	const userId = seedUser('user-device-gates');
+	const deviceBindingSecret = 'registered-phone-local-binding-secret';
 	prisma.trustedDevice.__rows.push(
 		{
 			id: 'device-untrusted',
@@ -234,6 +236,11 @@ test('trusted active device lookup rejects untrusted, inactive, and mismatched c
 			isTrusted: false,
 			removedAt: null,
 			status: 'active',
+			deviceHash: trustedDeviceBindingHash({
+				userId,
+				credentialId: 'cred-untrusted-device',
+				deviceBindingSecret,
+			}),
 		},
 		{
 			id: 'device-inactive',
@@ -242,6 +249,11 @@ test('trusted active device lookup rejects untrusted, inactive, and mismatched c
 			isTrusted: true,
 			removedAt: null,
 			status: 'suspended',
+			deviceHash: trustedDeviceBindingHash({
+				userId,
+				credentialId: 'cred-inactive-device',
+				deviceBindingSecret,
+			}),
 		},
 		{
 			id: 'device-active',
@@ -250,6 +262,11 @@ test('trusted active device lookup rejects untrusted, inactive, and mismatched c
 			isTrusted: true,
 			removedAt: null,
 			status: 'active',
+			deviceHash: trustedDeviceBindingHash({
+				userId,
+				credentialId: 'cred-active-device',
+				deviceBindingSecret,
+			}),
 		},
 	);
 
@@ -258,6 +275,7 @@ test('trusted active device lookup rejects untrusted, inactive, and mismatched c
 			requireTrustedActiveLoginDevice({
 				userId,
 				credentialId: 'cred-untrusted-device',
+				deviceBindingSecret,
 			}),
 		/Trusted active device proof required/,
 	);
@@ -266,6 +284,7 @@ test('trusted active device lookup rejects untrusted, inactive, and mismatched c
 			requireTrustedActiveLoginDevice({
 				userId,
 				credentialId: 'cred-inactive-device',
+				deviceBindingSecret,
 			}),
 		/Trusted active device proof required/,
 	);
@@ -274,13 +293,24 @@ test('trusted active device lookup rejects untrusted, inactive, and mismatched c
 			requireTrustedActiveLoginDevice({
 				userId,
 				credentialId: 'cred-mismatched',
+				deviceBindingSecret,
 			}),
 		/Trusted active device proof required/,
+	);
+	await assert.rejects(
+		() =>
+			requireTrustedActiveLoginDevice({
+				userId,
+				credentialId: 'cred-active-device',
+				deviceBindingSecret: 'different-phone-secret',
+			}),
+		/not registered for QR approval/,
 	);
 
 	const trustedDevice = await requireTrustedActiveLoginDevice({
 		userId,
 		credentialId: 'cred-active-device',
+		deviceBindingSecret,
 	});
 	assert.equal(trustedDevice.id, 'device-active');
 });

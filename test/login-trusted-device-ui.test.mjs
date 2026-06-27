@@ -136,6 +136,11 @@ test('admin login keeps local biometric fallback and offers Signatura QR approva
 	assert.match(remoteStartRoute, /accountStatus !== 'active'/);
 	assert.match(remoteStartRoute, /trustLevel < 2/);
 	assert.match(remoteLookupRoute, /browserUserAgent/);
+	assert.match(remoteLookupRoute, /deviceBindingSecret/);
+	assert.match(remoteLookupRoute, /verifyTrustedDeviceBinding/);
+	assert.match(approveForm, /readDeviceBindingSecret/);
+	assert.match(approveForm, /deviceBindingSecret/);
+	assert.match(approveForm, /not registered for QR approval/);
 	assert.match(approveForm, /Approve Admin Sign-in/);
 	assert.match(approveForm, /Signatura Admin Portal/);
 	assert.match(approveForm, /Admin sign-in approved\. You may return to your desktop\./);
