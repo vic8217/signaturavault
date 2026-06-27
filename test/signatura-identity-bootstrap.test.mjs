@@ -146,3 +146,20 @@ test('admin phone setup requires recovery before admin session activation', asyn
 	assert.match(registerForm, /data\.next/);
 	assert.match(registerForm, /setError\(data\.error/);
 });
+
+test('issuer invitation QR login can create a pre-role session for activation page', async () => {
+	const remoteStartRoute = await readFile(
+		new URL('../src/app/api/auth/login/remote/start/route.js', import.meta.url),
+		'utf8',
+	);
+	const loginSession = await readFile(
+		new URL('../src/lib/auth/loginSession.js', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(remoteStartRoute, /function isIssuerActivationInvitePath/);
+	assert.match(remoteStartRoute, /!isIssuerActivationInvite/);
+	assert.match(remoteStartRoute, /This Signatura ID is not activated for issuer access/);
+	assert.match(loginSession, /function isIssuerActivationInvitePath/);
+	assert.match(loginSession, /return null/);
+});

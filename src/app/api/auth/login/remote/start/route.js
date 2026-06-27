@@ -49,6 +49,15 @@ function normalizeAssuranceLevel(value) {
 	return normalized || 'ZT-L2';
 }
 
+function isIssuerActivationInvitePath(nextPath) {
+	try {
+		const parsed = new URL(nextPath, 'https://signatura.local');
+		return parsed.pathname === '/issuer/activate' && parsed.searchParams.has('token');
+	} catch {
+		return false;
+	}
+}
+
 export async function POST(req) {
 	try {
 		const body = await req.json().catch(() => ({}));
@@ -96,6 +105,7 @@ export async function POST(req) {
 		}
 		const isAdminLogin = nextPath === '/admin' || nextPath.startsWith('/admin/');
 		const isIssuerLogin = nextPath === '/issuer' || nextPath.startsWith('/issuer/');
+		const isIssuerActivationInvite = isIssuerActivationInvitePath(nextPath);
 		const hasAdminMembership = isAdminLogin
 			? await identityHasUniversalRole(user.id, {
 					applicationCode: APPLICATION_CODES.SIGNATURA,
@@ -135,6 +145,7 @@ export async function POST(req) {
 			getSignaturaAccountType(user.signaturaId) === SIGNATURA_ACCOUNT_TYPES.ISSUER;
 		if (
 			isIssuerLogin &&
+			!isIssuerActivationInvite &&
 			((!hasIssuerMembership && !hasIssuerUser && !hasLegacyIssuerId) ||
 				user.accountStatus !== 'active' ||
 				user.trustLevel < 2)

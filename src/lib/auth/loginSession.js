@@ -21,8 +21,20 @@ import {
 	identityHasUniversalRole,
 } from '@/lib/universalIdentity';
 
+function isIssuerActivationInvitePath(nextPath) {
+	try {
+		const parsed = new URL(nextPath, 'https://signatura.local');
+		return parsed.pathname === '/issuer/activate' && parsed.searchParams.has('token');
+	} catch {
+		return false;
+	}
+}
+
 async function resolvePortalRole(userId, nextPath) {
 	let portalRole = null;
+	if (isIssuerActivationInvitePath(nextPath)) {
+		return null;
+	}
 	if (isIssuerPortalPath(nextPath)) {
 		if (
 			await identityHasUniversalRole(userId, {
