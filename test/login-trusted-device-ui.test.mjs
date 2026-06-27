@@ -57,6 +57,8 @@ test('trusted-device QR opens Signatura PWA gate before approval', async () => {
 	assert.match(gateSource, /Open Scanner/);
 	assert.match(panelSource, /It opens Signatura first/);
 	assert.match(panelSource, /onCancel\?\.\(\)/);
+	assert.match(panelSource, /10_000/);
+	assert.match(panelSource, /Returning to admin login in 10 seconds/);
 });
 
 test('login offers direct biometric sign-in before QR fallback', async () => {

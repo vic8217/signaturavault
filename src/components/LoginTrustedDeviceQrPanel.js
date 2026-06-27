@@ -47,6 +47,16 @@ export function LoginTrustedDeviceQrPanel({
 		};
 	}, []);
 
+	useEffect(() => {
+		if (!error || !isAdminLogin) return undefined;
+		const timer = window.setTimeout(() => {
+			resetChallenge();
+			onCancel?.();
+		}, 10_000);
+		return () => window.clearTimeout(timer);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [error, isAdminLogin, onCancel]);
+
 	async function renderQrDataUrl(qrUrl) {
 		const { default: QRCode } = await import('qrcode');
 		return QRCode.toDataURL(qrUrl, {
@@ -301,6 +311,11 @@ export function LoginTrustedDeviceQrPanel({
 			{error ? (
 				<div className="mt-4 rounded-xl border border-red-400/30 bg-red-500/10 p-4">
 					<p className="text-sm leading-6 text-red-50">{error}</p>
+					{isAdminLogin ? (
+						<p className="mt-2 text-xs leading-5 text-red-100/80">
+							Returning to admin login in 10 seconds.
+						</p>
+					) : null}
 					{error === 'QR expired. Generate a new QR.' ? (
 						<button
 							type="button"
