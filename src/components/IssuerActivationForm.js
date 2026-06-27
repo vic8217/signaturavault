@@ -1,11 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
-import {
-	browserSupportsWebAuthn,
-	startAuthentication,
-} from '@simplewebauthn/browser';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PasskeyNotice } from './PasskeyNotice';
 
 function IssuerActivationForm({ token, isSignedIn = false, signedInSignaturaId = '' }) {
@@ -13,76 +9,70 @@ function IssuerActivationForm({ token, isSignedIn = false, signedInSignaturaId =
 	const [error, setError] = useState('');
 	const [isActivated, setIsActivated] = useState(false);
 	const [activatedUser, setActivatedUser] = useState(null);
+	const [isLinking, setIsLinking] = useState(false);
+	const attemptedActivationRef = useRef(false);
 	const hasToken = useMemo(() => Boolean(token), [token]);
 	const activationPath = `/issuer/activate?token=${encodeURIComponent(token || '')}`;
 	const loginHref = `/login?next=${encodeURIComponent(activationPath)}&method=qr`;
 	const createHref = `/register?next=${encodeURIComponent(activationPath)}&issuerInvitationToken=${encodeURIComponent(token || '')}`;
 
-	async function submit(event) {
-		event.preventDefault();
+	async function acceptIssuerInvitation() {
+		if (isLinking || isActivated) return;
 		setError('');
 		setIsActivated(false);
 		setActivatedUser(null);
-		setStatus('Preparing issuer access confirmation...');
+		setStatus('Validating issuer invitation...');
+		setIsLinking(true);
 
 		if (!hasToken) {
 			setError('Activation token is missing.');
 			setStatus('');
-			return;
-		}
-
-		if (!browserSupportsWebAuthn()) {
-			setError('This browser does not support passkeys/WebAuthn.');
-			setStatus('');
+			setIsLinking(false);
 			return;
 		}
 
 		try {
-			const startResponse = await fetch(
-				'/api/issuer-invitations/activation/start',
-				{
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ token }),
-				},
-			);
-			const startData = await startResponse.json();
-			if (!startResponse.ok) throw new Error(startData.error);
-
-			setStatus('Approve with your existing trusted passkey.');
-			const credentialResponse = await startAuthentication({
-				optionsJSON: startData.options,
-			});
-
 			setStatus('Linking issuer access to your Signatura ID...');
-			const finishResponse = await fetch(
-				'/api/issuer-invitations/activation/finish',
+			const response = await fetch(
+				'/api/issuer-invitations/activation/accept',
 				{
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						token,
-						userId: startData.userId,
-						invitationId: startData.invitationId,
-						mode: startData.mode,
-						response: credentialResponse,
-					}),
+					body: JSON.stringify({ token }),
 				},
 			);
-			const finishData = await finishResponse.json();
-			if (!finishResponse.ok) throw new Error(finishData.error);
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) {
+				throw new Error(
+					data.error ||
+						'Please sign in with your Signatura ID to accept this issuer invitation.',
+				);
+			}
 
-			setStatus('Issuer access activated successfully. Opening issuer portal...');
-			setActivatedUser(finishData.user || null);
+			setStatus('Issuer access linked successfully. Opening issuer portal...');
+			setActivatedUser(data.user || null);
 			setIsActivated(true);
 			window.setTimeout(() => {
-				window.location.href = finishData.next || '/issuer';
-			}, 1800);
+				window.location.href = data.next || '/issuer';
+			}, 2500);
 		} catch (activationError) {
-			setError(activationError.message);
+			setError(
+				activationError instanceof Error
+					? activationError.message
+					: 'Unable to accept issuer invitation.',
+			);
 			setStatus('');
+		} finally {
+			setIsLinking(false);
 		}
 	}
+
+	useEffect(() => {
+		if (!isSignedIn || !hasToken || attemptedActivationRef.current) return;
+		attemptedActivationRef.current = true;
+		void acceptIssuerInvitation();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isSignedIn, hasToken]);
 
 	return (
 		<div className="mx-auto w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-950/90 p-6 text-white shadow-2xl">
@@ -103,7 +93,7 @@ function IssuerActivationForm({ token, isSignedIn = false, signedInSignaturaId =
 			</p>
 
 			{isSignedIn ? (
-				<form onSubmit={submit} className="mt-6 grid gap-4">
+				<div className="mt-6 grid gap-4">
 					{signedInSignaturaId ? (
 						<div className="rounded-xl border border-white/10 bg-slate-900/70 p-4">
 							<p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
@@ -115,11 +105,13 @@ function IssuerActivationForm({ token, isSignedIn = false, signedInSignaturaId =
 						</div>
 					) : null}
 					<button
-						disabled={isActivated}
+						type="button"
+						onClick={acceptIssuerInvitation}
+						disabled={isActivated || isLinking}
 						className="rounded-xl bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
-						Link issuer access to your Signatura ID
+						{isLinking ? 'Linking issuer access...' : 'Link issuer access to your Signatura ID'}
 					</button>
-				</form>
+				</div>
 			) : null}
 
 			{!isSignedIn ? (
@@ -127,7 +119,7 @@ function IssuerActivationForm({ token, isSignedIn = false, signedInSignaturaId =
 					<Link
 						href={loginHref}
 						className="rounded-xl bg-red-500 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-400">
-						Continue with existing Signatura ID
+						Please sign in with your Signatura ID to accept this issuer invitation.
 					</Link>
 					<Link
 						href={createHref}
@@ -142,7 +134,7 @@ function IssuerActivationForm({ token, isSignedIn = false, signedInSignaturaId =
 			{isActivated ? (
 				<div className="mt-5 rounded-2xl border border-emerald-400/30 bg-emerald-950/20 p-5">
 					<p className="font-bold text-emerald-100">
-						Issuer access activated successfully.
+						Issuer access linked successfully.
 					</p>
 					<p className="mt-3 text-sm text-slate-200">
 						Signatura ID:{' '}

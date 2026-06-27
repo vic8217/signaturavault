@@ -43,6 +43,10 @@ test('issuer invitation activation links an existing Signatura ID instead of cre
 		new URL('../src/app/api/issuer-invitations/activation/finish/route.ts', import.meta.url),
 		'utf8',
 	);
+	const acceptRoute = await readFile(
+		new URL('../src/app/api/issuer-invitations/activation/accept/route.ts', import.meta.url),
+		'utf8',
+	);
 	const registerRoute = await readFile(
 		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
 		'utf8',
@@ -68,6 +72,12 @@ test('issuer invitation activation links an existing Signatura ID instead of cre
 	assert.match(startRoute, /generateAuthenticationOptions/);
 	assert.doesNotMatch(startRoute, /generateRegistrationOptions/);
 	assert.match(finishRoute, /mode !== 'authentication'/);
+	assert.match(acceptRoute, /Please sign in with your Signatura ID to accept this issuer invitation/);
+	assert.match(acceptRoute, /ensureIssuerMembershipRole/);
+	assert.match(acceptRoute, /roleCode: UNIVERSAL_ROLE_CODES\.ISSUER_ADMIN/);
+	assert.match(acceptRoute, /status: 'active'/);
+	assert.match(acceptRoute, /usedAt: now/);
+	assert.match(acceptRoute, /ROLE_COOKIE/);
 	assert.match(transactionBody, /tx\.webAuthnCredential\.update/);
 	assert.match(transactionBody, /tx\.trustedDevice\.updateMany/);
 	assert.doesNotMatch(transactionBody, /REGISTRATION_STATUSES\.TRUSTED_DEVICE_REGISTERED/);
@@ -84,7 +94,9 @@ test('issuer invitation activation links an existing Signatura ID instead of cre
 			activationBody.indexOf('ensureIssuerMembershipRole'),
 	);
 	assert.match(activationForm, /Link issuer access to your Signatura ID/);
-	assert.match(activationForm, /Continue with existing Signatura ID/);
+	assert.match(activationForm, /api\/issuer-invitations\/activation\/accept/);
+	assert.match(activationForm, /Please sign in with your Signatura ID to accept this issuer invitation/);
+	assert.match(activationForm, /Issuer access linked successfully/);
 	assert.match(activationForm, /Create Signatura ID/);
 	assert.doesNotMatch(activationForm, /startRegistration/);
 });
