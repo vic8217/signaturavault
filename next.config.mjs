@@ -4,6 +4,10 @@ const projectRoot = new URL('.', import.meta.url).pathname.replace(/\/$/, '');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+	experimental: {
+		proxyClientMaxBodySize:
+			process.env.TEMPLATE_UPLOAD_PROXY_MAX_BODY_SIZE || '50mb',
+	},
 	allowedDevOrigins: [
 		'192.168.1.33',
 		'192.168.68.139',

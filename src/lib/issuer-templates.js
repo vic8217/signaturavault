@@ -177,6 +177,11 @@ function templateToApi(template) {
 		document_type: template.documentType,
 		version: template.version,
 		status: template.status,
+		sample_policy: template.schema?.samplePolicy || 'placeholder',
+		auto_redact_before_ocr: template.schema?.autoRedactBeforeOcr !== false,
+		redaction_applied_before_ocr: Boolean(
+			template.schema?.redactionAppliedBeforeOcr,
+		),
 		original_file_url: template.originalFileUrl,
 		preview_image_url: template.previewImageUrl,
 		created_by: template.createdBy,

@@ -16,6 +16,13 @@ export async function POST(req) {
 		const file = formData.get('file');
 		const name = String(formData.get('name') || '').trim();
 		const documentType = String(formData.get('document_type') || '').trim();
+		const samplePolicy =
+			String(formData.get('sample_policy') || 'placeholder').trim() ===
+			'contains_real_data'
+				? 'contains_real_data'
+				: 'placeholder';
+		const autoRedactBeforeOcr =
+			String(formData.get('auto_redact_before_ocr') || 'true') !== 'false';
 
 		if (!file || typeof file.arrayBuffer !== 'function') {
 			return Response.json({ error: 'A JPG, PNG, or PDF file is required' }, { status: 400 });
@@ -45,6 +52,13 @@ export async function POST(req) {
 						sourceFileName: file.name || stored.filename,
 						mimeType: stored.mimeType,
 						size: file.size || null,
+						samplePolicy,
+						autoRedactBeforeOcr:
+							samplePolicy === 'contains_real_data'
+								? autoRedactBeforeOcr
+								: true,
+						sampleGuidance:
+							'Preferred samples use placeholders such as [STUDENT NAME], [EMPLOYEE ID], and [DATE OF BIRTH].',
 						securityNotice:
 							'Original files are stored for issuer review only. Private document data must not be placed on-chain.',
 					},
@@ -56,6 +70,9 @@ export async function POST(req) {
 				name: created.name,
 				documentType: created.documentType,
 				originalFileUrl: created.originalFileUrl,
+				samplePolicy,
+				autoRedactBeforeOcr:
+					samplePolicy === 'contains_real_data' ? autoRedactBeforeOcr : true,
 			});
 
 			return created;

@@ -42,6 +42,53 @@ test('issuer issuance UI separates digitization from issuance and renders QR res
 	assert.match(digitalDocuments, /Uploaded samples are never treated as issued documents/);
 });
 
+test('template upload step prefers placeholders and gates real-data OCR with redaction', async () => {
+	const dashboard = await readFile(
+		new URL('../src/components/TemplateCaptureDashboard.js', import.meta.url),
+		'utf8',
+	);
+	const uploadRoute = await readFile(
+		new URL('../src/app/api/issuer/templates/upload/route.js', import.meta.url),
+		'utf8',
+	);
+	const extractRoute = await readFile(
+		new URL('../src/app/api/issuer/templates/[id]/extract/route.js', import.meta.url),
+		'utf8',
+	);
+	const templateLib = await readFile(
+		new URL('../src/lib/issuer-templates.js', import.meta.url),
+		'utf8',
+	);
+	const templateFiles = await readFile(
+		new URL('../src/lib/template-files.js', import.meta.url),
+		'utf8',
+	);
+	const nextConfig = await readFile(
+		new URL('../next.config.mjs', import.meta.url),
+		'utf8',
+	);
+	const envExample = await readFile(
+		new URL('../.env.example', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(dashboard, /Step 1 - Upload sample template/);
+	assert.match(dashboard, /\[STUDENT NAME\]/);
+	assert.match(dashboard, /Sample contains real data/);
+	assert.match(dashboard, /Apply automatic redaction before OCR processing/);
+	assert.match(dashboard, /front proxy or hosting layer/);
+	assert.match(uploadRoute, /samplePolicy/);
+	assert.match(uploadRoute, /autoRedactBeforeOcr/);
+	assert.match(extractRoute, /Enable automatic redaction before OCR processing/);
+	assert.match(extractRoute, /redactOcrResultForStorage/);
+	assert.match(extractRoute, /redactionAppliedBeforeOcr/);
+	assert.match(templateLib, /sample_policy/);
+	assert.match(templateFiles, /templateUploadMaxBytes/);
+	assert.match(templateFiles, /Template sample is too large/);
+	assert.match(nextConfig, /proxyClientMaxBodySize/);
+	assert.match(envExample, /TEMPLATE_UPLOAD_MAX_MB/);
+});
+
 test('public verification shows only allowed credential metadata', async () => {
 	const records = await readFile(
 		new URL('../src/lib/document-records.js', import.meta.url),

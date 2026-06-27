@@ -8,6 +8,14 @@ const ALLOWED_MIME_TYPES = new Map([
 	['application/pdf', 'pdf'],
 ]);
 
+const DEFAULT_TEMPLATE_UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
+
+function templateUploadMaxBytes() {
+	const mb = Number(process.env.TEMPLATE_UPLOAD_MAX_MB || 50);
+	if (!Number.isFinite(mb) || mb <= 0) return DEFAULT_TEMPLATE_UPLOAD_MAX_BYTES;
+	return Math.floor(mb * 1024 * 1024);
+}
+
 function templateUploadPath(...segments) {
 	return path.join(/*turbopackIgnore: true*/ process.cwd(), 'data', 'template-uploads', ...segments);
 }
@@ -28,6 +36,14 @@ async function storeTemplateUpload(file, templateId) {
 	const extension = extensionForUpload(file);
 	if (!extension) {
 		throw new Error('Unsupported upload format. Use JPG, PNG, or PDF.');
+	}
+	const maxBytes = templateUploadMaxBytes();
+	if (Number(file.size || 0) > maxBytes) {
+		throw new Error(
+			`Template sample is too large. Upload a JPG, PNG, or PDF up to ${Math.floor(
+				maxBytes / 1024 / 1024,
+			)} MB.`,
+		);
 	}
 
 	const directory = templateUploadPath(templateId);
@@ -72,4 +88,9 @@ async function readTemplateFile(template) {
 	};
 }
 
-export { ALLOWED_MIME_TYPES, readTemplateFile, storeTemplateUpload };
+export {
+	ALLOWED_MIME_TYPES,
+	readTemplateFile,
+	storeTemplateUpload,
+	templateUploadMaxBytes,
+};

@@ -76,6 +76,7 @@ Until flags exist in code, treat R1 as “verify no `saveDb` side effects” via
 - [ ] Secrets are unique per environment (not copied from `.env.example`).
 - [ ] `ANCHOR_PUBLISH_METHOD=audit_anchor` on staging and production.
 - [ ] `.env` is **not** committed to git.
+- [ ] Reverse proxy upload body limit supports issuer template uploads. For nginx, set `client_max_body_size 50m;` on the Signatura server/location block, then reload nginx. A 1.4 MB upload returning HTTP 413 usually means nginx is still using its 1 MB default.
 - [ ] Application health check passes: `curl -sf -o /dev/null -w "%{http_code}\n" http://localhost:3000/` (or deployment URL).
 
 ---
@@ -552,6 +553,7 @@ Until R1 ships, these routes may still write JSON — track as blockers:
 - [ ] §3 + §4 backups completed and verified.
 - [ ] `npx prisma migrate deploy` (production).
 - [ ] Deploy production build (same artifact validated on staging).
+- [ ] Confirm production reverse proxy allows template uploads (`client_max_body_size 50m;` or equivalent).
 - [ ] Enable **R1**; §11 immediate check + 7-day soak.
 - [ ] R2 backfill `--dry-run` → review → `--execute`.
 - [ ] §6–9 post-backfill verification complete.

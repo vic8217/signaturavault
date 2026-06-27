@@ -24,6 +24,16 @@ const STATUS_STYLES = {
 	archived: 'border-slate-200 bg-slate-100 text-slate-700',
 };
 
+const TEMPLATE_UPLOAD_MAX_MB = Number(
+	process.env.NEXT_PUBLIC_TEMPLATE_UPLOAD_MAX_MB || 50,
+);
+const TEMPLATE_UPLOAD_MAX_BYTES =
+	(Number.isFinite(TEMPLATE_UPLOAD_MAX_MB) && TEMPLATE_UPLOAD_MAX_MB > 0
+		? TEMPLATE_UPLOAD_MAX_MB
+		: 50) *
+	1024 *
+	1024;
+
 function emptyField(index = 1) {
 	return {
 		id: `temp-${Date.now()}-${index}`,
@@ -76,6 +86,8 @@ function TemplateCaptureDashboard({
 		name: '',
 		document_type: '',
 		file: null,
+		sample_policy: 'placeholder',
+		auto_redact_before_ocr: true,
 	});
 	const previewRef = useRef(null);
 	const dragRef = useRef(null);
@@ -95,6 +107,11 @@ function TemplateCaptureDashboard({
 			data = {};
 		}
 		if (!response.ok) {
+			if (response.status === 413) {
+				throw new Error(
+					'Upload was rejected before Signatura could process it. A front proxy or hosting layer is likely limiting request bodies; set nginx client_max_body_size or the equivalent upload limit above the template upload size.',
+				);
+			}
 			throw new Error(data.error || `Request failed (${response.status})`);
 		}
 		return data;
@@ -137,6 +154,15 @@ function TemplateCaptureDashboard({
 	async function uploadTemplate(event) {
 		event.preventDefault();
 		if (!upload.file) return;
+		if (upload.file.size > TEMPLATE_UPLOAD_MAX_BYTES) {
+			setError(
+				`Template sample is too large. Upload a JPG, PNG, or PDF up to ${
+					Math.floor(TEMPLATE_UPLOAD_MAX_BYTES / 1024 / 1024)
+				} MB.`,
+			);
+			setMessage('');
+			return;
+		}
 		setIsBusy(true);
 		setError('');
 		setMessage('Uploading template sample...');
@@ -145,11 +171,22 @@ function TemplateCaptureDashboard({
 			body.set('file', upload.file);
 			body.set('name', upload.name);
 			body.set('document_type', upload.document_type);
+			body.set('sample_policy', upload.sample_policy);
+			body.set(
+				'auto_redact_before_ocr',
+				upload.auto_redact_before_ocr ? 'true' : 'false',
+			);
 			const data = await api(`${apiBase}/upload`, {
 				method: 'POST',
 				body,
 			});
-			setUpload({ name: '', document_type: '', file: null });
+			setUpload({
+				name: '',
+				document_type: '',
+				file: null,
+				sample_policy: 'placeholder',
+				auto_redact_before_ocr: true,
+			});
 			setSelectedId(data.template.id);
 			await loadTemplates();
 			setMessage('Template uploaded as draft. Run OCR to suggest fields.');
@@ -317,7 +354,17 @@ function TemplateCaptureDashboard({
 			{showUpload ? (
 				<form
 					onSubmit={uploadTemplate}
-					className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 lg:grid-cols-[1fr_1fr_1.2fr_auto]">
+					className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4">
+					<div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+						<p className="font-bold">Step 1 - Upload sample template</p>
+						<p className="mt-1 leading-6">
+							Preferred: upload a blank or sanitized sample with placeholders like
+							[STUDENT NAME], [EMPLOYEE ID], or [DATE OF BIRTH]. The goal is to
+							capture structure, layout, and field positions, not recipient
+							information.
+						</p>
+					</div>
+					<div className="grid gap-4 lg:grid-cols-[1fr_1fr_1.2fr_auto]">
 					<label className="grid gap-2 text-sm font-semibold">
 						<span>Template name</span>
 						<input
@@ -348,12 +395,86 @@ function TemplateCaptureDashboard({
 							}
 							className="rounded-lg border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1"
 						/>
+						<span className="text-xs font-normal text-slate-500">
+							JPG, PNG, or PDF up to {Math.floor(TEMPLATE_UPLOAD_MAX_BYTES / 1024 / 1024)} MB.
+						</span>
 					</label>
 					<button
 						disabled={isBusy || !upload.file}
 						className="self-end rounded-lg bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-600 disabled:bg-slate-300">
 						Upload document
 					</button>
+					</div>
+					<div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+						<p className="font-bold text-slate-900">Sample data safety</p>
+						<label className="flex items-start gap-3">
+							<input
+								type="radio"
+								name="sample_policy"
+								value="placeholder"
+								checked={upload.sample_policy === 'placeholder'}
+								onChange={() =>
+									setUpload({
+										...upload,
+										sample_policy: 'placeholder',
+										auto_redact_before_ocr: true,
+									})
+								}
+								className="mt-1"
+							/>
+							<span>
+								<span className="font-semibold">Blank or sanitized sample</span>
+								<span className="block text-slate-600">
+									Uses placeholders instead of real personal data.
+								</span>
+							</span>
+						</label>
+						<label className="flex items-start gap-3">
+							<input
+								type="radio"
+								name="sample_policy"
+								value="contains_real_data"
+								checked={upload.sample_policy === 'contains_real_data'}
+								onChange={() =>
+									setUpload({
+										...upload,
+										sample_policy: 'contains_real_data',
+										auto_redact_before_ocr: true,
+									})
+								}
+								className="mt-1"
+							/>
+							<span>
+								<span className="font-semibold">Sample contains real data</span>
+								<span className="block text-slate-600">
+									Allowed only with redaction before OCR storage and review.
+								</span>
+							</span>
+						</label>
+						{upload.sample_policy === 'contains_real_data' ? (
+							<div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950">
+								<p className="font-bold">Real data warning</p>
+								<p className="mt-1 leading-6">
+									Signatura will use the file only to detect layout and field
+									positions. Automatic redaction must be enabled before OCR can
+									process this sample.
+								</p>
+								<label className="mt-3 flex items-center gap-2 font-semibold">
+									<input
+										type="checkbox"
+										checked={upload.auto_redact_before_ocr}
+										onChange={(event) =>
+											setUpload({
+												...upload,
+												auto_redact_before_ocr: event.target.checked,
+											})
+										}
+									/>
+									<span>Apply automatic redaction before OCR processing</span>
+								</label>
+							</div>
+						) : null}
+					</div>
 				</form>
 			) : null}
 
@@ -412,7 +533,7 @@ function DigitizationGuide({ assistanceMode }) {
 				'Save the draft and leave final review/publishing to the issuer.',
 			]
 		: [
-				'Upload a clean sample document with no unnecessary personal data.',
+				'Upload a blank or sanitized sample with placeholders instead of real personal data.',
 				'Run OCR to create draft field suggestions.',
 				'Review every field label, field key, type, validation, and placement.',
 				'Publish only after an authorized issuer confirms the digital form.',
@@ -429,8 +550,9 @@ function DigitizationGuide({ assistanceMode }) {
 					<p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
 						Templates turn a sample document into reusable digital forms. Only
 						field structure, layout positions, and template metadata should be
-						captured. Do not place document contents, QR tokens, verification
-						tokens, or private personal data on-chain.
+						captured. Prefer placeholders such as [STUDENT NAME], [EMPLOYEE ID],
+						or [DATE OF BIRTH]. Do not place document contents, QR tokens,
+						verification tokens, or private personal data on-chain.
 					</p>
 				</div>
 				<div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -478,6 +600,15 @@ function TemplateList({ templates, selectedId, onSelect, onExtract, onPublish, o
 										{template.issuer_name}
 									</p>
 								) : null}
+								<p className="mt-1 text-xs text-slate-500">
+									{template.sample_policy === 'contains_real_data'
+										? `Real-data sample${
+												template.redaction_applied_before_ocr
+													? ' · OCR text redacted'
+													: ' · redaction required'
+											}`
+										: 'Placeholder/sanitized sample'}
+								</p>
 							</button>
 							<span
 								className={`shrink-0 rounded-full border px-2 py-1 text-[11px] font-bold uppercase ${
