@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { RegisterPasskeyForm } from '@/components/RegisterPasskeyForm';
 import { AccuraOnboardingLinkForm } from '@/components/AccuraOnboardingLinkForm';
+import { prisma } from '@/lib/prisma';
+import { requireSession } from '@/lib/session';
 import {
 	ACCURA_ONBOARDING_ACTIONS,
 	auditAccuraOnboardingEvent,
@@ -18,6 +20,37 @@ function firstParam(value) {
 	return Array.isArray(value) ? value[0] : value;
 }
 
+async function existingReadyIdentity() {
+	const session = await requireSession();
+	if (
+		!session?.userId ||
+		session.accountStatus !== 'active' ||
+		Number(session.trustLevel || 0) < 2 ||
+		!String(session.signaturaId || '').startsWith('SIG-U-')
+	) {
+		return null;
+	}
+
+	const [recoveryPhraseCount, trustedDeviceCount] = await Promise.all([
+		prisma.recoveryCode.count({ where: { userId: session.userId } }),
+		prisma.trustedDevice.count({
+			where: {
+				userId: session.userId,
+				isTrusted: true,
+				removedAt: null,
+				status: 'active',
+			},
+		}),
+	]);
+
+	if (recoveryPhraseCount === 0 || trustedDeviceCount === 0) return null;
+
+	return {
+		userId: session.userId,
+		signaturaId: session.signaturaId,
+	};
+}
+
 export default async function AccuraRegisterPage({ searchParams }) {
 	const params = await searchParams;
 	const handoffToken = String(
@@ -33,6 +66,7 @@ export default async function AccuraRegisterPage({ searchParams }) {
 	const nextPath = normalizeLoginNextPath(
 		String(firstParam(params?.next) || '/signatura/dashboard'),
 	);
+	const readyIdentity = context ? await existingReadyIdentity() : null;
 
 	if (verified.valid && verified.context) {
 		await auditAccuraOnboardingEvent({
@@ -69,6 +103,15 @@ export default async function AccuraRegisterPage({ searchParams }) {
 						Return to ACCURA and start system admin registration again from the admin register page.
 					</p>
 				</section>
+			) : readyIdentity ? (
+				<AccuraOnboardingLinkForm
+					accuraHandoffToken={handoffToken}
+					appRegistrationContext={{
+						...context,
+						mode: 'link',
+						linkSignaturaId: readyIdentity.signaturaId,
+					}}
+				/>
 			) : context.mode === 'link' ? (
 				<AccuraOnboardingLinkForm
 					accuraHandoffToken={handoffToken}

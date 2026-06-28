@@ -16,6 +16,9 @@ test('install prompt is captured before hydration and remains usable after insta
 	assert.match(layoutSource, /signatura:pwa-install-ready/);
 	assert.match(promptSource, /handleCapturedInstallPrompt/);
 	assert.match(promptSource, /Installation complete/);
+	assert.match(promptSource, /Continue ACCURA Onboarding/);
+	assert.match(promptSource, /create one only if you are new/);
+	assert.doesNotMatch(promptSource, /Create Signatura Account/);
 	assert.doesNotMatch(
 		promptSource,
 		/function handleAppInstalled\(\) \{\s*window\.location/,

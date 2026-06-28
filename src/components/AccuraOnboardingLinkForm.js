@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { startAuthentication } from '@simplewebauthn/browser';
@@ -18,10 +19,22 @@ export function AccuraOnboardingLinkForm({
 }) {
 	const signaturaId = String(appRegistrationContext.linkSignaturaId || '').trim();
 	const companyCode = appRegistrationContext.companyCode || '';
+	const companyName = appRegistrationContext.companyName || companyCode || 'ACCURA';
 	const rolePrefix = appRegistrationContext.rolePrefix || '';
+	const roleName = appRegistrationContext.role || appRegistrationContext.roleName || '';
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const requestedRole =
+		rolePrefix === 'SADM'
+			? 'SYSTEM_ADMIN'
+			: rolePrefix === 'CADM'
+				? 'COMPANY_ADMIN'
+				: String(roleName || rolePrefix || 'STAFF')
+						.trim()
+						.toUpperCase()
+						.replace(/[^A-Z0-9]+/g, '_')
+						.replace(/^_|_$/g, '');
 
 	async function linkWithPasskey() {
 		if (!signaturaId || isSubmitting) return;
@@ -94,31 +107,45 @@ export function AccuraOnboardingLinkForm({
 				</span>
 				<div>
 					<p className="text-sm font-bold uppercase tracking-[0.18em] text-red-300">
-						ACCURA staff linking
+						Authorization request
 					</p>
-					<h1 className="mt-1 text-2xl font-black">Link your Signatura ID</h1>
+					<h1 className="mt-1 text-2xl font-black">Existing Signatura Identity Found</h1>
 				</div>
 			</div>
 			<p className="mt-4 text-sm leading-6 text-slate-300">
-				Approve with the trusted device passkey for{' '}
-				<span className="font-mono text-white">{signaturaId}</span> to link this ACCURA
-				company role without creating a new Signatura account.
+				Approve this request to attach the ACCURA authorization to your Universal
+				Signatura ID. No new identity will be created.
 			</p>
-			<div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
+			<div className="mt-4 grid gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
 				<p>
-					Company: <span className="font-mono text-white">{companyCode}</span>
+					Universal ID:{' '}
+					<span className="font-mono text-white">{signaturaId || 'Not available'}</span>
 				</p>
-				<p className="mt-1">
-					Role: <span className="font-mono text-white">{rolePrefix}</span>
+				<p>
+					Application: <span className="font-mono text-white">ACCURA</span>
+				</p>
+				<p>
+					Company: <span className="font-mono text-white">{companyName}</span>
+				</p>
+				<p>
+					Requested Role:{' '}
+					<span className="font-mono text-white">{requestedRole || 'STAFF'}</span>
 				</p>
 			</div>
-			<button
-				type="button"
-				onClick={linkWithPasskey}
-				disabled={isSubmitting || !signaturaId}
-				className="mt-6 w-full rounded-lg bg-red-500 px-5 py-4 text-base font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
-				{isSubmitting ? 'Waiting for passkey...' : 'Approve linking with passkey'}
-			</button>
+			<div className="mt-6 grid gap-3 sm:grid-cols-2">
+				<button
+					type="button"
+					onClick={linkWithPasskey}
+					disabled={isSubmitting || !signaturaId}
+					className="rounded-lg bg-red-500 px-5 py-4 text-base font-bold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-slate-700">
+					{isSubmitting ? 'Waiting for passkey...' : 'Approve'}
+				</button>
+				<Link
+					href="/signatura/dashboard"
+					className="rounded-lg border border-white/15 px-5 py-4 text-center text-base font-bold text-slate-100 transition hover:border-red-300 hover:text-white">
+					Cancel
+				</Link>
+			</div>
 			{status ? (
 				<p className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-200">
 					{status}

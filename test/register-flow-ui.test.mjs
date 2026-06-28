@@ -246,6 +246,10 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 		new URL('../src/app/register/accura/page.js', import.meta.url),
 		'utf8',
 	);
+	const accuraLinkForm = await readFile(
+		new URL('../src/components/AccuraOnboardingLinkForm.js', import.meta.url),
+		'utf8',
+	);
 	const registerRoute = await readFile(
 		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
 		'utf8',
@@ -265,7 +269,20 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(accuraRegisterPage, /accuraRegistrationContextForForm/);
 	assert.match(accuraRegisterPage, /ACCURA registration session expired/);
 	assert.match(accuraRegisterPage, /ACCURA_ONBOARDING_ACTIONS/);
+	assert.match(accuraRegisterPage, /existingReadyIdentity/);
+	assert.match(accuraRegisterPage, /requireSession/);
+	assert.match(accuraRegisterPage, /recoveryCode\.count/);
+	assert.match(accuraRegisterPage, /trustedDevice\.count/);
+	assert.match(accuraRegisterPage, /linkSignaturaId: readyIdentity\.signaturaId/);
 	assert.match(accuraRegisterPage, /AccuraOnboardingLinkForm/);
+	assert.match(accuraLinkForm, /Existing Signatura Identity Found/);
+	assert.match(accuraLinkForm, /Universal ID/);
+	assert.match(accuraLinkForm, /Application:.*ACCURA/s);
+	assert.match(accuraLinkForm, /Requested Role/);
+	assert.match(accuraLinkForm, /No new identity will be created/);
+	assert.match(accuraLinkForm, /SYSTEM_ADMIN/);
+	assert.match(accuraLinkForm, /'Approve'/);
+	assert.match(accuraLinkForm, /Cancel/);
 	assert.match(registerForm, /Link your SIGNATURA ID to ACCURA/);
 	assert.match(registerForm, /Registering for ACCURA company access/);
 	assert.match(registerForm, /canShowIssuerRegistrationLink/);

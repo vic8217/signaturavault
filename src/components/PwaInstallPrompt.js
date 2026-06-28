@@ -176,7 +176,7 @@ export function PwaInstallPrompt({
 					</h1>
 					<p className="mx-auto mt-4 max-w-sm text-base leading-7 text-slate-300">
 						{isAccuraOnboarding
-							? 'Install the mobile app, then create or sign in to your Signatura identity and link your ACCURA company admin role.'
+							? 'Install the mobile app, then continue with your existing Signatura identity or create one only if you are new.'
 							: 'Secure Zero Trust Level 2 access from your phone'}
 					</p>
 				</div>
@@ -184,7 +184,7 @@ export function PwaInstallPrompt({
 				<div className="mt-10 rounded-lg border border-red-500/45 bg-slate-950/80 p-5 shadow-[0_0_70px_rgba(239,68,68,0.18)]">
 					<p className="text-center text-sm leading-6 text-slate-300">
 						{isAccuraOnboarding
-							? 'Step 1: add Signatura to your phone. Step 2: register or sign in, then ACCURA links your company admin role.'
+							? 'Step 1: add Signatura to your phone. Step 2: approve the ACCURA role with your Universal Signatura ID.'
 							: 'After installation, Signatura opens directly to login.'}
 					</p>
 
@@ -210,7 +210,7 @@ export function PwaInstallPrompt({
 									href={accuraRegisterPath}
 									className="flex min-h-14 w-full items-center justify-center gap-3 rounded-lg border border-white/15 bg-white/5 px-5 py-4 text-base font-bold text-white transition hover:border-red-400/70 hover:bg-red-500/10">
 									<UserPlus className="h-5 w-5" />
-									<span>Create Signatura Account</span>
+									<span>Continue ACCURA Onboarding</span>
 								</Link>
 								<Link
 									href={loginPath}
@@ -252,7 +252,7 @@ export function PwaInstallPrompt({
 
 			<p className="mt-10 text-center text-xs leading-5 text-slate-500">
 				{isAccuraOnboarding
-					? 'After Signatura registration or login, return to ACCURA on your computer to finish creating the company admin account.'
+					? 'After approval, return to ACCURA on your computer to finish creating the company admin account.'
 					: 'The QR code opens this install page only. Login still happens on the Signatura screen.'}
 			</p>
 		</div>
