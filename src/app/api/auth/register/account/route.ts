@@ -39,6 +39,8 @@ import {
 } from '@/lib/registration-status';
 import {
 	UNIVERSAL_ROLE_CODES,
+	ensureAccuraMembershipRole,
+	ensureIssuerMembershipRole,
 	ensureSignaturaPlatformRole,
 } from '@/lib/universalIdentity';
 import {
@@ -209,28 +211,11 @@ export async function POST(req: Request) {
 
 		if (accountType === SIGNATURA_ACCOUNT_TYPES.ISSUER) {
 			issuerAuthorizationRecord = await verifyIssuerAuthorizationCode(authorizationCode);
-			const generatedCodeIsValid = Boolean(issuerAuthorizationRecord);
-			const expectedAuthorizationCode =
-				process.env.ISSUER_CREATION_AUTH_CODE ||
-				process.env.ISSUER_SIGNATURA_ID_AUTH_CODE;
-			let envCodeIsValid = false;
-
-			if (expectedAuthorizationCode) {
-				const providedBuffer = Buffer.from(authorizationCode);
-				const expectedBuffer = Buffer.from(expectedAuthorizationCode);
-				if (providedBuffer.length === expectedBuffer.length) {
-					try {
-						envCodeIsValid = crypto.timingSafeEqual(
-							providedBuffer,
-							expectedBuffer,
-						);
-					} catch {
-						envCodeIsValid = false;
-					}
-				}
-			}
-
-			if (!generatedCodeIsValid && !envCodeIsValid) {
+			if (
+				!issuerAuthorizationRecord ||
+				!issuerAuthorizationRecord.issuerId ||
+				!issuerAuthorizationRecord.tenantId
+			) {
 				return jsonError('Invalid issuer authorization code', 403);
 			}
 		}
@@ -285,6 +270,14 @@ export async function POST(req: Request) {
 					: null;
 
 			if (existingAccuraLink) {
+				await ensureAccuraMembershipRole(prisma, {
+					identityId: existingAccuraLink.userId as string,
+					companyId: existingAccuraLink.companyId || companyId,
+					companyCode: existingAccuraLink.companyCode || companyCode,
+					companyName: existingAccuraLink.companyName || companyName,
+					rolePrefix: existingAccuraLink.rolePrefix || rolePrefix,
+					roleName: existingAccuraLink.role || roleName,
+				});
 				await auditAccuraOnboardingEvent({
 					req,
 					action: ACCURA_ONBOARDING_ACTIONS.ID_LINKED,
@@ -336,6 +329,20 @@ export async function POST(req: Request) {
 					{ status: 409 },
 				);
 			}
+			return NextResponse.json(
+				{
+					error:
+						'ACCURA cannot create Signatura identities. Create or sign in with your Universal Signatura ID, then approve linking this ACCURA role.',
+					source: 'accura',
+					companyCode,
+					companyName,
+					role,
+					rolePrefix,
+					linkRequired: true,
+					identityRequired: true,
+				},
+				{ status: 409 },
+			);
 		} else {
 			const existing = matchingContactUsers[0];
 			if (existing) {
@@ -464,6 +471,14 @@ export async function POST(req: Request) {
 				issuerAuthorizationRecord.issuerId &&
 				issuerAuthorizationRecord.tenantId
 			) {
+				await ensureIssuerMembershipRole(tx, {
+					identityId: userId,
+					tenantId: issuerAuthorizationRecord.tenantId,
+					issuerId: issuerAuthorizationRecord.issuerId,
+					issuerName: issuerAuthorizationRecord.issuerId || issuerAuthorizationRecord.tenantId,
+					roleCode: UNIVERSAL_ROLE_CODES.ISSUER_ADMIN,
+					membershipStatus: 'PENDING_ACTIVATION',
+				});
 				await tx.issuerUser.create({
 					data: {
 						id: crypto.randomUUID(),

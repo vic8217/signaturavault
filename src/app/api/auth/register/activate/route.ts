@@ -26,6 +26,7 @@ import {
 	APPLICATION_CODES,
 	UNIVERSAL_ROLE_CODES,
 	ensureAccuraMembershipRole,
+	ensureInvoiceIssuerMembershipRole,
 	ensureIssuerMembershipRole,
 	identityHasUniversalRole,
 } from '@/lib/universalIdentity';
@@ -134,6 +135,9 @@ export async function POST(req: Request) {
 			typeof accuraLink.registrationContext === 'object'
 				? accuraLink.registrationContext
 				: null;
+		const accuraRolePrefix = String(
+			accuraContext?.accuraRoleCode || accuraLink?.rolePrefix || '',
+		).trim().toUpperCase();
 		const issuerInvitation = session.issuerInvitationId
 			? await prisma.issuerInvitation.findFirst({
 					where: {
@@ -223,6 +227,14 @@ export async function POST(req: Request) {
 					rolePrefix: accuraLink.rolePrefix || '',
 					roleName: accuraLink.role || '',
 				});
+				if (accuraRolePrefix === 'CADM') {
+					await ensureInvoiceIssuerMembershipRole(tx, {
+						identityId: resolvedUserId,
+						companyId: accuraLink.companyId || accuraLink.companyCode || '',
+						companyCode: accuraLink.companyCode || '',
+						companyName: accuraLink.companyName || accuraLink.companyCode || '',
+					});
+				}
 			}
 
 			const activatedUser = await tx.user.update({

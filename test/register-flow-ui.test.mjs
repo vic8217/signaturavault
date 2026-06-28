@@ -266,8 +266,10 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(accuraRegisterPage, /ACCURA registration session expired/);
 	assert.match(accuraRegisterPage, /ACCURA_ONBOARDING_ACTIONS/);
 	assert.match(accuraRegisterPage, /AccuraOnboardingLinkForm/);
-	assert.match(registerForm, /Create your SIGNATURA account for ACCURA/);
+	assert.match(registerForm, /Link your SIGNATURA ID to ACCURA/);
 	assert.match(registerForm, /Registering for ACCURA company access/);
+	assert.match(registerForm, /canShowIssuerRegistrationLink/);
+	assert.match(registerForm, /Boolean\(showIssuerRegistrationLink\) && !isAccuraRegistration/);
 	assert.match(registerForm, /ACCURA Company Name/);
 	assert.match(registerForm, /ACCURA Company Code/);
 	assert.match(registerForm, /Assigned Role/);
@@ -284,7 +286,7 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(registerRoute, /appLinkModel\.create/);
 	assert.match(registerRoute, /existingSignaturaId/);
 	assert.match(registerRoute, /linkedToCompany/);
-	assert.doesNotMatch(registerRoute, /ensureAccuraMembershipRole/);
+	assert.match(registerRoute, /ensureAccuraMembershipRole/);
 	assert.match(schema, /model SignaturaAppLink/);
 	assert.match(schema, /model AccuraRegistrationHandoff/);
 	assert.match(schema, /rolePrefix\s+String\?/);
@@ -350,11 +352,13 @@ test('ACCURA registration lookup is scoped by app company role and contact', asy
 	assert.match(registerRoute, /rolePrefix/);
 	assert.match(registerRoute, /tokenId/);
 	assert.match(registerRoute, /ACCURA company-role Signatura ID already exists/);
+	assert.match(registerRoute, /ACCURA cannot create Signatura identities/);
+	assert.match(registerRoute, /identityRequired: true/);
 	assert.match(registerRoute, /linkRequired: true/);
 	assert.match(registerRoute, /createSignaturaIdentity/);
+	assert.match(registerRoute, /ensureAccuraMembershipRole/);
 	assert.doesNotMatch(registerRoute, /createUniqueSignaturaId/);
 	assert.doesNotMatch(registerRoute, /createUniqueAccuraSignaturaId/);
-	assert.doesNotMatch(registerRoute, /ensureAccuraMembershipRole/);
 	assert.match(registerRoute, /masterSignaturaId/);
 });
 

@@ -77,6 +77,9 @@ test('template upload step prefers placeholders and gates real-data OCR with red
 	assert.match(dashboard, /Sample contains real data/);
 	assert.match(dashboard, /Apply automatic redaction before OCR processing/);
 	assert.match(dashboard, /front proxy or hosting layer/);
+	assert.match(dashboard, /optimizeImageSampleForUpload/);
+	assert.match(dashboard, /FRONT_PROXY_SAFE_IMAGE_BYTES/);
+	assert.match(dashboard, /Image was optimized/);
 	assert.match(uploadRoute, /samplePolicy/);
 	assert.match(uploadRoute, /autoRedactBeforeOcr/);
 	assert.match(extractRoute, /Enable automatic redaction before OCR processing/);

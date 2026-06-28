@@ -33,6 +33,7 @@ const TEMPLATE_UPLOAD_MAX_BYTES =
 		: 50) *
 	1024 *
 	1024;
+const FRONT_PROXY_SAFE_IMAGE_BYTES = 900 * 1024;
 
 function emptyField(index = 1) {
 	return {
@@ -61,6 +62,57 @@ function normalizeKey(value) {
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '_')
 		.replace(/^_+|_+$/g, '');
+}
+
+function loadImageFromFile(file) {
+	return new Promise((resolve, reject) => {
+		const url = URL.createObjectURL(file);
+		const image = new window.Image();
+		image.onload = () => {
+			URL.revokeObjectURL(url);
+			resolve(image);
+		};
+		image.onerror = () => {
+			URL.revokeObjectURL(url);
+			reject(new Error('Unable to prepare image for upload'));
+		};
+		image.src = url;
+	});
+}
+
+async function optimizeImageSampleForUpload(file) {
+	if (!file?.type?.startsWith('image/') || file.size <= FRONT_PROXY_SAFE_IMAGE_BYTES) {
+		return { file, optimized: false };
+	}
+	if (typeof window === 'undefined' || typeof document === 'undefined') {
+		return { file, optimized: false };
+	}
+
+	const image = await loadImageFromFile(file);
+	const maxDimension = 1600;
+	const scale = Math.min(
+		1,
+		maxDimension / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height),
+	);
+	const canvas = document.createElement('canvas');
+	canvas.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
+	canvas.height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
+	const context = canvas.getContext('2d');
+	if (!context) return { file, optimized: false };
+	context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+	const blob = await new Promise((resolve) =>
+		canvas.toBlob(resolve, 'image/jpeg', 0.82),
+	);
+	if (!blob || blob.size >= file.size) return { file, optimized: false };
+
+	const optimizedName = `${String(file.name || 'template-sample').replace(/\.[^.]+$/, '')}-optimized.jpg`;
+	return {
+		file: new File([blob], optimizedName, { type: 'image/jpeg' }),
+		optimized: true,
+		originalSize: file.size,
+		optimizedSize: blob.size,
+	};
 }
 
 function TemplateCaptureDashboard({
@@ -167,8 +219,9 @@ function TemplateCaptureDashboard({
 		setError('');
 		setMessage('Uploading template sample...');
 		try {
+			const prepared = await optimizeImageSampleForUpload(upload.file);
 			const body = new FormData();
-			body.set('file', upload.file);
+			body.set('file', prepared.file);
 			body.set('name', upload.name);
 			body.set('document_type', upload.document_type);
 			body.set('sample_policy', upload.sample_policy);
@@ -189,7 +242,15 @@ function TemplateCaptureDashboard({
 			});
 			setSelectedId(data.template.id);
 			await loadTemplates();
-			setMessage('Template uploaded as draft. Run OCR to suggest fields.');
+			setMessage(
+				prepared.optimized
+					? `Template uploaded as draft. Image was optimized from ${Math.ceil(
+							prepared.originalSize / 1024,
+						)} KB to ${Math.ceil(
+							prepared.optimizedSize / 1024,
+						)} KB before upload. Run OCR to suggest fields.`
+					: 'Template uploaded as draft. Run OCR to suggest fields.',
+			);
 		} catch (uploadError) {
 			setError(uploadError.message);
 			setMessage('');

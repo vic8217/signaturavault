@@ -5,6 +5,11 @@ import test from 'node:test';
 
 import { POST as createAccount } from '@/app/api/auth/register/account/route.ts';
 import {
+	accountLookupHashes,
+	normalizeEmail,
+	normalizeHandphone,
+} from '@/lib/account-private-fields.js';
+import {
 	accuraRegistrationContextForForm,
 	issueAccuraRegistrationHandoffToken,
 	verifyAccuraRegistrationHandoffToken,
@@ -155,7 +160,7 @@ test('ACCURA handoff token accepts CADM only for validated company-admin registr
 	}
 });
 
-test('ACCURA account registration trusts signed handoff over forged body fields and blocks reuse', async () => {
+test('ACCURA account registration cannot create a Signatura identity', async () => {
 	resetHarness();
 	const restore = withSecret();
 	try {
@@ -178,60 +183,39 @@ test('ACCURA account registration trusts signed handoff over forged body fields 
 		);
 		const body = await response.json();
 
-		assert.equal(response.status, 200);
-		assert.equal(body.ok, true);
-		assert.match(body.user.signaturaId, /^SIG-U-/);
-
-		const link = prisma.signaturaAppLink.__rows[0];
-		assert.equal(link.sourceApp, 'ACCURA');
-		assert.equal(link.companyId, 'company-road');
-		assert.equal(link.companyCode, 'ROAD-9B2D7B');
-		assert.equal(link.rolePrefix, 'CASH');
-		assert.equal(link.signaturaId, body.user.signaturaId);
-		assert.equal(link.registrationContext.masterSignaturaId, body.user.signaturaId);
-		assert.equal(link.registrationContext.accuraRegistrationKeyId, 'key-cadm-cash-1');
-		assert.equal(
-			link.registrationContext.returnUrl,
-			'http://localhost:3001/accura/register/callback',
-		);
-		assert.equal(prisma.accuraRegistrationHandoff.__rows.length, 1);
-
-		const replay = await createAccount(
-			request({
-				fullName: 'Ava Replay',
-				handphone: '+63 917 333 4444',
-				email: 'ava.replay@example.com',
-				accountType: 'user',
-				source: 'accura',
-				accuraHandoffToken: token,
-			}),
-		);
-		const replayBody = await replay.json();
-		assert.equal(replay.status, 409);
-		assert.match(replayBody.error, /already used/i);
+		assert.equal(response.status, 409);
+		assert.match(body.error, /ACCURA cannot create Signatura identities/i);
+		assert.equal(body.linkRequired, true);
+		assert.equal(body.identityRequired, true);
+		assert.equal(prisma.user.__rows.length, 0);
+		assert.equal(prisma.signaturaAppLink.__rows.length, 0);
+		assert.equal(prisma.accuraRegistrationHandoff.__rows.length, 0);
 	} finally {
 		restore();
 	}
 });
 
-test('ACCURA reuses an existing Signatura identity for an additional role', async () => {
+test('ACCURA registration requires linking an existing Signatura identity for a role', async () => {
 	resetHarness();
 	const restore = withSecret();
 	try {
-		const firstToken = issueAccuraRegistrationHandoffToken(handoffPayload());
-		const firstResponse = await createAccount(
-			request({
-				fullName: 'Ava Multi Role',
-				handphone: '+63 917 777 8888',
-				email: 'ava.multi@example.com',
-				accountType: 'user',
-				source: 'accura',
-				accuraHandoffToken: firstToken,
-			}),
-		);
-		const firstBody = await firstResponse.json();
-		assert.equal(firstResponse.status, 200);
-		assert.match(firstBody.user.signaturaId, /^SIG-U-/);
+		const email = normalizeEmail('ava.multi@example.com');
+		const handphone = normalizeHandphone('+63 917 777 8888');
+		const { emailLookupHash, mobileLookupHash } = accountLookupHashes({
+			email,
+			handphone,
+		});
+		prisma.user.__seed([
+			{
+				id: 'user-ava-multi',
+				signaturaId: 'SIG-U-1111-2222',
+				emailLookupHash,
+				mobileLookupHash,
+				accountStatus: 'active',
+				trustLevel: 2,
+				createdAt: new Date(),
+			},
+		]);
 
 		const secondToken = issueAccuraRegistrationHandoffToken(
 			handoffPayload({
@@ -254,15 +238,15 @@ test('ACCURA reuses an existing Signatura identity for an additional role', asyn
 
 		assert.equal(secondResponse.status, 409);
 		assert.equal(secondBody.linkRequired, true);
-		assert.equal(secondBody.existingSignaturaId, firstBody.user.signaturaId);
+		assert.equal(secondBody.existingSignaturaId, 'SIG-U-1111-2222');
 		assert.equal(prisma.user.__rows.length, 1);
-		assert.equal(prisma.signaturaAppLink.__rows.length, 1);
+		assert.equal(prisma.signaturaAppLink.__rows.length, 0);
 	} finally {
 		restore();
 	}
 });
 
-test('ACCURA SADM registration attaches platform role to same Signatura identity', async () => {
+test('ACCURA SADM registration also requires an existing Signatura identity', async () => {
 	resetHarness();
 	const restore = withSecret();
 	try {
@@ -289,11 +273,9 @@ test('ACCURA SADM registration attaches platform role to same Signatura identity
 		);
 		const body = await response.json();
 
-		assert.equal(response.status, 200);
-		assert.match(body.user.signaturaId, /^SIG-U-/);
-		const link = prisma.signaturaAppLink.__rows[0];
-		assert.equal(link.signaturaId, body.user.signaturaId);
-		assert.equal(link.registrationContext.masterSignaturaId, body.user.signaturaId);
+		assert.equal(response.status, 409);
+		assert.match(body.error, /ACCURA cannot create Signatura identities/i);
+		assert.equal(prisma.user.__rows.length, 0);
 	} finally {
 		restore();
 	}

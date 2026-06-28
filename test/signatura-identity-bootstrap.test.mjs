@@ -84,8 +84,15 @@ test('issuer invitation activation links an existing Signatura ID instead of cre
 	assert.match(transactionBody, /roleCode: UNIVERSAL_ROLE_CODES\.ISSUER_ADMIN/);
 	assert.match(registerRoute, /issuerInvitationToken/);
 	assert.match(registerRoute, /issuerInvitationId: issuerInvitation\?\.id/);
+	assert.match(registerRoute, /ensureIssuerMembershipRole/);
+	assert.match(registerRoute, /membershipStatus: 'PENDING_ACTIVATION'/);
+	assert.doesNotMatch(registerRoute, /ISSUER_CREATION_AUTH_CODE/);
+	assert.doesNotMatch(registerRoute, /ISSUER_SIGNATURA_ID_AUTH_CODE/);
 	assert.match(activateRoute, /recoveryCode/);
 	assert.match(activateRoute, /trustedDeviceCount/);
+	assert.match(activateRoute, /ensureInvoiceIssuerMembershipRole/);
+	assert.match(activationBody, /accuraRolePrefix === 'CADM'/);
+	assert.match(activationBody, /ensureInvoiceIssuerMembershipRole/);
 	assert.match(activationBody, /ensureIssuerMembershipRole/);
 	assert.match(activationBody, /roleCode: UNIVERSAL_ROLE_CODES\.ISSUER_ADMIN/);
 	assert.match(activationBody, /accountStatus: 'active'/);

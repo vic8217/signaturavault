@@ -386,6 +386,8 @@ function RegisterPasskeyForm({
 		: 'user';
 	const registrationSource = String(appRegistrationContext.source || '').toLowerCase();
 	const isAccuraRegistration = registrationSource === 'accura';
+	const canShowIssuerRegistrationLink =
+		Boolean(showIssuerRegistrationLink) && !isAccuraRegistration;
 	const companyCode = appRegistrationContext.companyCode || '';
 	const companyName = appRegistrationContext.companyName || '';
 	const accuraRole = appRegistrationContext.role || '';
@@ -431,7 +433,7 @@ function RegisterPasskeyForm({
 				? 'Issuer account'
 			: 'Document owner account';
 	const pageTitle = isAccuraRegistration
-		? 'Create your SIGNATURA account for ACCURA'
+		? 'Link your SIGNATURA ID to ACCURA'
 		: 'Create your SIGNATURA account';
 	const finalReturnHref = (() => {
 		if (serverReturnUrl) return serverReturnUrl;
@@ -1402,9 +1404,9 @@ function RegisterPasskeyForm({
 					{isDeviceSetup
 						? 'Verify your SIGNATURA ID with the same email and handphone number used during account creation, then register this device.'
 						: accountType === 'issuer'
-							? 'Enter your issuer details to generate an issuer SIGNATURA ID. Your private contact information is encrypted before it is saved.'
+							? 'Enter your details to create or resume your Universal Signatura ID. Issuer access is attached as a membership role.'
 							: accountType === 'admin'
-								? 'Enter authorized administrator details to generate an admin SIGNATURA ID. Your private contact information is encrypted before it is saved.'
+								? 'Enter authorized administrator details to create or resume your Universal Signatura ID. Admin access is attached as a platform role.'
 								: 'Enter your details to generate your SIGNATURA ID. Your private contact information is encrypted before it is saved.'}
 				</p>
 				{!isDeviceSetup ? (
@@ -1464,7 +1466,7 @@ function RegisterPasskeyForm({
 							<p className="mt-1">
 								{accountType === 'admin'
 									? 'Admin IDs are provisioned from the admin URL only. Production blocks public admin self-registration.'
-									: 'Issuer IDs use the SIG-I prefix. Issuer portal access still requires an active issuer tenant or invitation.'}
+									: 'Issuer access uses your Universal Signatura ID and requires an active issuer tenant or invitation.'}
 							</p>
 						</div>
 					) : null}
@@ -1939,10 +1941,10 @@ function RegisterPasskeyForm({
 				</div>
 			) : null}
 
-			{!isDeviceSetup ? (
-				<div className="mt-6 border-t border-white/10 pt-5">
-					{showIssuerRegistrationLink ? (
-						<Link
+				{!isDeviceSetup ? (
+					<div className="mt-6 border-t border-white/10 pt-5">
+						{canShowIssuerRegistrationLink ? (
+							<Link
 							href={issuerRegisterHref}
 							className="mb-3 inline-flex w-full items-center justify-center rounded-xl border border-white/15 px-5 py-3 text-sm font-bold text-red-100 transition hover:border-red-300 hover:text-white">
 							Create issuer Signatura ID

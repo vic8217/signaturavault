@@ -16,6 +16,7 @@ const UNIVERSAL_ROLE_CODES = {
 	SIGNATURA_STAFF: 'SIGNATURA_STAFF',
 	ISSUER_ADMIN: 'ISSUER_ADMIN',
 	ISSUER_STAFF: 'ISSUER_STAFF',
+	INVOICE_ISSUER: 'INVOICE_ISSUER',
 	ACCURA_SYSTEM_ADMIN: 'ACCURA_SYSTEM_ADMIN',
 	ACCURA_COMPANY_ADMIN: 'ACCURA_COMPANY_ADMIN',
 	ACCURA_ACCOUNTING_CLERK: 'ACCURA_ACCOUNTING_CLERK',
@@ -156,6 +157,7 @@ async function ensureMembershipWithRole(
 		roleCode,
 		roleName = '',
 		roleScope = '',
+		membershipStatus = 'ACTIVE',
 		invitedById = null,
 	},
 ) {
@@ -192,10 +194,17 @@ async function ensureMembershipWithRole(
 				identityId,
 				applicationId: application.id,
 				organizationId: organization?.id || null,
-				status: 'ACTIVE',
+				status: membershipStatus,
 				invitedById,
 			},
 		}));
+	if (membership.status !== membershipStatus) {
+		await membershipModel.update({
+			where: { id: membership.id },
+			data: { status: membershipStatus },
+		});
+		membership.status = membershipStatus;
+	}
 
 	const role = await ensureRole(client, {
 		applicationId: application.id,
@@ -235,7 +244,14 @@ async function ensureSignaturaPlatformRole(client, identityId, roleCode) {
 
 async function ensureIssuerMembershipRole(
 	client,
-	{ identityId, tenantId, issuerId = null, issuerName = '', roleCode },
+	{
+		identityId,
+		tenantId,
+		issuerId = null,
+		issuerName = '',
+		roleCode,
+		membershipStatus = 'ACTIVE',
+	},
 ) {
 	return ensureMembershipWithRole(client, {
 		identityId,
@@ -248,6 +264,34 @@ async function ensureIssuerMembershipRole(
 		roleCode,
 		roleName: roleNameFromCode(roleCode),
 		roleScope: ROLE_SCOPES.ORGANIZATION,
+		membershipStatus,
+	});
+}
+
+async function ensureInvoiceIssuerMembershipRole(
+	client,
+	{
+		identityId,
+		companyId,
+		companyCode = '',
+		companyName = '',
+		membershipStatus = 'ACTIVE',
+	},
+) {
+	const organizationRef = companyId || companyCode;
+	const organizationId = organizationRef ? `invoice_issuer_${organizationRef}` : '';
+	return ensureMembershipWithRole(client, {
+		identityId,
+		applicationCode: APPLICATION_CODES.SIGNATURA,
+		applicationName: 'Signatura',
+		organizationId,
+		organizationName: companyName || companyCode || organizationRef || 'Invoice Issuer',
+		organizationType: 'INVOICE_ISSUER',
+		organizationExternalRef: organizationId || organizationRef || companyCode,
+		roleCode: UNIVERSAL_ROLE_CODES.INVOICE_ISSUER,
+		roleName: 'Invoice Issuer',
+		roleScope: ROLE_SCOPES.ORGANIZATION,
+		membershipStatus,
 	});
 }
 
@@ -380,6 +424,7 @@ export {
 	UNIVERSAL_ROLE_CODES,
 	ensureAccuraMembershipRole,
 	ensureApplication,
+	ensureInvoiceIssuerMembershipRole,
 	ensureIssuerMembershipRole,
 	ensureMembershipWithRole,
 	ensureSignaturaPlatformRole,
