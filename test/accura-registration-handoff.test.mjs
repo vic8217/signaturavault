@@ -91,6 +91,31 @@ test('ACCURA handoff token verifies locked company and staff role context', () =
 		assert.equal(context.rolePrefix, 'CASH');
 		assert.equal(context.role, 'Cashier');
 		assert.equal(context.registrationKeyId, 'key-cadm-cash-1');
+		assert.equal(context.challengeId, verified.context.requestId);
+		assert.equal(context.originDevice, 'desktop');
+		assert.equal(context.flowType, 'cross_device_qr');
+	} finally {
+		restore();
+	}
+});
+
+test('ACCURA handoff token preserves same-device flow metadata', () => {
+	const restore = withSecret();
+	try {
+		const token = issueAccuraRegistrationHandoffToken(
+			handoffPayload({
+				challengeId: 'challenge-mobile-1',
+				originDevice: 'mobile',
+				flowType: 'same_device_deeplink',
+			}),
+		);
+		const verified = verifyAccuraRegistrationHandoffToken(token);
+		const context = accuraRegistrationContextForForm(verified.context);
+
+		assert.equal(verified.valid, true);
+		assert.equal(context.challengeId, 'challenge-mobile-1');
+		assert.equal(context.originDevice, 'mobile');
+		assert.equal(context.flowType, 'same_device_deeplink');
 	} finally {
 		restore();
 	}
@@ -293,5 +318,8 @@ test('ACCURA role linking claims each signed handoff only once', async () => {
 	assert.match(source, /status: 'PROCESSING'/);
 	assert.match(source, /status: 'CLAIMED'/);
 	assert.match(source, /already used/);
-	assert.match(source, /status: 'COMPLETED'/);
+	assert.match(source, /status: 'APPROVED'/);
+	assert.match(source, /verificationToken/);
+	assert.match(source, /flowType !== 'same_device_deeplink'/);
+	assert.match(source, /Approved successfully\. You may return to the original ACCURA browser window/);
 });

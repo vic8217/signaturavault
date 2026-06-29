@@ -26,6 +26,8 @@ const ACCURA_REGISTRATION_TYPES = new Set([
 	'company_admin',
 	'system_admin',
 ]);
+const HANDOFF_ORIGIN_DEVICES = new Set(['desktop', 'mobile']);
+const HANDOFF_FLOW_TYPES = new Set(['cross_device_qr', 'same_device_deeplink']);
 
 const ACCURA_PLATFORM_SYSTEM_ADMIN = {
 	companyId: 'accura-platform',
@@ -106,6 +108,16 @@ function normalizeOnboardingMode(value) {
 	return ONBOARDING_MODES.has(mode) ? mode : 'create';
 }
 
+function normalizeOriginDevice(value) {
+	const normalized = String(value || 'desktop').trim().toLowerCase();
+	return HANDOFF_ORIGIN_DEVICES.has(normalized) ? normalized : 'desktop';
+}
+
+function normalizeFlowType(value) {
+	const normalized = String(value || 'cross_device_qr').trim().toLowerCase();
+	return HANDOFF_FLOW_TYPES.has(normalized) ? normalized : 'cross_device_qr';
+}
+
 function normalizeAccuraRegistrationType(value, roleCode = '') {
 	const normalized = String(value || '').trim().toLowerCase();
 	if (ACCURA_REGISTRATION_TYPES.has(normalized)) return normalized;
@@ -125,6 +137,7 @@ function canonicalPayload(payload) {
 	const requestId = String(
 		payload.requestId || payload.jti || payload.tokenId || crypto.randomUUID(),
 	);
+	const challengeId = String(payload.challengeId || requestId).trim();
 	const state = String(payload.state || payload.requestId || requestId);
 	const nonce = String(payload.nonce || crypto.randomUUID());
 	const roleCode = normalizeAccuraRolePrefix(payload.roleCode || payload.rolePrefix);
@@ -132,6 +145,7 @@ function canonicalPayload(payload) {
 		typ: TOKEN_TYPE,
 		v: TOKEN_VERSION,
 		jti: requestId,
+		challengeId,
 		requestId,
 		state,
 		nonce,
@@ -153,6 +167,8 @@ function canonicalPayload(payload) {
 		registrationKeyId: normalizeRegistrationKeyId(payload.registrationKeyId),
 		returnUrl: normalizeExternalReturnUrl(payload.returnUrl),
 		mode: normalizeOnboardingMode(payload.mode),
+		originDevice: normalizeOriginDevice(payload.originDevice),
+		flowType: normalizeFlowType(payload.flowType),
 		linkSignaturaId: normalizeSignaturaId(payload.linkSignaturaId || ''),
 		expiresAt:
 			normalizeTimestamp(payload.expiresAt)?.toISOString() ||
@@ -268,10 +284,13 @@ function accuraRegistrationContextForForm(context) {
 		returnUrl: context.returnUrl,
 		expiresAt: context.expiresAt,
 		tokenId: context.jti,
+		challengeId: context.challengeId,
 		requestId: context.requestId,
 		state: context.state,
 		nonce: context.nonce,
 		mode: context.mode,
+		originDevice: context.originDevice,
+		flowType: context.flowType,
 		linkSignaturaId: context.linkSignaturaId,
 	};
 }
@@ -464,6 +483,8 @@ async function notifyAccuraRegistrationCallback(accuraReturnUrl) {
 export {
 	ONBOARDING_MODES,
 	RESERVED_STAFF_PREFIXES,
+	HANDOFF_FLOW_TYPES,
+	HANDOFF_ORIGIN_DEVICES,
 	accuraRegistrationContextForForm,
 	buildAccuraRegistrationReturnUrl,
 	issueAccuraOnboardingAuthorizationCode,

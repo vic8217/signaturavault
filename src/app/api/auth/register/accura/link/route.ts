@@ -166,6 +166,30 @@ export async function POST(req: Request) {
 			: null;
 
 		const linkedSignaturaId = user.signaturaId;
+		const accuraReturnUrl =
+			buildAccuraRegistrationReturnUrl(context.returnUrl, {
+				signaturaId: linkedSignaturaId,
+				userId: user.id,
+				signaturaSubjectId: user.id,
+				companyId: context.companyId,
+				companyCode: context.companyCode,
+				roleCode: context.roleCode,
+				rolePrefix: context.roleCode,
+				registrationKeyId: context.registrationKeyId,
+				registrationStatus: 'LINKED',
+				requestId: context.requestId,
+				state: context.state,
+				nonce: context.nonce,
+			}) || '';
+		let verificationToken = '';
+		if (accuraReturnUrl) {
+			try {
+				verificationToken =
+					new URL(accuraReturnUrl).searchParams.get('authorizationCode') || '';
+			} catch {
+				verificationToken = '';
+			}
+		}
 
 		await prisma.$transaction(async (tx) => {
 			const transactionHandoffModel = accuraRegistrationHandoffModel(tx);
@@ -190,11 +214,14 @@ export async function POST(req: Request) {
 						data: {
 							id: crypto.randomUUID(),
 							tokenId: context.jti,
+							challengeId: context.challengeId || context.requestId,
 							registrationKeyId: context.registrationKeyId,
 							companyId: context.companyId,
 							companyCode: context.companyCode,
 							roleCode: context.roleCode,
 							returnUrl: context.returnUrl,
+							originDevice: context.originDevice || 'desktop',
+							flowType: context.flowType || 'cross_device_qr',
 							status: 'PROCESSING',
 							userId: user.id,
 							signaturaId: linkedSignaturaId,
@@ -226,7 +253,10 @@ export async function POST(req: Request) {
 				accuraRegistrationKeyId: context.registrationKeyId,
 				returnUrl: context.returnUrl,
 				handoffTokenId: context.jti,
+				challengeId: context.challengeId,
 				requestId: context.requestId,
+				originDevice: context.originDevice,
+				flowType: context.flowType,
 				state: context.state,
 				nonce: context.nonce,
 				linkedAt: new Date().toISOString(),
@@ -277,29 +307,15 @@ export async function POST(req: Request) {
 					status: 'PROCESSING',
 				},
 				data: {
-					status: 'COMPLETED',
+					status: 'APPROVED',
+					approvedAt: new Date(),
 					completedAt: new Date(),
 					userId: user.id,
 					signaturaId: linkedSignaturaId,
+					verificationToken,
 				},
 			});
 		});
-
-		const accuraReturnUrl =
-			buildAccuraRegistrationReturnUrl(context.returnUrl, {
-				signaturaId: linkedSignaturaId,
-				userId: user.id,
-				signaturaSubjectId: user.id,
-				companyId: context.companyId,
-				companyCode: context.companyCode,
-				roleCode: context.roleCode,
-				rolePrefix: context.roleCode,
-				registrationKeyId: context.registrationKeyId,
-				registrationStatus: 'LINKED',
-				requestId: context.requestId,
-				state: context.state,
-				nonce: context.nonce,
-			}) || '';
 
 		await auditAccuraOnboardingEvent({
 			req,
@@ -328,15 +344,24 @@ export async function POST(req: Request) {
 			registrationKeyId: context.registrationKeyId,
 		});
 
-		if (accuraReturnUrl) {
+		const isCrossDeviceQr = context.flowType !== 'same_device_deeplink';
+		if (accuraReturnUrl && !isCrossDeviceQr) {
 			await notifyAccuraRegistrationCallback(accuraReturnUrl).catch(() => null);
 		}
 
 		return NextResponse.json({
 			ok: true,
 			user: userPublicIdentity(user),
-			accuraReturnUrl,
-			redirectTo: accuraReturnUrl,
+			status: 'APPROVED',
+			challengeId: context.challengeId || context.requestId,
+			verificationToken,
+			flowType: context.flowType,
+			originDevice: context.originDevice,
+			accuraReturnUrl: isCrossDeviceQr ? '' : accuraReturnUrl,
+			redirectTo: isCrossDeviceQr ? '' : accuraReturnUrl,
+			message: isCrossDeviceQr
+				? 'Approved successfully. You may return to the original ACCURA browser window.'
+				: 'Approved successfully. Returning to ACCURA.',
 		});
 	} catch (error) {
 		return jsonError(

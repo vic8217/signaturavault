@@ -51,6 +51,31 @@ async function existingReadyIdentity() {
 	};
 }
 
+async function ensureRegistrationChallenge(context) {
+	if (!context?.tokenId) return;
+	await prisma.accuraRegistrationHandoff.upsert({
+		where: { tokenId: context.tokenId },
+		create: {
+			tokenId: context.tokenId,
+			challengeId: context.challengeId || context.requestId || context.tokenId,
+			registrationKeyId: context.registrationKeyId,
+			companyId: context.companyId,
+			companyCode: context.companyCode,
+			roleCode: context.rolePrefix,
+			returnUrl: context.returnUrl,
+			originDevice: context.originDevice || 'desktop',
+			flowType: context.flowType || 'cross_device_qr',
+			status: 'CLAIMED',
+			expiresAt: new Date(context.expiresAt),
+		},
+		update: {
+			challengeId: context.challengeId || context.requestId || context.tokenId,
+			originDevice: context.originDevice || 'desktop',
+			flowType: context.flowType || 'cross_device_qr',
+		},
+	});
+}
+
 export default async function AccuraRegisterPage({ searchParams }) {
 	const params = await searchParams;
 	const handoffToken = String(
@@ -69,6 +94,7 @@ export default async function AccuraRegisterPage({ searchParams }) {
 	const readyIdentity = context ? await existingReadyIdentity() : null;
 
 	if (verified.valid && verified.context) {
+		await ensureRegistrationChallenge(context);
 		await auditAccuraOnboardingEvent({
 			action: ACCURA_ONBOARDING_ACTIONS.REQUEST_RECEIVED,
 			context: verified.context,

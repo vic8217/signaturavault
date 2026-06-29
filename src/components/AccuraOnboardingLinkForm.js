@@ -78,10 +78,17 @@ export function AccuraOnboardingLinkForm({
 			}
 
 			storeTrustedDeviceSignaturaId(signaturaId);
+			if (linkData.flowType !== 'same_device_deeplink') {
+				setStatus(
+					linkData.message ||
+						'Approved successfully. You may return to the original ACCURA browser window.',
+				);
+				return;
+			}
 			const destination = linkData.accuraReturnUrl || linkData.redirectTo || '/';
 			if (isPhoneUnreachableAccuraReturnUrl(destination) && isMobileRegistrationClient()) {
 				setStatus(
-					'Signatura ID linked. Return to ACCURA on your computer — registration will continue automatically.',
+					'Approved successfully. You may return to the original ACCURA browser window.',
 				);
 				return;
 			}
