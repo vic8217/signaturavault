@@ -679,6 +679,7 @@ async function notifyAccuraAppApprovalCallback({
  *   challengeId?: string;
  *   signaturaId?: string;
  *   verificationToken?: string;
+ *   approvedAt?: string;
  *   status?: string;
  * }} approval
  */
@@ -687,6 +688,7 @@ async function notifyAccuraChallengeApproval({
 	challengeId,
 	signaturaId,
 	verificationToken,
+	approvedAt,
 	status = 'APPROVED',
 } = {}) {
 	const target = resolveAccuraChallengeApproveUrl(returnUrl);
@@ -700,6 +702,7 @@ async function notifyAccuraChallengeApproval({
 		signaturaId: String(signaturaId || '').trim(),
 		verificationToken: String(verificationToken || '').trim(),
 		status,
+		approvedAt: approvedAt || new Date().toISOString(),
 	};
 
 	try {

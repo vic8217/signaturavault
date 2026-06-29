@@ -142,6 +142,7 @@ test('ACCURA challenge approval callback posts the exact polled challengeId', as
 			challengeId: '5df3f640-e989-44ac-aa63-df805594ea83',
 			signaturaId: 'SIG-U-B64A-3A1A',
 			verificationToken: 'verification-token-1',
+			approvedAt: '2026-06-30T02:00:00.000Z',
 			status: 'APPROVED',
 		});
 
@@ -158,6 +159,7 @@ test('ACCURA challenge approval callback posts the exact polled challengeId', as
 			signaturaId: 'SIG-U-B64A-3A1A',
 			verificationToken: 'verification-token-1',
 			status: 'APPROVED',
+			approvedAt: '2026-06-30T02:00:00.000Z',
 		});
 	} finally {
 		globalThis.fetch = previousFetch;

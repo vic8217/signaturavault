@@ -32,6 +32,7 @@ export function AccuraOnboardingLinkForm({
 	const [error, setError] = useState('');
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [approvedCrossDevice, setApprovedCrossDevice] = useState(false);
+	const [callbackFailed, setCallbackFailed] = useState(false);
 	const requestedRole =
 		rolePrefix === 'SADM'
 			? 'SYSTEM_ADMIN'
@@ -88,6 +89,12 @@ export function AccuraOnboardingLinkForm({
 			storeTrustedDeviceSignaturaId(signaturaId);
 			if (linkData.flowType !== 'same_device_deeplink') {
 				setApprovedCrossDevice(true);
+				if (linkData.callback?.ok === false) {
+					setCallbackFailed(true);
+					setStatus('Approved locally, but ACCURA callback failed.');
+					return;
+				}
+				setCallbackFailed(false);
 				setStatus('Approved. Return to your ACCURA browser.');
 				return;
 			}
@@ -113,17 +120,19 @@ export function AccuraOnboardingLinkForm({
 
 	if (approvedCrossDevice) {
 		return (
-			<section className="mx-auto w-full max-w-2xl rounded-2xl border border-emerald-400/30 bg-slate-950/90 p-6 text-white shadow-2xl">
+			<section className={`mx-auto w-full max-w-2xl rounded-2xl border ${callbackFailed ? 'border-amber-400/30' : 'border-emerald-400/30'} bg-slate-950/90 p-6 text-white shadow-2xl`}>
 				<div className="flex items-center gap-4">
-					<span className="grid h-12 w-12 place-items-center text-emerald-300">
+					<span className={`grid h-12 w-12 place-items-center ${callbackFailed ? 'text-amber-300' : 'text-emerald-300'}`}>
 						<ShieldCheck className="h-8 w-8" aria-hidden="true" />
 					</span>
 					<div>
-						<p className="text-sm font-bold uppercase tracking-[0.18em] text-emerald-200">
+						<p className={`text-sm font-bold uppercase tracking-[0.18em] ${callbackFailed ? 'text-amber-200' : 'text-emerald-200'}`}>
 							ACCURA approval
 						</p>
 						<h1 className="mt-1 text-2xl font-black">
-							Approved. Return to your ACCURA browser.
+							{callbackFailed
+								? 'Approved locally, but ACCURA callback failed.'
+								: 'Approved. Return to your ACCURA browser.'}
 						</h1>
 					</div>
 				</div>
@@ -140,9 +149,10 @@ export function AccuraOnboardingLinkForm({
 						<span className="font-mono text-white">{requestedRole || 'STAFF'}</span>
 					</p>
 				</div>
-				<p className="mt-4 rounded-lg border border-emerald-400/25 bg-emerald-500/10 p-4 text-sm text-emerald-50">
-					The original ACCURA browser window will continue automatically after it
-					detects this approval.
+				<p className={`mt-4 rounded-lg border p-4 text-sm ${callbackFailed ? 'border-amber-400/25 bg-amber-500/10 text-amber-50' : 'border-emerald-400/25 bg-emerald-500/10 text-emerald-50'}`}>
+					{callbackFailed
+						? 'Signatura linked the role locally, but ACCURA did not confirm the callback. Start a fresh ACCURA QR request if the laptop remains pending.'
+						: 'The original ACCURA browser window will continue automatically after it detects this approval.'}
 				</p>
 			</section>
 		);

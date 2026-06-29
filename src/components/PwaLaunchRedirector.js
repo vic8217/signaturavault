@@ -31,6 +31,10 @@ function accuraRegisterTargetFromUrl(value) {
 		url.searchParams.has('handoffId') ||
 		url.searchParams.get('flowType') === 'cross_device_qr';
 
+	if (url.pathname === '/app-approval' && hasChallenge) {
+		return `${url.pathname}${url.search}`;
+	}
+
 	if (url.pathname === '/register/accura' && (hasHandoff || hasChallenge)) {
 		return `${url.pathname}${url.search}`;
 	}

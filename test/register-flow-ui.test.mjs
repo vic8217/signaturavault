@@ -262,6 +262,10 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 		new URL('../src/app/app-approval/page.js', import.meta.url),
 		'utf8',
 	);
+	const appApprovalInstallGate = await readFile(
+		new URL('../src/components/AppApprovalInstallGate.js', import.meta.url),
+		'utf8',
+	);
 	const appApprovalApi = await readFile(
 		new URL('../src/app/api/signatura/app-approval/approve/route.ts', import.meta.url),
 		'utf8',
@@ -318,9 +322,18 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(accuraLinkForm, /body: JSON\.stringify\(\{[\s\S]*challengeId/);
 	assert.match(accuraLinkForm, /Approved\. Return to your ACCURA browser\./);
 	assert.match(accuraLinkForm, /The original ACCURA browser window will continue automatically/);
+	assert.match(accuraLinkForm, /callbackFailed/);
+	assert.match(accuraLinkForm, /Approved locally, but ACCURA callback failed/);
 	assert.match(appApprovalPage, /AppApprovalForm/);
+	assert.match(appApprovalPage, /AppApprovalInstallGate/);
 	assert.match(appApprovalPage, /\/register\?next=/);
 	assert.match(appApprovalPage, /SIG-U-/);
+	assert.doesNotMatch(appApprovalPage, /redirect\(`\/register\?next=/);
+	assert.match(appApprovalInstallGate, /getInstalledRelatedApps/);
+	assert.match(appApprovalInstallGate, /display-mode: standalone/);
+	assert.match(appApprovalInstallGate, /beforeinstallprompt/);
+	assert.match(appApprovalInstallGate, /Install Signatura to approve/);
+	assert.match(appApprovalInstallGate, /Create or Open Signatura ID/);
 	assert.match(appApprovalApi, /challengeId/);
 	assert.match(appApprovalApi, /status: 'APPROVED'/);
 	assert.match(appApprovalApi, /verificationToken/);

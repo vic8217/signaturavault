@@ -356,11 +356,13 @@ export async function POST(req: Request) {
 					accuraContext?.handoffTokenId ||
 					'',
 			);
+			const approvedAt = new Date().toISOString();
 			const challengeApprovalCallback = await notifyAccuraChallengeApproval({
 				returnUrl: String(accuraContext?.returnUrl || ''),
 				challengeId,
 				signaturaId: accuraLinkedSignaturaId,
 				verificationToken,
+				approvedAt,
 				status: 'APPROVED',
 			}).catch((error) => ({
 				ok: false,

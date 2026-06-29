@@ -61,6 +61,7 @@ test('pwa launch redirector routes ACCURA handoff launches to approval screen', 
 	assert.match(redirectorSource, /setConsumer/);
 	assert.match(redirectorSource, /targetURL/);
 	assert.match(redirectorSource, /accuraHandoffFromSearchParams/);
+	assert.match(redirectorSource, /\/app-approval/);
 	assert.match(redirectorSource, /\/register\/accura/);
 	assert.match(redirectorSource, /window\.location\.replace\(targetPath\)/);
 	assert.match(serviceWorkerSource, /signatura-v7/);

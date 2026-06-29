@@ -365,11 +365,13 @@ export async function POST(req: Request) {
 		});
 
 		const isCrossDeviceQr = context.flowType !== 'same_device_deeplink';
+		const approvedAt = new Date().toISOString();
 		const challengeApprovalCallback = await notifyAccuraChallengeApproval({
 			returnUrl: context.returnUrl,
 			challengeId: approvedChallengeId,
 			signaturaId: linkedSignaturaId,
 			verificationToken,
+			approvedAt,
 			status: 'APPROVED',
 		}).catch((error) => ({
 			ok: false,
@@ -400,8 +402,10 @@ export async function POST(req: Request) {
 			status: 'APPROVED',
 			challengeId: approvedChallengeId,
 			verificationToken,
+			approvedAt,
 			flowType: context.flowType,
 			originDevice: context.originDevice,
+			callback: challengeApprovalCallback,
 			accuraReturnUrl: isCrossDeviceQr ? '' : accuraReturnUrl,
 			redirectTo: isCrossDeviceQr ? '' : accuraReturnUrl,
 			message: isCrossDeviceQr
