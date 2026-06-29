@@ -35,7 +35,7 @@ function accuraRegisterTargetFromUrl(value) {
 		return `${url.pathname}${url.search}`;
 	}
 
-	if ((url.pathname === '/app' || url.pathname === '/login') && hasAccuraMarker) {
+	if (hasAccuraMarker && hasHandoff) {
 		const handoff = accuraHandoffFromSearchParams(paramsObject(url.searchParams));
 		if (handoff.registerPath) return handoff.registerPath;
 	}

@@ -234,7 +234,7 @@ test('ACCURA handoff token accepts CADM only for validated company-admin registr
 	}
 });
 
-test('ACCURA account registration cannot create a Signatura identity', async () => {
+test('ACCURA account registration creates a Universal Signatura identity only for first-time users', async () => {
 	resetHarness();
 	const restore = withSecret();
 	try {
@@ -257,13 +257,13 @@ test('ACCURA account registration cannot create a Signatura identity', async () 
 		);
 		const body = await response.json();
 
-		assert.equal(response.status, 409);
-		assert.match(body.error, /ACCURA cannot create Signatura identities/i);
-		assert.equal(body.linkRequired, true);
-		assert.equal(body.identityRequired, true);
-		assert.equal(prisma.user.__rows.length, 0);
-		assert.equal(prisma.signaturaAppLink.__rows.length, 0);
-		assert.equal(prisma.accuraRegistrationHandoff.__rows.length, 0);
+		assert.equal(response.status, 200);
+		assert.equal(body.ok, true);
+		assert.match(body.user.signaturaId, /^SIG-U-/);
+		assert.equal(prisma.user.__rows.length, 1);
+		assert.equal(prisma.signaturaAppLink.__rows.length, 1);
+		assert.equal(prisma.accuraRegistrationHandoff.__rows.length, 1);
+		assert.equal(prisma.accuraRegistrationHandoff.__rows[0].status, 'CLAIMED');
 	} finally {
 		restore();
 	}
@@ -320,7 +320,7 @@ test('ACCURA registration requires linking an existing Signatura identity for a 
 	}
 });
 
-test('ACCURA SADM registration also requires an existing Signatura identity', async () => {
+test('ACCURA SADM registration can start first-time Universal Signatura identity setup', async () => {
 	resetHarness();
 	const restore = withSecret();
 	try {
@@ -347,9 +347,10 @@ test('ACCURA SADM registration also requires an existing Signatura identity', as
 		);
 		const body = await response.json();
 
-		assert.equal(response.status, 409);
-		assert.match(body.error, /ACCURA cannot create Signatura identities/i);
-		assert.equal(prisma.user.__rows.length, 0);
+		assert.equal(response.status, 200);
+		assert.equal(body.ok, true);
+		assert.match(body.user.signaturaId, /^SIG-U-/);
+		assert.equal(prisma.user.__rows.length, 1);
 	} finally {
 		restore();
 	}

@@ -19,6 +19,7 @@ export default async function AppInstallPage({ searchParams }) {
 		app: firstParam(params?.app),
 		flowType: firstParam(params?.flowType),
 		originDevice: firstParam(params?.originDevice),
+		requestedRole: firstParam(params?.requestedRole),
 		returnUrl: firstParam(params?.returnUrl),
 		source: firstParam(params?.source),
 		sourceApp: firstParam(params?.sourceApp),

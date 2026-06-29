@@ -392,10 +392,9 @@ test('ACCURA registration lookup is scoped by app company role and contact', asy
 	assert.match(registerRoute, /rolePrefix/);
 	assert.match(registerRoute, /tokenId/);
 	assert.match(registerRoute, /ACCURA company-role Signatura ID already exists/);
-	assert.match(registerRoute, /ACCURA cannot create Signatura identities/);
-	assert.match(registerRoute, /identityRequired: true/);
 	assert.match(registerRoute, /linkRequired: true/);
 	assert.match(registerRoute, /createSignaturaIdentity/);
+	assert.match(registerRoute, /accuraChallengeId/);
 	assert.match(registerRoute, /ensureAccuraMembershipRole/);
 	assert.doesNotMatch(registerRoute, /createUniqueSignaturaId/);
 	assert.doesNotMatch(registerRoute, /createUniqueAccuraSignaturaId/);

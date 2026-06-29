@@ -13,7 +13,13 @@ function accuraHandoffExtras(params = {}) {
 	const extras = {};
 	if (challengeId) extras.challengeId = challengeId;
 
-	for (const key of ['handoffId', 'flowType', 'originDevice', 'returnUrl']) {
+	for (const key of [
+		'handoffId',
+		'flowType',
+		'originDevice',
+		'returnUrl',
+		'requestedRole',
+	]) {
 		const value = normalizeParam(params[key]);
 		if (value) extras[key] = value;
 	}

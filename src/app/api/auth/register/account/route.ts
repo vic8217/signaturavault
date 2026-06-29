@@ -111,9 +111,12 @@ export async function POST(req: Request) {
 		let returnUrl = normalizeExternalReturnUrl(body.returnUrl);
 		let accuraHandoffExpiresAt = '';
 		let accuraRequestId = '';
+		let accuraChallengeId = '';
 		let accuraState = '';
 		let accuraNonce = '';
 		let accuraClientId = 'accura';
+		let accuraOriginDevice = 'desktop';
+		let accuraFlowType = 'cross_device_qr';
 
 		if (registrationSource.source === 'accura' || handoffToken) {
 			if (!handoffToken) {
@@ -152,9 +155,12 @@ export async function POST(req: Request) {
 			returnUrl = context.returnUrl;
 			accuraHandoffExpiresAt = context.expiresAt;
 			accuraRequestId = context.requestId;
+			accuraChallengeId = context.challengeId || context.requestId || context.jti;
 			accuraState = context.state;
 			accuraNonce = context.nonce;
 			accuraClientId = context.clientId;
+			accuraOriginDevice = context.originDevice || 'desktop';
+			accuraFlowType = context.flowType || 'cross_device_qr';
 			await auditAccuraOnboardingEvent({
 				req,
 				action: ACCURA_ONBOARDING_ACTIONS.REQUEST_RECEIVED,
@@ -329,20 +335,6 @@ export async function POST(req: Request) {
 					{ status: 409 },
 				);
 			}
-			return NextResponse.json(
-				{
-					error:
-						'ACCURA cannot create Signatura identities. Create or sign in with your Universal Signatura ID, then approve linking this ACCURA role.',
-					source: 'accura',
-					companyCode,
-					companyName,
-					role,
-					rolePrefix,
-					linkRequired: true,
-					identityRequired: true,
-				},
-				{ status: 409 },
-			);
 		} else {
 			const existing = matchingContactUsers[0];
 			if (existing) {
@@ -380,26 +372,36 @@ export async function POST(req: Request) {
 			const linkedSignaturaId = created.signaturaId;
 			const handoffModel = accuraRegistrationHandoffModel(tx);
 			if (isAccuraRegistration && handoffModel) {
-				try {
+				const updatedHandoff = await handoffModel.updateMany({
+					where: {
+						tokenId,
+						status: 'CLAIMED',
+					},
+					data: {
+						challengeId: accuraChallengeId,
+						userId,
+						signaturaId: linkedSignaturaId,
+					},
+				});
+				if (updatedHandoff.count === 0) {
 					await handoffModel.create({
 						data: {
 							id: crypto.randomUUID(),
 							tokenId,
+							challengeId: accuraChallengeId,
 							registrationKeyId,
 							companyId,
 							companyCode,
 							roleCode: rolePrefix,
 							returnUrl,
+							originDevice: accuraOriginDevice,
+							flowType: accuraFlowType,
 							status: 'CLAIMED',
 							userId,
 							signaturaId: linkedSignaturaId,
 							expiresAt: new Date(accuraHandoffExpiresAt),
 						},
 					});
-				} catch {
-					const error = new Error('ACCURA registration handoff was already used.');
-					(error as Error & { status?: number }).status = 409;
-					throw error;
 				}
 			}
 
@@ -451,7 +453,10 @@ export async function POST(req: Request) {
 									accuraRegistrationKeyId: registrationKeyId,
 									returnUrl,
 									handoffTokenId: tokenId,
+									challengeId: accuraChallengeId,
 									requestId: accuraRequestId || tokenId,
+									originDevice: accuraOriginDevice,
+									flowType: accuraFlowType,
 									state: accuraState,
 									nonce: accuraNonce,
 									clientId: accuraClientId,

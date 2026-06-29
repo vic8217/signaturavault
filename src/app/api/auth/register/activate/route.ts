@@ -5,6 +5,7 @@ import { jsonError, safeApiErrorMessage } from '@/lib/api';
 import { userPublicIdentity, resolveAccuraLinkedSignaturaId } from '@/lib/identity';
 import {
 	buildAccuraRegistrationReturnUrl,
+	notifyAccuraChallengeApproval,
 	notifyAccuraRegistrationCallback,
 } from '@/lib/accuraRegistrationHandoff';
 import {
@@ -273,7 +274,7 @@ export async function POST(req: Request) {
 						status: 'CLAIMED',
 					},
 					data: {
-						status: 'COMPLETED',
+						status: 'PROCESSING',
 						completedAt: new Date(),
 					},
 				});
@@ -342,6 +343,42 @@ export async function POST(req: Request) {
 		}
 
 		if (accuraReturnUrl) {
+			let verificationToken = '';
+			try {
+				verificationToken =
+					new URL(accuraReturnUrl).searchParams.get('authorizationCode') || '';
+			} catch {
+				verificationToken = '';
+			}
+			const challengeId = String(
+				accuraContext?.challengeId ||
+					accuraContext?.requestId ||
+					accuraContext?.handoffTokenId ||
+					'',
+			);
+			await notifyAccuraChallengeApproval({
+				returnUrl: String(accuraContext?.returnUrl || ''),
+				challengeId,
+				signaturaId: accuraLinkedSignaturaId,
+				verificationToken,
+				status: 'APPROVED',
+			}).catch(() => null);
+			await accuraRegistrationHandoffModel()?.updateMany({
+				where: {
+					OR: [
+						{ tokenId: accuraContext?.handoffTokenId },
+						{ challengeId },
+					],
+					status: 'PROCESSING',
+				},
+				data: {
+					status: 'APPROVED',
+					approvedAt: new Date(),
+					completedAt: new Date(),
+					signaturaId: accuraLinkedSignaturaId,
+					verificationToken,
+				},
+			});
 			await notifyAccuraRegistrationCallback(accuraReturnUrl).catch(() => null);
 		}
 
