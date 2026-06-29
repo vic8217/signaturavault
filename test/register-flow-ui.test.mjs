@@ -283,6 +283,9 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(accuraLinkForm, /SYSTEM_ADMIN/);
 	assert.match(accuraLinkForm, /'Approve'/);
 	assert.match(accuraLinkForm, /Cancel/);
+	assert.match(accuraLinkForm, /approvedCrossDevice/);
+	assert.match(accuraLinkForm, /Approved\. Return to your ACCURA browser\./);
+	assert.match(accuraLinkForm, /The original ACCURA browser window will continue automatically/);
 	assert.match(registerForm, /Link your SIGNATURA ID to ACCURA/);
 	assert.match(registerForm, /Registering for ACCURA company access/);
 	assert.match(registerForm, /canShowIssuerRegistrationLink/);

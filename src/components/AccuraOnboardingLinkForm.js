@@ -25,6 +25,7 @@ export function AccuraOnboardingLinkForm({
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [approvedCrossDevice, setApprovedCrossDevice] = useState(false);
 	const requestedRole =
 		rolePrefix === 'SADM'
 			? 'SYSTEM_ADMIN'
@@ -79,17 +80,14 @@ export function AccuraOnboardingLinkForm({
 
 			storeTrustedDeviceSignaturaId(signaturaId);
 			if (linkData.flowType !== 'same_device_deeplink') {
-				setStatus(
-					linkData.message ||
-						'Approved successfully. You may return to the original ACCURA browser window.',
-				);
+				setApprovedCrossDevice(true);
+				setStatus('Approved. Return to your ACCURA browser.');
 				return;
 			}
 			const destination = linkData.accuraReturnUrl || linkData.redirectTo || '/';
 			if (isPhoneUnreachableAccuraReturnUrl(destination) && isMobileRegistrationClient()) {
-				setStatus(
-					'Approved successfully. You may return to the original ACCURA browser window.',
-				);
+				setApprovedCrossDevice(true);
+				setStatus('Approved. Return to your ACCURA browser.');
 				return;
 			}
 			setStatus('Signatura ID linked. Returning to ACCURA...');
@@ -104,6 +102,43 @@ export function AccuraOnboardingLinkForm({
 		} finally {
 			setIsSubmitting(false);
 		}
+	}
+
+	if (approvedCrossDevice) {
+		return (
+			<section className="mx-auto w-full max-w-2xl rounded-2xl border border-emerald-400/30 bg-slate-950/90 p-6 text-white shadow-2xl">
+				<div className="flex items-center gap-4">
+					<span className="grid h-12 w-12 place-items-center text-emerald-300">
+						<ShieldCheck className="h-8 w-8" aria-hidden="true" />
+					</span>
+					<div>
+						<p className="text-sm font-bold uppercase tracking-[0.18em] text-emerald-200">
+							ACCURA approval
+						</p>
+						<h1 className="mt-1 text-2xl font-black">
+							Approved. Return to your ACCURA browser.
+						</h1>
+					</div>
+				</div>
+				<div className="mt-4 grid gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
+					<p>
+						Universal ID:{' '}
+						<span className="font-mono text-white">{signaturaId || 'Not available'}</span>
+					</p>
+					<p>
+						Application: <span className="font-mono text-white">ACCURA</span>
+					</p>
+					<p>
+						Requested Role:{' '}
+						<span className="font-mono text-white">{requestedRole || 'STAFF'}</span>
+					</p>
+				</div>
+				<p className="mt-4 rounded-lg border border-emerald-400/25 bg-emerald-500/10 p-4 text-sm text-emerald-50">
+					The original ACCURA browser window will continue automatically after it
+					detects this approval.
+				</p>
+			</section>
+		);
 	}
 
 	return (
