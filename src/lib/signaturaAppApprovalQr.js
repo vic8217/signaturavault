@@ -52,7 +52,8 @@ function validApprovalPayload(payload) {
 	const challengeId = normalizeChallengeId(payload.challengeId);
 	const app = normalizeApp(payload.app);
 	const requestedRole = normalizeRole(payload.requestedRole || payload.role);
-	if (!challengeId || !SUPPORTED_APPS.has(app) || !requestedRole) {
+	const callbackUrl = normalizeCallbackUrl(payload.callbackUrl);
+	if (!challengeId || !SUPPORTED_APPS.has(app) || !requestedRole || !callbackUrl) {
 		return null;
 	}
 	return {
@@ -62,7 +63,7 @@ function validApprovalPayload(payload) {
 		app,
 		requestedRole,
 		flowType: normalizeFlowType(payload.flowType),
-		callbackUrl: normalizeCallbackUrl(payload.callbackUrl),
+		callbackUrl,
 	};
 }
 

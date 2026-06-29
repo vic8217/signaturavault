@@ -46,7 +46,7 @@ export default async function AppApprovalPage({ searchParams }) {
 		Number(session.trustLevel || 0) >= 2 &&
 		String(session.signaturaId || '').startsWith('SIG-U-');
 
-	if (!challengeId || app !== 'ACCURA' || !requestedRole) {
+	if (!challengeId || app !== 'ACCURA' || !requestedRole || !callbackUrl) {
 		return (
 			<main className="min-h-screen bg-slate-950 px-4 py-10 text-white">
 				<section className="mx-auto max-w-2xl rounded-2xl border border-red-500/30 bg-slate-950/90 p-6">

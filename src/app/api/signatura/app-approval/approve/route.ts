@@ -105,6 +105,7 @@ export async function POST(req: Request) {
 		if (!challengeId) return jsonError('challengeId is required', 400);
 		if (app !== 'ACCURA') return jsonError('Unsupported application approval app', 400);
 		if (!requestedRole) return jsonError('requestedRole is required', 400);
+		if (!callbackUrl) return jsonError('callbackUrl is required', 400);
 
 		const rolePrefix = rolePrefixForRequestedRole(requestedRole);
 		const verificationToken = crypto.randomBytes(32).toString('base64url');
