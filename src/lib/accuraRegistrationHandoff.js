@@ -532,6 +532,39 @@ async function notifyAccuraRegistrationCallback(accuraReturnUrl) {
 
 const ACCURA_CHALLENGE_APPROVE_PATH = '/api/signatura/challenge-approve';
 
+function accuraChallengeApproveHeaders() {
+	const headers = { 'content-type': 'application/json' };
+	const explicitAuth = String(
+		process.env.ACCURA_CHALLENGE_APPROVE_AUTH_HEADER || '',
+	).trim();
+	if (explicitAuth) {
+		headers.Authorization = explicitAuth;
+		return headers;
+	}
+
+	const bearerToken = String(
+		process.env.ACCURA_CHALLENGE_APPROVE_BEARER_TOKEN || '',
+	).trim();
+	if (bearerToken) {
+		headers.Authorization = `Bearer ${bearerToken}`;
+		return headers;
+	}
+
+	const basicUser = String(
+		process.env.ACCURA_CHALLENGE_APPROVE_BASIC_USER || '',
+	).trim();
+	const basicPassword = String(
+		process.env.ACCURA_CHALLENGE_APPROVE_BASIC_PASSWORD || '',
+	);
+	if (basicUser && basicPassword) {
+		headers.Authorization = `Basic ${Buffer.from(
+			`${basicUser}:${basicPassword}`,
+		).toString('base64')}`;
+	}
+
+	return headers;
+}
+
 function normalizeConfiguredAccuraChallengeApproveUrl(configured) {
 	const raw = String(configured || '').trim();
 	if (!raw) return '';
@@ -634,7 +667,7 @@ async function notifyAccuraAppApprovalCallback({
 			const response = await fetch(target, {
 				method: 'POST',
 				cache: 'no-store',
-				headers: { 'content-type': 'application/json' },
+				headers: accuraChallengeApproveHeaders(),
 				body: JSON.stringify(body),
 			});
 			const responseBody = await response.text().catch(() => '');
@@ -714,7 +747,7 @@ async function notifyAccuraChallengeApproval({
 		const response = await fetch(target, {
 			method: 'POST',
 			cache: 'no-store',
-			headers: { 'content-type': 'application/json' },
+			headers: accuraChallengeApproveHeaders(),
 			body: JSON.stringify(body),
 		});
 		const responseBody = await response.text().catch(() => '');

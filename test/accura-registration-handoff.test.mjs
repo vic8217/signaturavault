@@ -176,6 +176,63 @@ test('ACCURA challenge approval callback posts the exact polled challengeId', as
 	}
 });
 
+test('ACCURA challenge approval callback can include configured basic auth', async () => {
+	const previousFetch = globalThis.fetch;
+	const previousApproveUrl = process.env.ACCURA_CHALLENGE_APPROVE_URL;
+	const previousAllowedOrigins = process.env.ACCURA_ALLOWED_ORIGINS;
+	const previousUser = process.env.ACCURA_CHALLENGE_APPROVE_BASIC_USER;
+	const previousPassword = process.env.ACCURA_CHALLENGE_APPROVE_BASIC_PASSWORD;
+	const calls = [];
+	globalThis.fetch = async (url, options) => {
+		calls.push({ url: String(url), options });
+		return new Response(JSON.stringify({ ok: true, status: 'APPROVED' }), {
+			status: 200,
+		});
+	};
+	delete process.env.ACCURA_CHALLENGE_APPROVE_URL;
+	process.env.ACCURA_ALLOWED_ORIGINS = 'https://accura-sandbox.nouvoux.com';
+	process.env.ACCURA_CHALLENGE_APPROVE_BASIC_USER = 'sandbox-user';
+	process.env.ACCURA_CHALLENGE_APPROVE_BASIC_PASSWORD = 'sandbox-pass';
+
+	try {
+		const result = await notifyAccuraChallengeApproval({
+			returnUrl: 'https://accura-sandbox.nouvoux.com/register/callback',
+			challengeId: '6278cc54-e8c8-4cc6-9efa-e498f79b47d3',
+			signaturaId: 'SIG-U-B64A-3A1A',
+			verificationToken: 'verification-token-2',
+			status: 'APPROVED',
+		});
+
+		assert.equal(result.ok, true);
+		assert.equal(
+			calls[0].options.headers.Authorization,
+			`Basic ${Buffer.from('sandbox-user:sandbox-pass').toString('base64')}`,
+		);
+	} finally {
+		globalThis.fetch = previousFetch;
+		if (previousApproveUrl === undefined) {
+			delete process.env.ACCURA_CHALLENGE_APPROVE_URL;
+		} else {
+			process.env.ACCURA_CHALLENGE_APPROVE_URL = previousApproveUrl;
+		}
+		if (previousAllowedOrigins === undefined) {
+			delete process.env.ACCURA_ALLOWED_ORIGINS;
+		} else {
+			process.env.ACCURA_ALLOWED_ORIGINS = previousAllowedOrigins;
+		}
+		if (previousUser === undefined) {
+			delete process.env.ACCURA_CHALLENGE_APPROVE_BASIC_USER;
+		} else {
+			process.env.ACCURA_CHALLENGE_APPROVE_BASIC_USER = previousUser;
+		}
+		if (previousPassword === undefined) {
+			delete process.env.ACCURA_CHALLENGE_APPROVE_BASIC_PASSWORD;
+		} else {
+			process.env.ACCURA_CHALLENGE_APPROVE_BASIC_PASSWORD = previousPassword;
+		}
+	}
+});
+
 test('ACCURA handoff token rejects tampering and CADM staff-key escalation', () => {
 	const restore = withSecret();
 	try {
