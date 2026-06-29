@@ -258,6 +258,14 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 		new URL('../src/components/AccuraOnboardingLinkForm.js', import.meta.url),
 		'utf8',
 	);
+	const appApprovalPage = await readFile(
+		new URL('../src/app/app-approval/page.js', import.meta.url),
+		'utf8',
+	);
+	const appApprovalApi = await readFile(
+		new URL('../src/app/api/signatura/app-approval/approve/route.ts', import.meta.url),
+		'utf8',
+	);
 	const registerRoute = await readFile(
 		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
 		'utf8',
@@ -306,6 +314,13 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(accuraLinkForm, /body: JSON\.stringify\(\{[\s\S]*challengeId/);
 	assert.match(accuraLinkForm, /Approved\. Return to your ACCURA browser\./);
 	assert.match(accuraLinkForm, /The original ACCURA browser window will continue automatically/);
+	assert.match(appApprovalPage, /AppApprovalForm/);
+	assert.match(appApprovalPage, /\/register\?next=/);
+	assert.match(appApprovalPage, /SIG-U-/);
+	assert.match(appApprovalApi, /challengeId/);
+	assert.match(appApprovalApi, /status: 'APPROVED'/);
+	assert.match(appApprovalApi, /verificationToken/);
+	assert.match(appApprovalApi, /ensureAccuraMembershipRole/);
 	assert.match(registerForm, /Link your SIGNATURA ID to ACCURA/);
 	assert.match(registerForm, /Registering for ACCURA company access/);
 	assert.match(registerForm, /canShowIssuerRegistrationLink/);

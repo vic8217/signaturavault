@@ -7,6 +7,7 @@ import {
 	parseAccuraLoginQr,
 	parseAccuraRegistrationQr,
 } from '@/lib/accuraQrPayload.js';
+import { parseSignaturaAppApprovalQr } from '@/lib/signaturaAppApprovalQr.js';
 import {
 	fetchAccuraQrLoginChallenge,
 	postAccuraQrLoginApproval,
@@ -64,6 +65,38 @@ test('ACCURA registration QR parser accepts register/accura handoff links', () =
 		).valid,
 		false,
 	);
+});
+
+test('Signatura app approval QR parser accepts official ACCURA URL and JSON contracts', () => {
+	const urlPayload = parseSignaturaAppApprovalQr(
+		'https://signatura-sandbox.nouvoux.com/app-approval?challengeId=challenge-url-1&app=ACCURA&role=SYSTEM_ADMIN&flowType=cross_device_qr',
+	);
+	assert.equal(urlPayload.valid, true);
+	assert.equal(urlPayload.challengeId, 'challenge-url-1');
+	assert.equal(urlPayload.app, 'ACCURA');
+	assert.equal(urlPayload.requestedRole, 'SYSTEM_ADMIN');
+	assert.equal(
+		urlPayload.href,
+		'/app-approval?challengeId=challenge-url-1&app=ACCURA&requestedRole=SYSTEM_ADMIN&flowType=cross_device_qr',
+	);
+
+	const jsonPayload = parseSignaturaAppApprovalQr(
+		JSON.stringify({
+			type: 'SIGNATURA_APP_APPROVAL',
+			version: 1,
+			challengeId: 'challenge-json-1',
+			app: 'ACCURA',
+			requestedRole: 'SYSTEM_ADMIN',
+			flowType: 'cross_device_qr',
+			callbackUrl:
+				'https://accura-sandbox.nouvoux.com/api/signatura/challenge-approve',
+		}),
+	);
+	assert.equal(jsonPayload.valid, true);
+	assert.equal(jsonPayload.challengeId, 'challenge-json-1');
+	assert.equal(jsonPayload.callbackUrl, 'https://accura-sandbox.nouvoux.com/api/signatura/challenge-approve');
+	assert.match(jsonPayload.href, /^\/app-approval\?/);
+	assert.match(jsonPayload.href, /callbackUrl=/);
 });
 
 test('ACCURA QR parser rejects wrong app, missing pointers, and sensitive material', () => {

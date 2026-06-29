@@ -37,6 +37,9 @@ test('PWA QR scanner prefers native BarcodeDetector and scans the viewfinder reg
 	assert.match(source, /removeHtml5QrShading/);
 	assert.match(source, /useBarCodeDetectorIfSupported: canUseNativeBarcodeDetector\(\)/);
 	assert.match(source, /shouldAutoContinueScan/);
+	assert.match(source, /parseSignaturaAppApprovalQr/);
+	assert.match(source, /kind: 'app-approval'/);
+	assert.match(source, /Approve \$\{appApprovalQr\.app\} access/);
 	assert.match(source, /Promise\.all\(\[[\s\S]*loadQrDecoder/);
 	assert.doesNotMatch(source, /setTimeout\(\(\) => void startCamera\(\), 80\)/);
 	assert.match(source, /scanFile\(file, false\)/);

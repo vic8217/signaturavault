@@ -19,6 +19,7 @@ import {
 	parseAccuraLoginQr,
 	parseAccuraRegistrationQr,
 } from '@/lib/accuraQrPayload';
+import { parseSignaturaAppApprovalQr } from '@/lib/signaturaAppApprovalQr';
 import { extractTokenFromInput } from '@/lib/verify-token';
 
 let qrDecoderModulePromise;
@@ -184,6 +185,21 @@ function classifyPayload(payload, accuraLoginOnly = false) {
 			details: {
 				Purpose: 'Register ACCURA company admin identity',
 				'Request source': 'ACCURA',
+			},
+		};
+	}
+	const appApprovalQr = parseSignaturaAppApprovalQr(raw);
+	if (appApprovalQr.valid) {
+		return {
+			kind: 'app-approval',
+			label: `${appApprovalQr.app} Approval Request`,
+			payload: raw,
+			href: appApprovalQr.href,
+			details: {
+				Purpose: `Approve ${appApprovalQr.app} access`,
+				Application: appApprovalQr.app,
+				'Requested role': appApprovalQr.requestedRole,
+				'Request source': appApprovalQr.app,
 			},
 		};
 	}
