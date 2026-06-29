@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'signatura-v6';
+const CACHE_VERSION = 'signatura-v7';
 const ASSETS_TO_CACHE = [
 	'/manifest.json',
 	'/offline.html',

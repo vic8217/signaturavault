@@ -43,6 +43,27 @@ test('homepage shows mobile install alert and installed app starts at login', as
 	assert.match(alertSource, /Home-screen launches open directly to/);
 	assert.equal(manifest.start_url, '/login');
 	assert.equal(manifest.display, 'standalone');
+	assert.equal(manifest.launch_handler.client_mode, 'navigate-existing');
+});
+
+test('pwa launch redirector routes ACCURA handoff launches to approval screen', async () => {
+	const [layoutSource, redirectorSource, serviceWorkerSource] = await Promise.all([
+		readFile(new URL('../src/app/layout.js', import.meta.url), 'utf8'),
+		readFile(
+			new URL('../src/components/PwaLaunchRedirector.js', import.meta.url),
+			'utf8',
+		),
+		readFile(new URL('../public/sw.js', import.meta.url), 'utf8'),
+	]);
+
+	assert.match(layoutSource, /PwaLaunchRedirector/);
+	assert.match(redirectorSource, /window\.launchQueue/);
+	assert.match(redirectorSource, /setConsumer/);
+	assert.match(redirectorSource, /targetURL/);
+	assert.match(redirectorSource, /accuraHandoffFromSearchParams/);
+	assert.match(redirectorSource, /\/register\/accura/);
+	assert.match(redirectorSource, /window\.location\.replace\(targetPath\)/);
+	assert.match(serviceWorkerSource, /signatura-v7/);
 });
 
 test('QR login app gate preserves challenge and falls back to logged-out scanner', async () => {

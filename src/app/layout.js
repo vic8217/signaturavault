@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
+import { PwaLaunchRedirector } from '@/components/PwaLaunchRedirector';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 
 const geistSans = Geist({
@@ -69,6 +70,7 @@ export default function RootLayout({ children }) {
 			</head>
 			<body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">
 				<ServiceWorkerRegister />
+				<PwaLaunchRedirector />
 				{children}
 			</body>
 		</html>
