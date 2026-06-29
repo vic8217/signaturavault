@@ -3,7 +3,20 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
+import {
+	browserSupportsWebAuthn,
+	startAuthentication,
+} from '@simplewebauthn/browser';
 import { signaturaApiRequest } from '@/lib/registration-api-client';
+
+const HIGH_RISK_ROLES = new Set([
+	'SYSTEM_ADMIN',
+	'COMPANY_ADMIN',
+	'INVOICE_ISSUER',
+	'ACCOUNTING_ADMIN',
+	'HR_ADMIN',
+	'PAYROLL_ADMIN',
+]);
 
 export function AppApprovalForm({
 	challengeId,
@@ -17,13 +30,44 @@ export function AppApprovalForm({
 	const [error, setError] = useState('');
 	const [isApproving, setIsApproving] = useState(false);
 	const [approved, setApproved] = useState(false);
+	const [callbackFailed, setCallbackFailed] = useState(false);
+	const isHighRisk = HIGH_RISK_ROLES.has(String(requestedRole || '').toUpperCase());
 
 	async function approve() {
 		if (isApproving || !challengeId || !signaturaId) return;
 		setIsApproving(true);
 		setError('');
-		setStatus('Approving request...');
+		setCallbackFailed(false);
+		setStatus(
+			isHighRisk
+				? 'Confirm with your biometric, device PIN, or Signatura passkey...'
+				: 'Approving request...',
+		);
 		try {
+			let assertion = null;
+			if (isHighRisk) {
+				if (!browserSupportsWebAuthn()) {
+					throw new Error('This browser does not support passkey approval.');
+				}
+				const { response: startResponse, data: startData } =
+					await signaturaApiRequest(
+						'/api/auth/login/start',
+						{
+							method: 'POST',
+							body: JSON.stringify({ signaturaId }),
+						},
+						'ACCURA approval step-up start',
+					);
+				if (!startResponse.ok) {
+					throw new Error(
+						startData?.error || 'Unable to start passkey approval.',
+					);
+				}
+				assertion = await startAuthentication({
+					optionsJSON: startData.options,
+				});
+				setStatus('Passkey verified. Sending approval to ACCURA...');
+			}
 			const { response, data } = await signaturaApiRequest(
 				'/api/signatura/app-approval/approve',
 				{
@@ -34,6 +78,7 @@ export function AppApprovalForm({
 						requestedRole,
 						flowType,
 						callbackUrl,
+						response: assertion,
 					}),
 				},
 				'Signatura app approval',
@@ -42,6 +87,11 @@ export function AppApprovalForm({
 				throw new Error(data?.error || 'Unable to approve request.');
 			}
 			setApproved(true);
+			if (data?.callback?.ok === false) {
+				setCallbackFailed(true);
+				setStatus('Approved locally, but ACCURA callback failed.');
+				return;
+			}
 			setStatus(`Approved. Return to your ${app} browser.`);
 		} catch (approvalError) {
 			setStatus('');
@@ -57,17 +107,19 @@ export function AppApprovalForm({
 
 	if (approved) {
 		return (
-			<section className="mx-auto w-full max-w-2xl rounded-2xl border border-emerald-400/30 bg-slate-950/90 p-6 text-white shadow-2xl">
+			<section className={`mx-auto w-full max-w-2xl rounded-2xl border ${callbackFailed ? 'border-amber-400/30' : 'border-emerald-400/30'} bg-slate-950/90 p-6 text-white shadow-2xl`}>
 				<div className="flex items-center gap-4">
-					<span className="grid h-12 w-12 place-items-center text-emerald-300">
+					<span className={`grid h-12 w-12 place-items-center ${callbackFailed ? 'text-amber-300' : 'text-emerald-300'}`}>
 						<ShieldCheck className="h-8 w-8" aria-hidden="true" />
 					</span>
 					<div>
-						<p className="text-sm font-bold uppercase tracking-[0.18em] text-emerald-200">
+						<p className={`text-sm font-bold uppercase tracking-[0.18em] ${callbackFailed ? 'text-amber-200' : 'text-emerald-200'}`}>
 							{app} approval
 						</p>
 						<h1 className="mt-1 text-2xl font-black">
-							Approved. Return to your {app} browser.
+							{callbackFailed
+								? 'Approved locally, but ACCURA callback failed.'
+								: `Approved. Return to your ${app} browser.`}
 						</h1>
 					</div>
 				</div>

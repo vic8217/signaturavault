@@ -266,6 +266,10 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 		new URL('../src/app/api/signatura/app-approval/approve/route.ts', import.meta.url),
 		'utf8',
 	);
+	const appApprovalForm = await readFile(
+		new URL('../src/components/AppApprovalForm.js', import.meta.url),
+		'utf8',
+	);
 	const registerRoute = await readFile(
 		new URL('../src/app/api/auth/register/account/route.ts', import.meta.url),
 		'utf8',
@@ -320,7 +324,18 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(appApprovalApi, /challengeId/);
 	assert.match(appApprovalApi, /status: 'APPROVED'/);
 	assert.match(appApprovalApi, /verificationToken/);
+	assert.match(appApprovalApi, /approvedAt/);
+	assert.match(appApprovalApi, /HIGH_RISK_ROLES/);
+	assert.match(appApprovalApi, /verifyAuthenticationResponse/);
+	assert.match(appApprovalApi, /Passkey approval is required for this ACCURA role/);
+	assert.match(appApprovalApi, /authenticationMethod/);
+	assert.match(appApprovalApi, /deviceId/);
+	assert.match(appApprovalApi, /app_approval_completed/);
 	assert.match(appApprovalApi, /ensureAccuraMembershipRole/);
+	assert.match(appApprovalForm, /startAuthentication/);
+	assert.match(appApprovalForm, /HIGH_RISK_ROLES/);
+	assert.match(appApprovalForm, /Approved locally, but ACCURA callback failed/);
+	assert.match(accuraLinkForm, /Approved\. Return to your ACCURA browser\./);
 	assert.match(registerForm, /Link your SIGNATURA ID to ACCURA/);
 	assert.match(registerForm, /Registering for ACCURA company access/);
 	assert.match(registerForm, /canShowIssuerRegistrationLink/);

@@ -83,6 +83,7 @@ test('ACCURA challenge approval callback updates exact polled challenge record',
 			signaturaId: 'SIG-U-B64A-3A1A',
 			status: 'APPROVED',
 			verificationToken: 'verification-token-callback',
+			approvedAt: '2026-06-29T02:43:00.000Z',
 		}),
 	);
 	const approveBody = await approve.json();
@@ -100,6 +101,7 @@ test('ACCURA challenge approval callback updates exact polled challenge record',
 	assert.equal(polledBody.status, 'APPROVED');
 	assert.equal(polledBody.signaturaId, 'SIG-U-B64A-3A1A');
 	assert.equal(polledBody.verificationToken, 'verification-token-callback');
+	assert.equal(polledBody.approvedAt, '2026-06-29T02:43:00.000Z');
 	assert.equal(
 		prisma.accuraRegistrationHandoff.__rows[0].challengeId,
 		'6cc232f4-0a1d-43b1-9ba1-58fbf416ff92',

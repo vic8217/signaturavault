@@ -20,6 +20,9 @@ export async function POST(req: Request) {
 		const signaturaId = normalizeSignaturaId(body.signaturaId);
 		const verificationToken = normalizeVerificationToken(body.verificationToken);
 		const status = String(body.status || 'APPROVED').trim().toUpperCase();
+		const requestedApprovedAt = body.approvedAt
+			? new Date(String(body.approvedAt))
+			: null;
 
 		if (!challengeId) return jsonError('challengeId is required', 400);
 		if (status !== 'APPROVED') return jsonError('status must be APPROVED', 400);
@@ -43,7 +46,10 @@ export async function POST(req: Request) {
 			return jsonError('ACCURA challenge was not found', 404);
 		}
 
-		const approvedAt = new Date();
+		const approvedAt =
+			requestedApprovedAt && Number.isFinite(requestedApprovedAt.getTime())
+				? requestedApprovedAt
+				: new Date();
 		const updated = await prisma.accuraRegistrationHandoff.updateMany({
 			where: { challengeId },
 			data: {

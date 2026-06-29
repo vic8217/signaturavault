@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { verifyAuthenticationResponse } from '@simplewebauthn/server';
 import { prisma } from '@/lib/prisma';
 import { jsonError, safeApiErrorMessage } from '@/lib/api';
 import { requireSession } from '@/lib/session';
@@ -9,6 +10,21 @@ import {
 	normalizeRole,
 } from '@/lib/signaturaAppApprovalQr';
 import { ensureAccuraMembershipRole } from '@/lib/universalIdentity';
+import {
+	assertSecureWebAuthnRequest,
+	getOrigin,
+	getRpID,
+	logSecurityEvent,
+} from '@/lib/webauthn';
+
+const HIGH_RISK_ROLES = new Set([
+	'SYSTEM_ADMIN',
+	'COMPANY_ADMIN',
+	'INVOICE_ISSUER',
+	'ACCOUNTING_ADMIN',
+	'HR_ADMIN',
+	'PAYROLL_ADMIN',
+]);
 
 function rolePrefixForRequestedRole(role: string) {
 	if (role === 'SYSTEM_ADMIN') return 'SADM';
@@ -34,11 +50,13 @@ async function postApprovalCallback({
 	challengeId,
 	signaturaId,
 	verificationToken,
+	approvedAt,
 }: {
 	callbackUrl: string;
 	challengeId: string;
 	signaturaId: string;
 	verificationToken: string;
+	approvedAt: string;
 }) {
 	if (!callbackUrl) return { ok: false, skipped: true };
 	const body = {
@@ -46,6 +64,7 @@ async function postApprovalCallback({
 		signaturaId,
 		status: 'APPROVED',
 		verificationToken,
+		approvedAt,
 	};
 	console.info('[signatura.app_approval.callback.sending]', {
 		challengeId,
@@ -86,6 +105,7 @@ async function postApprovalCallback({
 
 export async function POST(req: Request) {
 	try {
+		assertSecureWebAuthnRequest(req);
 		const session = await requireSession();
 		if (
 			!session?.userId ||
@@ -102,13 +122,113 @@ export async function POST(req: Request) {
 		const requestedRole = normalizeRole(body.requestedRole || body.role);
 		const flowType = normalizeFlowType(body.flowType);
 		const callbackUrl = normalizeCallbackUrl(body.callbackUrl);
+		const assertion = body.response || body.assertion || null;
 		if (!challengeId) return jsonError('challengeId is required', 400);
 		if (app !== 'ACCURA') return jsonError('Unsupported application approval app', 400);
 		if (!requestedRole) return jsonError('requestedRole is required', 400);
 		if (!callbackUrl) return jsonError('callbackUrl is required', 400);
 
 		const rolePrefix = rolePrefixForRequestedRole(requestedRole);
+		const isHighRisk = HIGH_RISK_ROLES.has(requestedRole);
+		let authenticationMethod = 'trusted_session';
+		let deviceId = '';
+		if (isHighRisk) {
+			if (!assertion) {
+				await logSecurityEvent(req, 'app_approval_step_up_failed', session.userId, {
+					signaturaId: session.signaturaId,
+					app,
+					requestedRole,
+					challengeId,
+					result: 'FAILED',
+					reason: 'missing_assertion',
+				});
+				return jsonError('Passkey approval is required for this ACCURA role', 401);
+			}
+
+			const authChallenge = await prisma.authChallenge.findFirst({
+				where: {
+					userId: session.userId,
+					type: 'LOGIN_PASSKEY',
+					usedAt: null,
+					expiresAt: { gt: new Date() },
+				},
+				orderBy: { createdAt: 'desc' },
+			});
+			if (!authChallenge) {
+				await logSecurityEvent(req, 'app_approval_step_up_failed', session.userId, {
+					signaturaId: session.signaturaId,
+					app,
+					requestedRole,
+					challengeId,
+					result: 'FAILED',
+					reason: 'missing_challenge',
+				});
+				return jsonError('Passkey login challenge expired. Start again.', 401);
+			}
+
+			const credential = await prisma.webAuthnCredential.findFirst({
+				where: {
+					userId: session.userId,
+					credentialId: String(assertion?.id || ''),
+				},
+			});
+			if (!credential || !credential.isTrusted) {
+				await logSecurityEvent(req, 'app_approval_step_up_failed', session.userId, {
+					signaturaId: session.signaturaId,
+					app,
+					requestedRole,
+					challengeId,
+					result: 'FAILED',
+					reason: 'untrusted_credential',
+				});
+				return jsonError('No trusted passkey is registered for this account', 401);
+			}
+
+			const verification = await verifyAuthenticationResponse({
+				response: assertion,
+				expectedChallenge: authChallenge.challenge,
+				expectedOrigin: getOrigin(req),
+				expectedRPID: getRpID(req),
+				requireUserVerification: true,
+				credential: {
+					id: credential.credentialId,
+					publicKey: credential.publicKey,
+					counter: credential.counter,
+					transports: credential.transports as never,
+				},
+			});
+			if (!verification.verified) {
+				await logSecurityEvent(req, 'app_approval_step_up_failed', session.userId, {
+					signaturaId: session.signaturaId,
+					app,
+					requestedRole,
+					challengeId,
+					deviceId: credential.id,
+					result: 'FAILED',
+					reason: 'verification_failed',
+				});
+				return jsonError('Passkey approval could not be verified', 401);
+			}
+			const now = new Date();
+			await prisma.$transaction([
+				prisma.authChallenge.update({
+					where: { id: authChallenge.id },
+					data: { usedAt: now },
+				}),
+				prisma.webAuthnCredential.update({
+					where: { id: credential.id },
+					data: {
+						counter: verification.authenticationInfo.newCounter,
+						lastUsedAt: now,
+					},
+				}),
+			]);
+			authenticationMethod = 'webauthn_passkey';
+			deviceId = credential.id;
+		}
+
 		const verificationToken = crypto.randomBytes(32).toString('base64url');
+		const approvedAt = new Date().toISOString();
 
 		await prisma.$transaction(async (tx) => {
 			const existingLink = await tx.signaturaAppLink.findFirst({
@@ -128,7 +248,9 @@ export async function POST(req: Request) {
 				requestedRole,
 				flowType,
 				callbackUrl,
-				approvedAt: new Date().toISOString(),
+				approvedAt,
+				authenticationMethod,
+				deviceId,
 				masterSignaturaId: session.signaturaId,
 			};
 
@@ -176,6 +298,18 @@ export async function POST(req: Request) {
 			challengeId,
 			signaturaId: session.signaturaId,
 			verificationToken,
+			approvedAt,
+		});
+
+		await logSecurityEvent(req, 'app_approval_completed', session.userId, {
+			signaturaId: session.signaturaId,
+			app,
+			requestedRole,
+			challengeId,
+			approvalTime: approvedAt,
+			authenticationMethod,
+			deviceId,
+			result: callback.ok === false ? 'CALLBACK_FAILED' : 'SUCCESS',
 		});
 
 		return Response.json({
@@ -184,6 +318,7 @@ export async function POST(req: Request) {
 			challengeId,
 			signaturaId: session.signaturaId,
 			verificationToken,
+			approvedAt,
 			flowType,
 			callback,
 			message: `Approved. Return to your ${app} browser.`,
