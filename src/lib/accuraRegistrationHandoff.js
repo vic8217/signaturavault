@@ -526,14 +526,37 @@ async function notifyAccuraChallengeApproval({
 	};
 
 	try {
+		console.info('[signatura.accura.registration.callback.sending]', {
+			challengeId: resolvedChallengeId,
+			target,
+			status,
+		});
 		const response = await fetch(target, {
 			method: 'POST',
 			cache: 'no-store',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify(body),
 		});
-		return { ok: response.ok, status: response.status, target };
+		const responseBody = await response.text().catch(() => '');
+		console.info('[signatura.accura.registration.callback.response]', {
+			challengeId: resolvedChallengeId,
+			target,
+			status: response.status,
+			ok: response.ok,
+			body: responseBody.slice(0, 2000),
+		});
+		return {
+			ok: response.ok,
+			status: response.status,
+			target,
+			body: responseBody,
+		};
 	} catch (error) {
+		console.warn('[signatura.accura.registration.callback.failed]', {
+			challengeId: resolvedChallengeId,
+			target,
+			error: error instanceof Error ? error.message : 'fetch_failed',
+		});
 		return {
 			ok: false,
 			target,

@@ -356,13 +356,30 @@ export async function POST(req: Request) {
 					accuraContext?.handoffTokenId ||
 					'',
 			);
-			await notifyAccuraChallengeApproval({
+			const challengeApprovalCallback = await notifyAccuraChallengeApproval({
 				returnUrl: String(accuraContext?.returnUrl || ''),
 				challengeId,
 				signaturaId: accuraLinkedSignaturaId,
 				verificationToken,
 				status: 'APPROVED',
-			}).catch(() => null);
+			}).catch((error) => ({
+				ok: false,
+				error: error instanceof Error ? error.message : 'callback_failed',
+			}));
+			console.info('[signatura.accura.registration.activation.approved]', {
+				challengeId,
+				signaturaId: accuraLinkedSignaturaId,
+				callbackUrl: 'target' in challengeApprovalCallback
+					? challengeApprovalCallback.target
+					: undefined,
+				callbackOk: challengeApprovalCallback.ok,
+				callbackStatus: 'status' in challengeApprovalCallback
+					? challengeApprovalCallback.status
+					: undefined,
+				callbackBody: 'body' in challengeApprovalCallback
+					? String(challengeApprovalCallback.body || '').slice(0, 2000)
+					: undefined,
+			});
 			await accuraRegistrationHandoffModel()?.updateMany({
 				where: {
 					OR: [

@@ -129,7 +129,9 @@ test('ACCURA challenge approval callback posts the exact polled challengeId', as
 	const calls = [];
 	globalThis.fetch = async (url, options) => {
 		calls.push({ url: String(url), options });
-		return new Response(JSON.stringify({ ok: true }), { status: 200 });
+		return new Response(JSON.stringify({ ok: true, status: 'APPROVED' }), {
+			status: 200,
+		});
 	};
 	delete process.env.ACCURA_CHALLENGE_APPROVE_URL;
 	process.env.ACCURA_ALLOWED_ORIGINS = 'https://accura-sandbox.nouvoux.com';
@@ -144,6 +146,8 @@ test('ACCURA challenge approval callback posts the exact polled challengeId', as
 		});
 
 		assert.equal(result.ok, true);
+		assert.equal(result.status, 200);
+		assert.match(result.body, /APPROVED/);
 		assert.equal(
 			calls[0].url,
 			'https://accura-sandbox.nouvoux.com/api/signatura/challenge-approve',

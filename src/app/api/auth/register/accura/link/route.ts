@@ -379,9 +379,15 @@ export async function POST(req: Request) {
 			challengeId: approvedChallengeId,
 			tokenId: context.jti,
 			signaturaId: linkedSignaturaId,
+			callbackUrl: 'target' in challengeApprovalCallback
+				? challengeApprovalCallback.target
+				: undefined,
 			callbackOk: challengeApprovalCallback.ok,
 			callbackStatus: 'status' in challengeApprovalCallback
 				? challengeApprovalCallback.status
+				: undefined,
+			callbackBody: 'body' in challengeApprovalCallback
+				? String(challengeApprovalCallback.body || '').slice(0, 2000)
 				: undefined,
 		});
 		if (accuraReturnUrl && !isCrossDeviceQr) {
