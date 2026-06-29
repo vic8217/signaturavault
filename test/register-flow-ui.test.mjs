@@ -334,6 +334,8 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(appApprovalApi, /ensureAccuraMembershipRole/);
 	assert.match(appApprovalForm, /startAuthentication/);
 	assert.match(appApprovalForm, /HIGH_RISK_ROLES/);
+	assert.match(appApprovalApi, /notifyAccuraAppApprovalCallback/);
+	assert.match(appApprovalForm, /app-approval\/sync-callback/);
 	assert.match(appApprovalForm, /Approved locally, but ACCURA callback failed/);
 	assert.match(accuraLinkForm, /Approved\. Return to your ACCURA browser\./);
 	assert.match(registerForm, /Link your SIGNATURA ID to ACCURA/);

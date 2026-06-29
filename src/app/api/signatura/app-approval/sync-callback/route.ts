@@ -1,0 +1,63 @@
+import { jsonError, safeApiErrorMessage } from '@/lib/api';
+import { notifyAccuraAppApprovalCallback } from '@/lib/accuraRegistrationHandoff';
+import { requireSession } from '@/lib/session';
+import {
+	normalizeChallengeId,
+} from '@/lib/signaturaAppApprovalQr';
+
+function normalizeCallbackUrl(value: unknown) {
+	const raw = String(value || '').trim();
+	if (!raw) return '';
+	try {
+		const url = new URL(raw);
+		if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+		return url.toString();
+	} catch {
+		return '';
+	}
+}
+
+export async function POST(req: Request) {
+	try {
+		const session = await requireSession();
+		if (
+			!session?.userId ||
+			session.accountStatus !== 'active' ||
+			Number(session.trustLevel || 0) < 2 ||
+			!String(session.signaturaId || '').startsWith('SIG-U-')
+		) {
+			return jsonError('A verified Universal Signatura ID is required', 401);
+		}
+
+		const body = await req.json().catch(() => ({}));
+		const challengeId = normalizeChallengeId(body.challengeId);
+		const callbackUrl = normalizeCallbackUrl(body.callbackUrl);
+		const signaturaId = String(body.signaturaId || session.signaturaId || '')
+			.trim()
+			.toUpperCase();
+		const verificationToken = String(body.verificationToken || '').trim();
+		const approvedAt = String(body.approvedAt || new Date().toISOString());
+
+		if (!challengeId) return jsonError('challengeId is required', 400);
+		if (!callbackUrl) return jsonError('callbackUrl is required', 400);
+		if (!verificationToken) return jsonError('verificationToken is required', 400);
+
+		const callback = await notifyAccuraAppApprovalCallback({
+			callbackUrl,
+			challengeId,
+			signaturaId,
+			verificationToken,
+			approvedAt,
+		});
+
+		return Response.json({
+			ok: callback.ok === true,
+			callback,
+		});
+	} catch (error) {
+		return jsonError(
+			safeApiErrorMessage(error, 'Unable to sync ACCURA approval callback'),
+			400,
+		);
+	}
+}

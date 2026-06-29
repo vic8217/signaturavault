@@ -18,37 +18,20 @@ const HIGH_RISK_ROLES = new Set([
 	'PAYROLL_ADMIN',
 ]);
 
-async function postAccuraApprovalFromBrowser({
-	callbackUrl,
-	challengeId,
-	signaturaId,
-	verificationToken,
-	approvedAt,
-}) {
-	if (!callbackUrl) return { ok: false, skipped: true };
-	try {
-		const response = await fetch(callbackUrl, {
+async function syncApprovalToAccura(payload) {
+	const { response, data } = await signaturaApiRequest(
+		'/api/signatura/app-approval/sync-callback',
+		{
 			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({
-				challengeId,
-				signaturaId,
-				status: 'APPROVED',
-				verificationToken,
-				approvedAt,
-			}),
-		});
-		return {
-			ok: response.ok,
-			status: response.status,
-			body: await response.text().catch(() => ''),
-		};
-	} catch (error) {
-		return {
-			ok: false,
-			error: error instanceof Error ? error.message : 'fetch_failed',
-		};
-	}
+			body: JSON.stringify(payload),
+		},
+		'ACCURA approval sync',
+	);
+	return {
+		ok: response.ok && data?.ok === true,
+		status: response.status,
+		body: data,
+	};
 }
 
 export function AppApprovalForm({
@@ -67,17 +50,13 @@ export function AppApprovalForm({
 	const [approvalPayload, setApprovalPayload] = useState(null);
 	const isHighRisk = HIGH_RISK_ROLES.has(String(requestedRole || '').toUpperCase());
 
-	async function syncApprovalToAccura(payload) {
-		return postAccuraApprovalFromBrowser(payload);
-	}
-
 	async function retryAccuraSync() {
 		if (!approvalPayload || isApproving) return;
 		setIsApproving(true);
 		setError('');
 		try {
-			const browserCallback = await syncApprovalToAccura(approvalPayload);
-			if (browserCallback.ok) {
+			const retryCallback = await syncApprovalToAccura(approvalPayload);
+			if (retryCallback.ok) {
 				setCallbackFailed(false);
 				setStatus(`Approved. Return to your ${app} browser.`);
 				return;
@@ -150,13 +129,18 @@ export function AppApprovalForm({
 				approvedAt: data.approvedAt,
 			};
 			setApprovalPayload(payload);
-			const browserCallback = await syncApprovalToAccura(payload);
-			setApproved(true);
-			if (browserCallback.ok !== true) {
-				setCallbackFailed(true);
-				setStatus('Approved locally, but ACCURA callback failed.');
-				return;
+			const callbackOk = data?.callback?.ok === true;
+			if (!callbackOk) {
+				const retryCallback = await syncApprovalToAccura(payload);
+				if (!retryCallback.ok) {
+					setApproved(true);
+					setCallbackFailed(true);
+					setStatus('Approved locally, but ACCURA callback failed.');
+					return;
+				}
 			}
+			setApproved(true);
+			setCallbackFailed(false);
 			setStatus(`Approved. Return to your ${app} browser.`);
 		} catch (approvalError) {
 			setStatus('');

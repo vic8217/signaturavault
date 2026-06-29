@@ -123,8 +123,12 @@ test('ACCURA registration callback includes userId and authorization code', () =
 });
 
 test('ACCURA localhost callback is rewritten to the configured phone-reachable origin', () => {
-	const previous = process.env.ACCURA_ORIGIN;
+	const previous = {
+		accura: process.env.ACCURA_ORIGIN,
+		signatura: process.env.SIGNATURA_PUBLIC_URL,
+	};
 	process.env.ACCURA_ORIGIN = 'http://192.168.68.139:3001';
+	delete process.env.SIGNATURA_PUBLIC_URL;
 	try {
 		assert.equal(
 			resolveAccuraReturnUrl(
@@ -133,8 +137,37 @@ test('ACCURA localhost callback is rewritten to the configured phone-reachable o
 			'http://192.168.68.139:3001/company-admin/login?companyCode=ROAD-9B2D7B',
 		);
 	} finally {
-		if (previous === undefined) delete process.env.ACCURA_ORIGIN;
-		else process.env.ACCURA_ORIGIN = previous;
+		if (previous.accura === undefined) delete process.env.ACCURA_ORIGIN;
+		else process.env.ACCURA_ORIGIN = previous.accura;
+		if (previous.signatura === undefined) delete process.env.SIGNATURA_PUBLIC_URL;
+		else process.env.SIGNATURA_PUBLIC_URL = previous.signatura;
+	}
+});
+
+test('ACCURA app approval callback rewrites Signatura-origin URLs to ACCURA', async () => {
+	const handoff = await import('../src/lib/accuraRegistrationHandoff.js');
+	const previous = {
+		accura: process.env.ACCURA_ORIGIN,
+		signatura: process.env.SIGNATURA_PUBLIC_URL,
+		approve: process.env.ACCURA_CHALLENGE_APPROVE_URL,
+	};
+	process.env.ACCURA_ORIGIN = 'https://accura-sandbox.nouvoux.com';
+	process.env.SIGNATURA_PUBLIC_URL = 'https://sandbox.nouvoux.com';
+	delete process.env.ACCURA_CHALLENGE_APPROVE_URL;
+	try {
+		assert.equal(
+			handoff.resolveAccuraAppApprovalCallbackUrl(
+				'https://sandbox.nouvoux.com/api/signatura/challenge-approve',
+			),
+			'https://accura-sandbox.nouvoux.com/api/signatura/challenge-approve',
+		);
+	} finally {
+		if (previous.accura === undefined) delete process.env.ACCURA_ORIGIN;
+		else process.env.ACCURA_ORIGIN = previous.accura;
+		if (previous.signatura === undefined) delete process.env.SIGNATURA_PUBLIC_URL;
+		else process.env.SIGNATURA_PUBLIC_URL = previous.signatura;
+		if (previous.approve === undefined) delete process.env.ACCURA_CHALLENGE_APPROVE_URL;
+		else process.env.ACCURA_CHALLENGE_APPROVE_URL = previous.approve;
 	}
 });
 

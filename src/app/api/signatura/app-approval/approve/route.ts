@@ -11,6 +11,9 @@ import {
 } from '@/lib/signaturaAppApprovalQr';
 import { ensureAccuraMembershipRole } from '@/lib/universalIdentity';
 import {
+	notifyAccuraAppApprovalCallback,
+} from '@/lib/accuraRegistrationHandoff';
+import {
 	assertSecureWebAuthnRequest,
 	getOrigin,
 	getRpID,
@@ -43,84 +46,6 @@ function normalizeCallbackUrl(value: unknown) {
 	} catch {
 		return '';
 	}
-}
-
-type CallbackResult = {
-	ok: boolean;
-	status?: number;
-	body?: unknown;
-	error?: string;
-	skipped?: boolean;
-};
-
-async function postApprovalCallback({
-	callbackUrl,
-	challengeId,
-	signaturaId,
-	verificationToken,
-	approvedAt,
-}: {
-	callbackUrl: string;
-	challengeId: string;
-	signaturaId: string;
-	verificationToken: string;
-	approvedAt: string;
-}): Promise<CallbackResult> {
-	if (!callbackUrl) return { ok: false, skipped: true };
-	const body = {
-		challengeId,
-		signaturaId,
-		status: 'APPROVED',
-		verificationToken,
-		approvedAt,
-	};
-	const attempts = 3;
-	let lastResult: CallbackResult = { ok: false };
-	for (let attempt = 1; attempt <= attempts; attempt += 1) {
-		console.info('[signatura.app_approval.callback.sending]', {
-			challengeId,
-			callbackUrl,
-			attempt,
-		});
-		try {
-			const response = await fetch(callbackUrl, {
-				method: 'POST',
-				cache: 'no-store',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(body),
-			});
-			const responseBody = await response.text().catch(() => '');
-			console.info('[signatura.app_approval.callback.response]', {
-				challengeId,
-				callbackUrl,
-				attempt,
-				status: response.status,
-				ok: response.ok,
-				body: responseBody.slice(0, 2000),
-			});
-			lastResult = {
-				ok: response.ok,
-				status: response.status,
-				body: responseBody,
-			};
-			if (response.ok) return lastResult;
-		} catch (error) {
-			console.warn('[signatura.app_approval.callback.failed]', {
-				challengeId,
-				callbackUrl,
-				attempt,
-				error: error instanceof Error ? error.message : 'fetch_failed',
-			});
-			lastResult = {
-				ok: false,
-				error: error instanceof Error ? error.message : 'fetch_failed',
-			};
-		}
-		if (attempt < attempts) {
-			await new Promise((resolve) => setTimeout(resolve, attempt * 400));
-		}
-	}
-	return lastResult;
 }
 
 export async function POST(req: Request) {
@@ -313,7 +238,7 @@ export async function POST(req: Request) {
 			});
 		});
 
-		const callback = await postApprovalCallback({
+		const callback = await notifyAccuraAppApprovalCallback({
 			callbackUrl,
 			challengeId,
 			signaturaId: session.signaturaId,

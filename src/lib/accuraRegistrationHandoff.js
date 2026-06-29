@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import {
+	isPhoneUnreachableAccuraHost,
 	isPhoneUnreachableAccuraReturnUrl,
 	normalizeExternalReturnUrl,
 } from './externalReturnUrl';
@@ -420,27 +421,76 @@ function verifyAccuraOnboardingAuthorizationCode(authorizationCode) {
 	return { valid: true, payload: parsed };
 }
 
-function resolveAccuraReturnUrl(returnUrl) {
-	const normalizedReturnUrl = normalizeExternalReturnUrl(returnUrl);
-	if (!normalizedReturnUrl) return '';
+function signaturaPublicOrigin() {
+	for (const value of [
+		process.env.SIGNATURA_PUBLIC_URL,
+		process.env.NEXT_PUBLIC_SIGNATURA_PUBLIC_URL,
+	]) {
+		const raw = String(value || '').trim();
+		if (!raw) continue;
+		try {
+			return new URL(raw.endsWith('/') ? raw : `${raw}/`).origin;
+		} catch {
+			// Try next configured value.
+		}
+	}
+	return '';
+}
 
-	const configuredOrigin = String(
+function accuraConfiguredOrigin() {
+	const raw = String(
 		process.env.ACCURA_ORIGIN || process.env.NEXT_PUBLIC_ACCURA_ORIGIN || '',
 	).trim();
-	if (!configuredOrigin) return normalizedReturnUrl;
-
+	if (!raw) return '';
 	try {
-		const destination = new URL(normalizedReturnUrl);
-		if (!['localhost', '127.0.0.1', '[::1]'].includes(destination.hostname)) {
-			return normalizedReturnUrl;
-		}
-		const publicOrigin = new URL(configuredOrigin);
-		destination.protocol = publicOrigin.protocol;
-		destination.host = publicOrigin.host;
-		return normalizeExternalReturnUrl(destination.toString());
+		return new URL(raw.endsWith('/') ? raw : `${raw}/`).origin;
 	} catch {
 		return '';
 	}
+}
+
+function rewriteUrlOrigin(urlString, targetOrigin) {
+	if (!urlString || !targetOrigin) return urlString;
+	try {
+		const destination = new URL(urlString);
+		const target = new URL(targetOrigin.endsWith('/') ? targetOrigin : `${targetOrigin}/`);
+		destination.protocol = target.protocol;
+		destination.host = target.host;
+		return destination.toString();
+	} catch {
+		return urlString;
+	}
+}
+
+function resolveAccuraReturnUrl(returnUrl) {
+	const raw = String(returnUrl || '').trim();
+	if (!raw) return '';
+
+	let destination;
+	try {
+		destination = new URL(raw);
+	} catch {
+		return '';
+	}
+	if (!['https:', 'http:'].includes(destination.protocol)) return '';
+
+	const configuredOrigin = accuraConfiguredOrigin();
+	if (!configuredOrigin) {
+		return normalizeExternalReturnUrl(raw) || raw;
+	}
+
+	const signaturaOrigin = signaturaPublicOrigin();
+	const pointsAtSignatura =
+		Boolean(signaturaOrigin) && destination.origin === signaturaOrigin;
+	if (
+		!isPhoneUnreachableAccuraHost(destination.hostname) &&
+		!pointsAtSignatura
+	) {
+		return normalizeExternalReturnUrl(raw) || raw;
+	}
+
+	const rewritten = rewriteUrlOrigin(destination.toString(), configuredOrigin);
+	return normalizeExternalReturnUrl(rewritten) || rewritten;
 }
 
 function buildAccuraRegistrationReturnUrl(returnUrl, payload) {
@@ -482,7 +532,10 @@ async function notifyAccuraRegistrationCallback(accuraReturnUrl) {
 
 function resolveAccuraChallengeApproveUrl(returnUrl) {
 	const configured = String(process.env.ACCURA_CHALLENGE_APPROVE_URL || '').trim();
-	if (configured) return normalizeExternalReturnUrl(configured);
+	if (configured) {
+		const normalized = normalizeExternalReturnUrl(configured);
+		if (normalized) return normalized;
+	}
 
 	const normalizedReturnUrl = resolveAccuraReturnUrl(returnUrl);
 	if (!normalizedReturnUrl) return '';
@@ -494,6 +547,101 @@ function resolveAccuraChallengeApproveUrl(returnUrl) {
 	} catch {
 		return '';
 	}
+}
+
+function resolveAccuraAppApprovalCallbackUrl(callbackUrl) {
+	const configured = String(process.env.ACCURA_CHALLENGE_APPROVE_URL || '').trim();
+	if (configured) {
+		const normalized = normalizeExternalReturnUrl(configured);
+		if (normalized) return normalized;
+	}
+
+	const raw = String(callbackUrl || '').trim();
+	if (!raw) return '';
+
+	const resolved = resolveAccuraReturnUrl(raw);
+	if (resolved) return resolved;
+
+	try {
+		const parsed = new URL(raw);
+		if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return '';
+		return parsed.toString();
+	} catch {
+		return '';
+	}
+}
+
+async function notifyAccuraAppApprovalCallback({
+	callbackUrl,
+	challengeId,
+	signaturaId,
+	verificationToken,
+	approvedAt,
+	status = 'APPROVED',
+} = {}) {
+	const target = resolveAccuraAppApprovalCallbackUrl(callbackUrl);
+	const resolvedChallengeId = String(challengeId || '').trim();
+	if (!target || !resolvedChallengeId) {
+		return { ok: false, skipped: true, target: target || '' };
+	}
+
+	const body = {
+		challengeId: resolvedChallengeId,
+		signaturaId: String(signaturaId || '').trim(),
+		verificationToken: String(verificationToken || '').trim(),
+		status,
+		approvedAt: approvedAt || new Date().toISOString(),
+	};
+
+	const attempts = 3;
+	let lastResult = { ok: false, target };
+	for (let attempt = 1; attempt <= attempts; attempt += 1) {
+		try {
+			console.info('[signatura.accura.app_approval.callback.sending]', {
+				challengeId: resolvedChallengeId,
+				target,
+				attempt,
+			});
+			const response = await fetch(target, {
+				method: 'POST',
+				cache: 'no-store',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body),
+			});
+			const responseBody = await response.text().catch(() => '');
+			console.info('[signatura.accura.app_approval.callback.response]', {
+				challengeId: resolvedChallengeId,
+				target,
+				attempt,
+				status: response.status,
+				ok: response.ok,
+				body: responseBody.slice(0, 2000),
+			});
+			lastResult = {
+				ok: response.ok,
+				status: response.status,
+				target,
+				body: responseBody,
+			};
+			if (response.ok) return lastResult;
+		} catch (error) {
+			console.warn('[signatura.accura.app_approval.callback.failed]', {
+				challengeId: resolvedChallengeId,
+				target,
+				attempt,
+				error: error instanceof Error ? error.message : 'fetch_failed',
+			});
+			lastResult = {
+				ok: false,
+				target,
+				error: error instanceof Error ? error.message : 'fetch_failed',
+			};
+		}
+		if (attempt < attempts) {
+			await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+		}
+	}
+	return lastResult;
 }
 
 /**
@@ -575,7 +723,9 @@ export {
 	issueAccuraOnboardingAuthorizationCode,
 	issueAccuraRegistrationHandoffToken,
 	notifyAccuraChallengeApproval,
+	notifyAccuraAppApprovalCallback,
 	notifyAccuraRegistrationCallback,
+	resolveAccuraAppApprovalCallbackUrl,
 	resolveAccuraChallengeApproveUrl,
 	resolveAccuraReturnUrl,
 	verifyAccuraOnboardingAuthorizationCode,
