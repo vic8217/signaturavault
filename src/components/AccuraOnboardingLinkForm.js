@@ -22,6 +22,12 @@ export function AccuraOnboardingLinkForm({
 	const companyName = appRegistrationContext.companyName || companyCode || 'ACCURA';
 	const rolePrefix = appRegistrationContext.rolePrefix || '';
 	const roleName = appRegistrationContext.role || appRegistrationContext.roleName || '';
+	const challengeId = String(
+		appRegistrationContext.challengeId ||
+			appRegistrationContext.requestId ||
+			appRegistrationContext.tokenId ||
+			'',
+	).trim();
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
 	const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,6 +73,7 @@ export function AccuraOnboardingLinkForm({
 					method: 'POST',
 					body: JSON.stringify({
 						accuraHandoffToken,
+						challengeId,
 						signaturaId,
 						userId: startData.userId,
 						response: assertion,

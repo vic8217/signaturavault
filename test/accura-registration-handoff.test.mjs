@@ -12,6 +12,7 @@ import {
 import {
 	accuraRegistrationContextForForm,
 	issueAccuraRegistrationHandoffToken,
+	notifyAccuraChallengeApproval,
 	verifyAccuraRegistrationHandoffToken,
 } from '@/lib/accuraRegistrationHandoff.js';
 import { prisma, resetHarness } from './harness/state.mjs';
@@ -118,6 +119,54 @@ test('ACCURA handoff token preserves same-device flow metadata', () => {
 		assert.equal(context.flowType, 'same_device_deeplink');
 	} finally {
 		restore();
+	}
+});
+
+test('ACCURA challenge approval callback posts the exact polled challengeId', async () => {
+	const previousFetch = globalThis.fetch;
+	const previousApproveUrl = process.env.ACCURA_CHALLENGE_APPROVE_URL;
+	const previousAllowedOrigins = process.env.ACCURA_ALLOWED_ORIGINS;
+	const calls = [];
+	globalThis.fetch = async (url, options) => {
+		calls.push({ url: String(url), options });
+		return new Response(JSON.stringify({ ok: true }), { status: 200 });
+	};
+	delete process.env.ACCURA_CHALLENGE_APPROVE_URL;
+	process.env.ACCURA_ALLOWED_ORIGINS = 'https://accura-sandbox.nouvoux.com';
+
+	try {
+		const result = await notifyAccuraChallengeApproval({
+			returnUrl: 'https://accura-sandbox.nouvoux.com/register/callback',
+			challengeId: '5df3f640-e989-44ac-aa63-df805594ea83',
+			signaturaId: 'SIG-U-B64A-3A1A',
+			verificationToken: 'verification-token-1',
+			status: 'APPROVED',
+		});
+
+		assert.equal(result.ok, true);
+		assert.equal(
+			calls[0].url,
+			'https://accura-sandbox.nouvoux.com/api/signatura/challenge-approve',
+		);
+		assert.equal(calls[0].options.method, 'POST');
+		assert.deepEqual(JSON.parse(calls[0].options.body), {
+			challengeId: '5df3f640-e989-44ac-aa63-df805594ea83',
+			signaturaId: 'SIG-U-B64A-3A1A',
+			verificationToken: 'verification-token-1',
+			status: 'APPROVED',
+		});
+	} finally {
+		globalThis.fetch = previousFetch;
+		if (previousApproveUrl === undefined) {
+			delete process.env.ACCURA_CHALLENGE_APPROVE_URL;
+		} else {
+			process.env.ACCURA_CHALLENGE_APPROVE_URL = previousApproveUrl;
+		}
+		if (previousAllowedOrigins === undefined) {
+			delete process.env.ACCURA_ALLOWED_ORIGINS;
+		} else {
+			process.env.ACCURA_ALLOWED_ORIGINS = previousAllowedOrigins;
+		}
 	}
 });
 
@@ -320,6 +369,13 @@ test('ACCURA role linking claims each signed handoff only once', async () => {
 	assert.match(source, /already used/);
 	assert.match(source, /status: 'APPROVED'/);
 	assert.match(source, /verificationToken/);
+	assert.match(source, /approvedChallengeId/);
+	assert.match(source, /body\.challengeId/);
+	assert.match(
+		source,
+		/OR: \[\{ tokenId: context\.jti \}, \{ challengeId: approvedChallengeId \}\]/,
+	);
+	assert.match(source, /notifyAccuraChallengeApproval/);
 	assert.match(source, /flowType !== 'same_device_deeplink'/);
 	assert.match(source, /Approved successfully\. You may return to the original ACCURA browser window/);
 });

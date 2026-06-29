@@ -35,6 +35,11 @@ export async function GET(req: Request) {
 		});
 
 		if (!challenge) {
+			console.info('[accura.signatura.challenge.poll]', {
+				challengeId,
+				status: 'PENDING',
+				found: false,
+			});
 			return Response.json({
 				ok: true,
 				challengeId,
@@ -43,6 +48,12 @@ export async function GET(req: Request) {
 		}
 
 		const status = publicStatus(challenge);
+		console.info('[accura.signatura.challenge.poll]', {
+			challengeId,
+			returnedChallengeId: challenge.challengeId || challenge.tokenId,
+			status,
+			found: true,
+		});
 		return Response.json({
 			ok: true,
 			challengeId: challenge.challengeId || challenge.tokenId,

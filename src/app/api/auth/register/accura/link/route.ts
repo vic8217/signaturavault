@@ -9,6 +9,7 @@ import {
 } from '@/lib/accuraOnboardingAudit';
 import {
 	buildAccuraRegistrationReturnUrl,
+	notifyAccuraChallengeApproval,
 	notifyAccuraRegistrationCallback,
 	verifyAccuraRegistrationHandoffToken,
 } from '@/lib/accuraRegistrationHandoff';
@@ -82,6 +83,11 @@ export async function POST(req: Request) {
 		}
 
 		const context = handoff.context;
+		const approvedChallengeId = String(
+			body.challengeId || context.challengeId || context.requestId || context.jti,
+		)
+			.trim()
+			.slice(0, 200);
 		if (context.linkSignaturaId && context.linkSignaturaId !== signaturaId) {
 			return jsonError('Passkey approval does not match the requested Signatura ID', 403);
 		}
@@ -143,7 +149,10 @@ export async function POST(req: Request) {
 		const handoffModel = accuraRegistrationHandoffModel();
 		const existingHandoff = handoffModel
 			? await handoffModel.findFirst({
-					where: { tokenId: context.jti },
+					where: {
+						OR: [{ tokenId: context.jti }, { challengeId: approvedChallengeId }],
+					},
+					orderBy: { createdAt: 'desc' },
 				})
 			: null;
 		if (
@@ -166,6 +175,13 @@ export async function POST(req: Request) {
 			: null;
 
 		const linkedSignaturaId = user.signaturaId;
+		console.info('[signatura.accura.registration.approving]', {
+			challengeId: approvedChallengeId,
+			tokenId: context.jti,
+			flowType: context.flowType,
+			originDevice: context.originDevice,
+			signaturaId: linkedSignaturaId,
+		});
 		const accuraReturnUrl =
 			buildAccuraRegistrationReturnUrl(context.returnUrl, {
 				signaturaId: linkedSignaturaId,
@@ -177,7 +193,7 @@ export async function POST(req: Request) {
 				rolePrefix: context.roleCode,
 				registrationKeyId: context.registrationKeyId,
 				registrationStatus: 'LINKED',
-				requestId: context.requestId,
+				requestId: approvedChallengeId || context.requestId,
 				state: context.state,
 				nonce: context.nonce,
 			}) || '';
@@ -197,10 +213,13 @@ export async function POST(req: Request) {
 				if (existingHandoff) {
 					const claimed = await transactionHandoffModel.updateMany({
 						where: {
-							tokenId: context.jti,
+							OR: [{ tokenId: context.jti }, { challengeId: approvedChallengeId }],
 							status: 'CLAIMED',
 						},
-						data: { status: 'PROCESSING' },
+						data: {
+							challengeId: approvedChallengeId,
+							status: 'PROCESSING',
+						},
 					});
 					if (claimed.count !== 1) {
 						const error = new Error(
@@ -214,7 +233,7 @@ export async function POST(req: Request) {
 						data: {
 							id: crypto.randomUUID(),
 							tokenId: context.jti,
-							challengeId: context.challengeId || context.requestId,
+							challengeId: approvedChallengeId,
 							registrationKeyId: context.registrationKeyId,
 							companyId: context.companyId,
 							companyCode: context.companyCode,
@@ -253,8 +272,8 @@ export async function POST(req: Request) {
 				accuraRegistrationKeyId: context.registrationKeyId,
 				returnUrl: context.returnUrl,
 				handoffTokenId: context.jti,
-				challengeId: context.challengeId,
-				requestId: context.requestId,
+				challengeId: approvedChallengeId,
+				requestId: approvedChallengeId || context.requestId,
 				originDevice: context.originDevice,
 				flowType: context.flowType,
 				state: context.state,
@@ -303,7 +322,7 @@ export async function POST(req: Request) {
 
 			await transactionHandoffModel?.updateMany({
 				where: {
-					tokenId: context.jti,
+					OR: [{ tokenId: context.jti }, { challengeId: approvedChallengeId }],
 					status: 'PROCESSING',
 				},
 				data: {
@@ -342,9 +361,29 @@ export async function POST(req: Request) {
 			companyCode: context.companyCode,
 			rolePrefix: context.roleCode,
 			registrationKeyId: context.registrationKeyId,
+			challengeId: approvedChallengeId,
 		});
 
 		const isCrossDeviceQr = context.flowType !== 'same_device_deeplink';
+		const challengeApprovalCallback = await notifyAccuraChallengeApproval({
+			returnUrl: context.returnUrl,
+			challengeId: approvedChallengeId,
+			signaturaId: linkedSignaturaId,
+			verificationToken,
+			status: 'APPROVED',
+		}).catch((error) => ({
+			ok: false,
+			error: error instanceof Error ? error.message : 'callback_failed',
+		}));
+		console.info('[signatura.accura.registration.approved]', {
+			challengeId: approvedChallengeId,
+			tokenId: context.jti,
+			signaturaId: linkedSignaturaId,
+			callbackOk: challengeApprovalCallback.ok,
+			callbackStatus: 'status' in challengeApprovalCallback
+				? challengeApprovalCallback.status
+				: undefined,
+		});
 		if (accuraReturnUrl && !isCrossDeviceQr) {
 			await notifyAccuraRegistrationCallback(accuraReturnUrl).catch(() => null);
 		}
@@ -353,7 +392,7 @@ export async function POST(req: Request) {
 			ok: true,
 			user: userPublicIdentity(user),
 			status: 'APPROVED',
-			challengeId: context.challengeId || context.requestId,
+			challengeId: approvedChallengeId,
 			verificationToken,
 			flowType: context.flowType,
 			originDevice: context.originDevice,

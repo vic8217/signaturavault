@@ -53,11 +53,38 @@ async function existingReadyIdentity() {
 
 async function ensureRegistrationChallenge(context) {
 	if (!context?.tokenId) return;
-	await prisma.accuraRegistrationHandoff.upsert({
-		where: { tokenId: context.tokenId },
-		create: {
+	const challengeId = context.challengeId || context.requestId || context.tokenId;
+	const existingChallenge = await prisma.accuraRegistrationHandoff.findFirst({
+		where: {
+			OR: [{ tokenId: context.tokenId }, { challengeId }],
+		},
+		orderBy: { createdAt: 'desc' },
+	});
+
+	if (existingChallenge) {
+		await prisma.accuraRegistrationHandoff.update({
+			where: { id: existingChallenge.id },
+			data: {
+				challengeId,
+				tokenId: context.tokenId,
+				originDevice: context.originDevice || 'desktop',
+				flowType: context.flowType || 'cross_device_qr',
+			},
+		});
+		console.info('[signatura.accura.registration.challenge.scanned]', {
+			challengeId,
 			tokenId: context.tokenId,
-			challengeId: context.challengeId || context.requestId || context.tokenId,
+			status: existingChallenge.status,
+			flowType: context.flowType || 'cross_device_qr',
+			originDevice: context.originDevice || 'desktop',
+		});
+		return;
+	}
+
+	await prisma.accuraRegistrationHandoff.create({
+		data: {
+			tokenId: context.tokenId,
+			challengeId,
 			registrationKeyId: context.registrationKeyId,
 			companyId: context.companyId,
 			companyCode: context.companyCode,
@@ -68,11 +95,12 @@ async function ensureRegistrationChallenge(context) {
 			status: 'CLAIMED',
 			expiresAt: new Date(context.expiresAt),
 		},
-		update: {
-			challengeId: context.challengeId || context.requestId || context.tokenId,
-			originDevice: context.originDevice || 'desktop',
-			flowType: context.flowType || 'cross_device_qr',
-		},
+	});
+	console.info('[signatura.accura.registration.challenge.created]', {
+		challengeId,
+		tokenId: context.tokenId,
+		flowType: context.flowType || 'cross_device_qr',
+		originDevice: context.originDevice || 'desktop',
 	});
 }
 
@@ -85,8 +113,21 @@ export default async function AccuraRegisterPage({ searchParams }) {
 			'',
 	).trim();
 	const verified = verifyAccuraRegistrationHandoffToken(handoffToken);
-	const context = verified.valid
+	const externalChallengeId = String(
+		firstParam(params?.challengeId) || firstParam(params?.cid) || '',
+	).trim();
+	const baseContext = verified.valid
 		? accuraRegistrationContextForForm(verified.context)
+		: null;
+	const context = baseContext
+		? {
+				...baseContext,
+				challengeId:
+					externalChallengeId ||
+					baseContext.challengeId ||
+					baseContext.requestId ||
+					baseContext.tokenId,
+			}
 		: null;
 	const nextPath = normalizeLoginNextPath(
 		String(firstParam(params?.next) || '/signatura/dashboard'),

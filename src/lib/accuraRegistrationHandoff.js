@@ -480,6 +480,68 @@ async function notifyAccuraRegistrationCallback(accuraReturnUrl) {
 	}
 }
 
+function resolveAccuraChallengeApproveUrl(returnUrl) {
+	const configured = String(process.env.ACCURA_CHALLENGE_APPROVE_URL || '').trim();
+	if (configured) return normalizeExternalReturnUrl(configured);
+
+	const normalizedReturnUrl = resolveAccuraReturnUrl(returnUrl);
+	if (!normalizedReturnUrl) return '';
+
+	try {
+		return normalizeExternalReturnUrl(
+			new URL('/api/signatura/challenge-approve', normalizedReturnUrl).toString(),
+		);
+	} catch {
+		return '';
+	}
+}
+
+/**
+ * @param {{
+ *   returnUrl?: string;
+ *   challengeId?: string;
+ *   signaturaId?: string;
+ *   verificationToken?: string;
+ *   status?: string;
+ * }} approval
+ */
+async function notifyAccuraChallengeApproval({
+	returnUrl,
+	challengeId,
+	signaturaId,
+	verificationToken,
+	status = 'APPROVED',
+} = {}) {
+	const target = resolveAccuraChallengeApproveUrl(returnUrl);
+	const resolvedChallengeId = String(challengeId || '').trim();
+	if (!target || !resolvedChallengeId) {
+		return { ok: false, skipped: true };
+	}
+
+	const body = {
+		challengeId: resolvedChallengeId,
+		signaturaId: String(signaturaId || '').trim(),
+		verificationToken: String(verificationToken || '').trim(),
+		status,
+	};
+
+	try {
+		const response = await fetch(target, {
+			method: 'POST',
+			cache: 'no-store',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(body),
+		});
+		return { ok: response.ok, status: response.status, target };
+	} catch (error) {
+		return {
+			ok: false,
+			target,
+			error: error instanceof Error ? error.message : 'fetch_failed',
+		};
+	}
+}
+
 export {
 	ONBOARDING_MODES,
 	RESERVED_STAFF_PREFIXES,
@@ -489,7 +551,9 @@ export {
 	buildAccuraRegistrationReturnUrl,
 	issueAccuraOnboardingAuthorizationCode,
 	issueAccuraRegistrationHandoffToken,
+	notifyAccuraChallengeApproval,
 	notifyAccuraRegistrationCallback,
+	resolveAccuraChallengeApproveUrl,
 	resolveAccuraReturnUrl,
 	verifyAccuraOnboardingAuthorizationCode,
 	verifyAccuraRegistrationCallback,

@@ -267,6 +267,9 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(registerPage, /registrationContext\.source !== 'accura'/);
 	assert.match(accuraRegisterPage, /verifyAccuraRegistrationHandoffToken/);
 	assert.match(accuraRegisterPage, /accuraRegistrationContextForForm/);
+	assert.match(accuraRegisterPage, /params\?\.challengeId/);
+	assert.match(accuraRegisterPage, /externalChallengeId/);
+	assert.match(accuraRegisterPage, /OR: \[\{ tokenId: context\.tokenId \}, \{ challengeId \}\]/);
 	assert.match(accuraRegisterPage, /ACCURA registration session expired/);
 	assert.match(accuraRegisterPage, /ACCURA_ONBOARDING_ACTIONS/);
 	assert.match(accuraRegisterPage, /existingReadyIdentity/);
@@ -284,6 +287,8 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(accuraLinkForm, /'Approve'/);
 	assert.match(accuraLinkForm, /Cancel/);
 	assert.match(accuraLinkForm, /approvedCrossDevice/);
+	assert.match(accuraLinkForm, /challengeId/);
+	assert.match(accuraLinkForm, /body: JSON\.stringify\(\{[\s\S]*challengeId/);
 	assert.match(accuraLinkForm, /Approved\. Return to your ACCURA browser\./);
 	assert.match(accuraLinkForm, /The original ACCURA browser window will continue automatically/);
 	assert.match(registerForm, /Link your SIGNATURA ID to ACCURA/);
