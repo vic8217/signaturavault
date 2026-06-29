@@ -246,6 +246,14 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 		new URL('../src/app/register/accura/page.js', import.meta.url),
 		'utf8',
 	);
+	const loginPage = await readFile(
+		new URL('../src/app/login/page.js', import.meta.url),
+		'utf8',
+	);
+	const appInstallPage = await readFile(
+		new URL('../src/app/app/page.js', import.meta.url),
+		'utf8',
+	);
 	const accuraLinkForm = await readFile(
 		new URL('../src/components/AccuraOnboardingLinkForm.js', import.meta.url),
 		'utf8',
@@ -268,8 +276,15 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(accuraRegisterPage, /verifyAccuraRegistrationHandoffToken/);
 	assert.match(accuraRegisterPage, /accuraRegistrationContextForForm/);
 	assert.match(accuraRegisterPage, /params\?\.challengeId/);
+	assert.match(accuraRegisterPage, /params\?\.handoffId/);
 	assert.match(accuraRegisterPage, /externalChallengeId/);
 	assert.match(accuraRegisterPage, /OR: \[\{ tokenId: context\.tokenId \}, \{ challengeId \}\]/);
+	assert.match(appInstallPage, /challengeId: firstParam\(params\?\.challengeId\)/);
+	assert.match(appInstallPage, /flowType: firstParam\(params\?\.flowType\)/);
+	assert.match(loginPage, /accuraHandoffFromSearchParams/);
+	assert.match(loginPage, /isAccuraApprovalPath/);
+	assert.match(loginPage, /redirect\(accuraHandoff\.registerPath\)/);
+	assert.match(loginPage, /redirect\(nextPath\)/);
 	assert.match(accuraRegisterPage, /ACCURA registration session expired/);
 	assert.match(accuraRegisterPage, /ACCURA_ONBOARDING_ACTIONS/);
 	assert.match(accuraRegisterPage, /existingReadyIdentity/);

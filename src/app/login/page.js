@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { redirect } from 'next/navigation';
 import { LoginPasskeyForm } from '@/components/LoginPasskeyForm';
+import { accuraHandoffFromSearchParams } from '@/lib/accuraRegistrationEntry';
 import { externalReturnUrlFromParams } from '@/lib/externalReturnUrl';
 import { normalizeLoginNextPath } from '@/lib/portalRoutes';
 import { registrationContextFromParams } from '@/lib/registrationSource';
@@ -13,9 +14,45 @@ function firstParam(value) {
 	return Array.isArray(value) ? value[0] || '' : String(value || '');
 }
 
+function isAccuraApprovalPath(value = '') {
+	try {
+		const parsed = new URL(String(value || ''), 'https://signatura.local');
+		const source = String(
+			parsed.searchParams.get('source') ||
+				parsed.searchParams.get('sourceApp') ||
+				'',
+		).toLowerCase();
+		const app = String(parsed.searchParams.get('app') || '').toUpperCase();
+		const hasHandoff =
+			parsed.pathname === '/register/accura' &&
+			parsed.searchParams.has('handoffToken') &&
+			(source === 'accura' || app === 'ACCURA');
+		const hasChallenge =
+			parsed.searchParams.has('challengeId') ||
+			parsed.searchParams.has('handoffId') ||
+			parsed.searchParams.get('flowType') === 'cross_device_qr';
+		return hasHandoff || (parsed.pathname === '/register/accura' && hasChallenge);
+	} catch {
+		return false;
+	}
+}
+
 export default async function LoginPage({ searchParams }) {
 	const params = await searchParams;
 	const requestedNext = params?.next || '';
+	const accuraHandoff = accuraHandoffFromSearchParams({
+		handoffToken: firstParam(params?.handoffToken),
+		token: firstParam(params?.token),
+		registrationHandoff: firstParam(params?.registrationHandoff),
+		challengeId: firstParam(params?.challengeId) || firstParam(params?.cid),
+		handoffId: firstParam(params?.handoffId),
+		app: firstParam(params?.app),
+		flowType: firstParam(params?.flowType),
+		originDevice: firstParam(params?.originDevice),
+		returnUrl: firstParam(params?.returnUrl),
+		source: firstParam(params?.source),
+		sourceApp: firstParam(params?.sourceApp),
+	});
 	const externalReturnUrl = externalReturnUrlFromParams(params);
 	const registrationContext = registrationContextFromParams(params);
 	const requestedSignaturaId = normalizeSignaturaId(firstParam(params?.signaturaId));
@@ -23,10 +60,19 @@ export default async function LoginPage({ searchParams }) {
 	const session = await requireSession();
 	const homePath = (await resolveSignaturaHomePath()) ?? '/signatura/dashboard';
 	const nextPath = normalizeLoginNextPath(
-		typeof requestedNext === 'string' && requestedNext.startsWith('/')
-			? requestedNext
-			: homePath,
+		accuraHandoff.registerPath ||
+			(typeof requestedNext === 'string' && requestedNext.startsWith('/')
+				? requestedNext
+				: homePath),
 	);
+
+	if (session?.userId && accuraHandoff.registerPath) {
+		redirect(accuraHandoff.registerPath);
+	}
+
+	if (session?.userId && isAccuraApprovalPath(nextPath)) {
+		redirect(nextPath);
+	}
 
 	if (session?.userId && !externalReturnUrl) {
 		const sessionSignaturaId = normalizeSignaturaId(session.signaturaId);

@@ -114,7 +114,10 @@ export default async function AccuraRegisterPage({ searchParams }) {
 	).trim();
 	const verified = verifyAccuraRegistrationHandoffToken(handoffToken);
 	const externalChallengeId = String(
-		firstParam(params?.challengeId) || firstParam(params?.cid) || '',
+		firstParam(params?.challengeId) ||
+			firstParam(params?.cid) ||
+			firstParam(params?.handoffId) ||
+			'',
 	).trim();
 	const baseContext = verified.valid
 		? accuraRegistrationContextForForm(verified.context)

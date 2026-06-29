@@ -14,6 +14,12 @@ export default async function AppInstallPage({ searchParams }) {
 	const params = await searchParams;
 	const accura = accuraHandoffFromSearchParams({
 		handoffToken: firstParam(params?.handoffToken),
+		challengeId: firstParam(params?.challengeId) || firstParam(params?.cid),
+		handoffId: firstParam(params?.handoffId),
+		app: firstParam(params?.app),
+		flowType: firstParam(params?.flowType),
+		originDevice: firstParam(params?.originDevice),
+		returnUrl: firstParam(params?.returnUrl),
 		source: firstParam(params?.source),
 		sourceApp: firstParam(params?.sourceApp),
 	});

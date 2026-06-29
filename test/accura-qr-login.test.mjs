@@ -50,6 +50,14 @@ test('ACCURA registration QR parser accepts register/accura handoff links', () =
 		installGate.href,
 		'/app?handoffToken=abc123&source=accura&sourceApp=ACCURA',
 	);
+	const appOnlyInstallGate = parseAccuraRegistrationQr(
+		'https://signatura.example/app?handoffToken=abc123&app=ACCURA&challengeId=challenge-1&flowType=cross_device_qr',
+	);
+	assert.equal(appOnlyInstallGate.valid, true);
+	assert.equal(
+		appOnlyInstallGate.href,
+		'/app?handoffToken=abc123&app=ACCURA&challengeId=challenge-1&flowType=cross_device_qr',
+	);
 	assert.equal(
 		parseAccuraLoginQr(
 			'https://signatura.example/register/accura?handoffToken=abc123&mode=register&source=accura&sourceApp=ACCURA',

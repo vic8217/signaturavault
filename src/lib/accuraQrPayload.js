@@ -165,7 +165,8 @@ function parseAccuraRegistrationQr(payload) {
 	const source = String(url.searchParams.get('source') || url.searchParams.get('sourceApp') || '')
 		.trim()
 		.toLowerCase();
-	if (path.endsWith('/app') && handoffToken && source === 'accura') {
+	const app = String(url.searchParams.get('app') || '').trim().toUpperCase();
+	if (path.endsWith('/app') && handoffToken && (source === 'accura' || app === 'ACCURA')) {
 		return {
 			valid: true,
 			handoffToken,
