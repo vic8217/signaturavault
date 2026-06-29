@@ -571,6 +571,16 @@ function resolveAccuraAppApprovalCallbackUrl(callbackUrl) {
 	}
 }
 
+/**
+ * @param {{
+ *   callbackUrl?: string;
+ *   challengeId?: string;
+ *   signaturaId?: string;
+ *   verificationToken?: string;
+ *   approvedAt?: string;
+ *   status?: string;
+ * }} approval
+ */
 async function notifyAccuraAppApprovalCallback({
 	callbackUrl,
 	challengeId,
