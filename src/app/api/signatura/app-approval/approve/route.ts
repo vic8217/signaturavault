@@ -45,13 +45,27 @@ function normalizeCallbackUrl(value: unknown) {
 	}
 }
 
+type CallbackResult = {
+	ok: boolean;
+	status?: number;
+	body?: unknown;
+	error?: string;
+	skipped?: boolean;
+};
+
 async function postApprovalCallback({
 	callbackUrl,
 	challengeId,
 	signaturaId,
 	verificationToken,
 	approvedAt,
-}) {
+}: {
+	callbackUrl: string;
+	challengeId: string;
+	signaturaId: string;
+	verificationToken: string;
+	approvedAt: string;
+}): Promise<CallbackResult> {
 	if (!callbackUrl) return { ok: false, skipped: true };
 	const body = {
 		challengeId,
@@ -61,7 +75,7 @@ async function postApprovalCallback({
 		approvedAt,
 	};
 	const attempts = 3;
-	let lastResult = { ok: false };
+	let lastResult: CallbackResult = { ok: false };
 	for (let attempt = 1; attempt <= attempts; attempt += 1) {
 		console.info('[signatura.app_approval.callback.sending]', {
 			challengeId,
