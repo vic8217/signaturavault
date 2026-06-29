@@ -171,6 +171,29 @@ test('ACCURA app approval callback rewrites Signatura-origin URLs to ACCURA', as
 	}
 });
 
+test('ACCURA_CHALLENGE_APPROVE_URL origin-only value appends challenge approve path', async () => {
+	const handoff = await import('../src/lib/accuraRegistrationHandoff.js');
+	const previous = {
+		accura: process.env.ACCURA_ORIGIN,
+		approve: process.env.ACCURA_CHALLENGE_APPROVE_URL,
+	};
+	process.env.ACCURA_ORIGIN = 'https://accura-sandbox.nouvoux.com';
+	process.env.ACCURA_CHALLENGE_APPROVE_URL = 'https://accura-sandbox.nouvoux.com';
+	try {
+		assert.equal(
+			handoff.resolveAccuraAppApprovalCallbackUrl(
+				'https://sandbox.nouvoux.com/api/signatura/challenge-approve',
+			),
+			'https://accura-sandbox.nouvoux.com/api/signatura/challenge-approve',
+		);
+	} finally {
+		if (previous.accura === undefined) delete process.env.ACCURA_ORIGIN;
+		else process.env.ACCURA_ORIGIN = previous.accura;
+		if (previous.approve === undefined) delete process.env.ACCURA_CHALLENGE_APPROVE_URL;
+		else process.env.ACCURA_CHALLENGE_APPROVE_URL = previous.approve;
+	}
+});
+
 test('ACCURA link handoff requires linkSignaturaId', () => {
 	const restore = withSecret();
 	try {

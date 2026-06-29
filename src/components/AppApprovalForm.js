@@ -62,7 +62,13 @@ export function AppApprovalForm({
 				return;
 			}
 			setCallbackFailed(true);
-			setError('ACCURA still did not accept the approval callback.');
+			const callbackTarget = retryCallback.body?.callback?.target;
+			const callbackStatus = retryCallback.body?.callback?.status;
+			setError(
+				callbackTarget
+					? `ACCURA callback failed (${callbackStatus || 'error'}) to ${callbackTarget}`
+					: 'ACCURA still did not accept the approval callback.',
+			);
 		} finally {
 			setIsApproving(false);
 		}
