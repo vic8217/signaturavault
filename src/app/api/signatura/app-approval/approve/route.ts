@@ -51,12 +51,6 @@ async function postApprovalCallback({
 	signaturaId,
 	verificationToken,
 	approvedAt,
-}: {
-	callbackUrl: string;
-	challengeId: string;
-	signaturaId: string;
-	verificationToken: string;
-	approvedAt: string;
 }) {
 	if (!callbackUrl) return { ok: false, skipped: true };
 	const body = {
@@ -66,41 +60,53 @@ async function postApprovalCallback({
 		verificationToken,
 		approvedAt,
 	};
-	console.info('[signatura.app_approval.callback.sending]', {
-		challengeId,
-		callbackUrl,
-	});
-	try {
-		const response = await fetch(callbackUrl, {
-			method: 'POST',
-			cache: 'no-store',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(body),
-		});
-		const responseBody = await response.text().catch(() => '');
-		console.info('[signatura.app_approval.callback.response]', {
+	const attempts = 3;
+	let lastResult = { ok: false };
+	for (let attempt = 1; attempt <= attempts; attempt += 1) {
+		console.info('[signatura.app_approval.callback.sending]', {
 			challengeId,
 			callbackUrl,
-			status: response.status,
-			ok: response.ok,
-			body: responseBody.slice(0, 2000),
+			attempt,
 		});
-		return {
-			ok: response.ok,
-			status: response.status,
-			body: responseBody,
-		};
-	} catch (error) {
-		console.warn('[signatura.app_approval.callback.failed]', {
-			challengeId,
-			callbackUrl,
-			error: error instanceof Error ? error.message : 'fetch_failed',
-		});
-		return {
-			ok: false,
-			error: error instanceof Error ? error.message : 'fetch_failed',
-		};
+		try {
+			const response = await fetch(callbackUrl, {
+				method: 'POST',
+				cache: 'no-store',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body),
+			});
+			const responseBody = await response.text().catch(() => '');
+			console.info('[signatura.app_approval.callback.response]', {
+				challengeId,
+				callbackUrl,
+				attempt,
+				status: response.status,
+				ok: response.ok,
+				body: responseBody.slice(0, 2000),
+			});
+			lastResult = {
+				ok: response.ok,
+				status: response.status,
+				body: responseBody,
+			};
+			if (response.ok) return lastResult;
+		} catch (error) {
+			console.warn('[signatura.app_approval.callback.failed]', {
+				challengeId,
+				callbackUrl,
+				attempt,
+				error: error instanceof Error ? error.message : 'fetch_failed',
+			});
+			lastResult = {
+				ok: false,
+				error: error instanceof Error ? error.message : 'fetch_failed',
+			};
+		}
+		if (attempt < attempts) {
+			await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+		}
 	}
+	return lastResult;
 }
 
 export async function POST(req: Request) {

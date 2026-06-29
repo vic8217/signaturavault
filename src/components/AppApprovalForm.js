@@ -18,6 +18,39 @@ const HIGH_RISK_ROLES = new Set([
 	'PAYROLL_ADMIN',
 ]);
 
+async function postAccuraApprovalFromBrowser({
+	callbackUrl,
+	challengeId,
+	signaturaId,
+	verificationToken,
+	approvedAt,
+}) {
+	if (!callbackUrl) return { ok: false, skipped: true };
+	try {
+		const response = await fetch(callbackUrl, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				challengeId,
+				signaturaId,
+				status: 'APPROVED',
+				verificationToken,
+				approvedAt,
+			}),
+		});
+		return {
+			ok: response.ok,
+			status: response.status,
+			body: await response.text().catch(() => ''),
+		};
+	} catch (error) {
+		return {
+			ok: false,
+			error: error instanceof Error ? error.message : 'fetch_failed',
+		};
+	}
+}
+
 export function AppApprovalForm({
 	challengeId,
 	app,
@@ -31,7 +64,30 @@ export function AppApprovalForm({
 	const [isApproving, setIsApproving] = useState(false);
 	const [approved, setApproved] = useState(false);
 	const [callbackFailed, setCallbackFailed] = useState(false);
+	const [approvalPayload, setApprovalPayload] = useState(null);
 	const isHighRisk = HIGH_RISK_ROLES.has(String(requestedRole || '').toUpperCase());
+
+	async function syncApprovalToAccura(payload) {
+		return postAccuraApprovalFromBrowser(payload);
+	}
+
+	async function retryAccuraSync() {
+		if (!approvalPayload || isApproving) return;
+		setIsApproving(true);
+		setError('');
+		try {
+			const browserCallback = await syncApprovalToAccura(approvalPayload);
+			if (browserCallback.ok) {
+				setCallbackFailed(false);
+				setStatus(`Approved. Return to your ${app} browser.`);
+				return;
+			}
+			setCallbackFailed(true);
+			setError('ACCURA still did not accept the approval callback.');
+		} finally {
+			setIsApproving(false);
+		}
+	}
 
 	async function approve() {
 		if (isApproving || !challengeId || !signaturaId) return;
@@ -86,8 +142,17 @@ export function AppApprovalForm({
 			if (!response.ok) {
 				throw new Error(data?.error || 'Unable to approve request.');
 			}
+			const payload = {
+				callbackUrl,
+				challengeId,
+				signaturaId: data.signaturaId || signaturaId,
+				verificationToken: data.verificationToken,
+				approvedAt: data.approvedAt,
+			};
+			setApprovalPayload(payload);
+			const browserCallback = await syncApprovalToAccura(payload);
 			setApproved(true);
-			if (data?.callback?.ok === false) {
+			if (browserCallback.ok !== true) {
 				setCallbackFailed(true);
 				setStatus('Approved locally, but ACCURA callback failed.');
 				return;
@@ -123,6 +188,15 @@ export function AppApprovalForm({
 						</h1>
 					</div>
 				</div>
+				{callbackFailed ? (
+					<button
+						type="button"
+						onClick={retryAccuraSync}
+						disabled={isApproving}
+						className="mt-6 w-full rounded-lg bg-amber-500 px-5 py-4 text-base font-bold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300">
+						{isApproving ? 'Retrying ACCURA sync...' : 'Retry ACCURA sync'}
+					</button>
+				) : null}
 			</section>
 		);
 	}
