@@ -8,6 +8,7 @@ import {
 	startAuthentication,
 } from '@simplewebauthn/browser';
 import { signaturaApiRequest } from '@/lib/registration-api-client';
+import { normalizeCallbackUrl } from '@/lib/signaturaAppApprovalQr';
 
 const HIGH_RISK_ROLES = new Set([
 	'SYSTEM_ADMIN',
@@ -18,7 +19,40 @@ const HIGH_RISK_ROLES = new Set([
 	'PAYROLL_ADMIN',
 ]);
 
+async function postAccuraApprovalFromBrowser(payload) {
+	const callbackUrl = normalizeCallbackUrl(payload?.callbackUrl);
+	if (!callbackUrl) return { ok: false, skipped: true };
+	try {
+		const response = await fetch(callbackUrl, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				challengeId: payload.challengeId,
+				signaturaId: payload.signaturaId,
+				status: 'APPROVED',
+				verificationToken: payload.verificationToken,
+				approvedAt: payload.approvedAt,
+			}),
+		});
+		return {
+			ok: response.ok,
+			status: response.status,
+			body: await response.text().catch(() => ''),
+			target: callbackUrl,
+		};
+	} catch (error) {
+		return {
+			ok: false,
+			error: error instanceof Error ? error.message : 'fetch_failed',
+			target: callbackUrl,
+		};
+	}
+}
+
 async function syncApprovalToAccura(payload) {
+	const browserCallback = await postAccuraApprovalFromBrowser(payload);
+	if (browserCallback.ok) return browserCallback;
+
 	const { response, data } = await signaturaApiRequest(
 		'/api/signatura/app-approval/sync-callback',
 		{
@@ -128,7 +162,7 @@ export function AppApprovalForm({
 				throw new Error(data?.error || 'Unable to approve request.');
 			}
 			const payload = {
-				callbackUrl,
+				callbackUrl: normalizeCallbackUrl(callbackUrl),
 				challengeId,
 				signaturaId: data.signaturaId || signaturaId,
 				verificationToken: data.verificationToken,
@@ -141,7 +175,19 @@ export function AppApprovalForm({
 				if (!retryCallback.ok) {
 					setApproved(true);
 					setCallbackFailed(true);
+					const callbackTarget =
+						retryCallback.target ||
+						retryCallback.body?.callback?.target ||
+						payload.callbackUrl;
+					const callbackStatus =
+						retryCallback.status ||
+						retryCallback.body?.callback?.status;
 					setStatus('Approved locally, but ACCURA callback failed.');
+					setError(
+						callbackTarget
+							? `ACCURA callback failed (${callbackStatus || 'error'}) to ${callbackTarget}`
+							: 'ACCURA still did not accept the approval callback.',
+					);
 					return;
 				}
 			}

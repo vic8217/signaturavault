@@ -531,6 +531,38 @@ async function notifyAccuraRegistrationCallback(accuraReturnUrl) {
 }
 
 const ACCURA_CHALLENGE_APPROVE_PATH = '/api/signatura/challenge-approve';
+const ACCURA_QR_LOGIN_APPROVE_PATH = '/api/auth/signatura/qr/approve';
+
+function normalizeAccuraChallengeApprovePathname(pathname = '') {
+	const path = String(pathname || '').replace(/\/+$/, '') || '';
+	if (path === ACCURA_CHALLENGE_APPROVE_PATH) return path;
+	if (
+		path === ACCURA_QR_LOGIN_APPROVE_PATH ||
+		path.includes('/qr/approve') ||
+		path.includes('qr-login')
+	) {
+		console.warn('[signatura.accura.challenge_approve.rewrite]', {
+			from: path || '/',
+			to: ACCURA_CHALLENGE_APPROVE_PATH,
+			reason: 'registration_callbacks_must_use_challenge_approve',
+		});
+	}
+	return ACCURA_CHALLENGE_APPROVE_PATH;
+}
+
+function normalizeAccuraChallengeApproveTarget(value = '') {
+	const raw = String(value || '').trim();
+	if (!raw) return '';
+	try {
+		const url = new URL(raw);
+		if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+		url.pathname = normalizeAccuraChallengeApprovePathname(url.pathname);
+		const candidate = url.toString();
+		return normalizeExternalReturnUrl(candidate) || candidate;
+	} catch {
+		return '';
+	}
+}
 
 function accuraChallengeApproveHeaders() {
 	const headers = { 'content-type': 'application/json' };
@@ -566,20 +598,7 @@ function accuraChallengeApproveHeaders() {
 }
 
 function normalizeConfiguredAccuraChallengeApproveUrl(configured) {
-	const raw = String(configured || '').trim();
-	if (!raw) return '';
-
-	try {
-		const url = new URL(raw);
-		const path = url.pathname.replace(/\/+$/, '') || '';
-		if (!path || path === '/') {
-			url.pathname = ACCURA_CHALLENGE_APPROVE_PATH;
-		}
-		const candidate = url.toString();
-		return normalizeExternalReturnUrl(candidate) || candidate;
-	} catch {
-		return '';
-	}
+	return normalizeAccuraChallengeApproveTarget(configured);
 }
 
 function resolveAccuraChallengeApproveUrl(returnUrl) {
@@ -591,15 +610,9 @@ function resolveAccuraChallengeApproveUrl(returnUrl) {
 	const normalizedReturnUrl = resolveAccuraReturnUrl(returnUrl);
 	if (!normalizedReturnUrl) return '';
 
-	try {
-		const candidate = new URL(
-			ACCURA_CHALLENGE_APPROVE_PATH,
-			normalizedReturnUrl,
-		).toString();
-		return normalizeExternalReturnUrl(candidate) || candidate;
-	} catch {
-		return '';
-	}
+	return normalizeAccuraChallengeApproveTarget(
+		new URL(ACCURA_CHALLENGE_APPROVE_PATH, normalizedReturnUrl).toString(),
+	);
 }
 
 function resolveAccuraAppApprovalCallbackUrl(callbackUrl) {
@@ -611,16 +624,8 @@ function resolveAccuraAppApprovalCallbackUrl(callbackUrl) {
 	const raw = String(callbackUrl || '').trim();
 	if (!raw) return '';
 
-	const resolved = resolveAccuraReturnUrl(raw);
-	if (resolved) return resolved;
-
-	try {
-		const parsed = new URL(raw);
-		if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return '';
-		return parsed.toString();
-	} catch {
-		return '';
-	}
+	const resolved = resolveAccuraReturnUrl(raw) || raw;
+	return normalizeAccuraChallengeApproveTarget(resolved);
 }
 
 /**

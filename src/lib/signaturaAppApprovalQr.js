@@ -1,6 +1,8 @@
 const APP_APPROVAL_TYPE = 'SIGNATURA_APP_APPROVAL';
 const SUPPORTED_APPS = new Set(['ACCURA']);
 const SUPPORTED_FLOW_TYPES = new Set(['cross_device_qr', 'same_device_deeplink']);
+const ACCURA_CHALLENGE_APPROVE_PATH = '/api/signatura/challenge-approve';
+const ACCURA_QR_LOGIN_APPROVE_PATH = '/api/auth/signatura/qr/approve';
 
 function normalizeChallengeId(value) {
 	return String(value || '').trim().slice(0, 200);
@@ -30,6 +32,14 @@ function normalizeCallbackUrl(value) {
 	try {
 		const url = new URL(raw);
 		if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+		const path = url.pathname.replace(/\/+$/, '') || '';
+		if (
+			path === ACCURA_QR_LOGIN_APPROVE_PATH ||
+			path.includes('/qr/approve') ||
+			path.includes('qr-login')
+		) {
+			url.pathname = ACCURA_CHALLENGE_APPROVE_PATH;
+		}
 		return url.toString();
 	} catch {
 		return '';
@@ -141,6 +151,7 @@ export {
 	APP_APPROVAL_TYPE,
 	appApprovalPath,
 	normalizeApp,
+	normalizeCallbackUrl,
 	normalizeChallengeId,
 	normalizeFlowType,
 	normalizeRole,
