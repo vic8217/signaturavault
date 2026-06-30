@@ -186,6 +186,10 @@ test('ACCURA challenge lookup and approval use configured authenticated endpoint
 		});
 		assert.equal(calls.length, 2);
 		assert.match(calls[0].options.headers.Authorization, /^Basic /);
+		assert.equal(
+			calls[0].options.headers['X-Signatura-Approval-Secret'],
+			'approval-secret-test',
+		);
 		assert.equal(calls[1].options.method, 'POST');
 		assert.match(calls[1].options.headers.Authorization, /^Basic /);
 		assert.equal(
@@ -193,10 +197,14 @@ test('ACCURA challenge lookup and approval use configured authenticated endpoint
 			'approval-secret-test',
 		);
 		assert.match(calls[1].options.body, /"app":"ACCURA"/);
-		assert.equal(logs[0][0], '[signatura.accura.qr_login.approval.sending]');
+		assert.equal(logs[0][0], '[signatura.accura.qr_login.challenge.response]');
 		assert.equal(logs[0][1].hasApprovalSecret, true);
 		assert.equal(logs[0][1].sendingAuthorizationHeader, false);
 		assert.equal(logs[0][1].sendingApprovalSecretHeader, true);
+		assert.equal(logs[1][0], '[signatura.accura.qr_login.approval.sending]');
+		assert.equal(logs[1][1].hasApprovalSecret, true);
+		assert.equal(logs[1][1].sendingAuthorizationHeader, false);
+		assert.equal(logs[1][1].sendingApprovalSecretHeader, true);
 		assert.doesNotMatch(JSON.stringify(logs), /approval-secret-test/);
 	} finally {
 		globalThis.fetch = previous.fetch;

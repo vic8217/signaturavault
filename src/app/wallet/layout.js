@@ -6,7 +6,7 @@ import { WalletBottomNav } from '@/components/WalletBottomNav';
 export default function WalletLayout({ children }) {
 	return (
 		<div className="min-h-screen w-full overflow-x-hidden bg-[#030914] text-slate-100">
-			<div className="sticky top-0 z-40 w-full border-b border-white/10 bg-slate-950/95 shadow-sm backdrop-blur">
+			<div className="hidden w-full border-b border-white/10 bg-slate-950/95 shadow-sm backdrop-blur lg:sticky lg:top-0 lg:z-40 lg:block">
 				<div className="mx-auto grid w-full max-w-5xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-4">
 					<div className="hidden lg:block" />
 
@@ -47,11 +47,6 @@ export default function WalletLayout({ children }) {
 							Sign Out
 						</a>
 					</nav>
-					<a
-						className="justify-self-end rounded-lg bg-red-500 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-600 lg:hidden"
-						href="/api/auth/logout">
-						Sign out
-					</a>
 				</div>
 			</div>
 			<main className="mx-auto w-full max-w-5xl overflow-x-hidden px-3 pb-28 pt-6 sm:px-4 lg:pb-6">

@@ -31,3 +31,15 @@ test('wallet quick actions do not key repeated destinations by href', async () =
 	assert.match(source, /key=\{action\.label\}/);
 	assert.doesNotMatch(source, /key=\{action\.href\}/);
 });
+
+test('wallet home lists trusted devices registered to the active Signatura ID', async () => {
+	const source = await readFile(
+		new URL('../src/app/wallet/page.js', import.meta.url),
+		'utf8',
+	);
+
+	assert.match(source, /prisma\.trustedDevice\.findMany/);
+	assert.match(source, /Trusted Devices/);
+	assert.match(source, /Registered with \{signaturaId\}/);
+	assert.match(source, /key=\{device\.id\}/);
+});

@@ -55,11 +55,31 @@ function approvalSecretHeaders() {
 	};
 }
 
+function qrServiceHeaders() {
+	const approvalSecret = approvalSecretHeaders();
+	return {
+		headers: {
+			...serviceHeaders(),
+			...approvalSecret.headers,
+		},
+		hasApprovalSecret: approvalSecret.hasApprovalSecret,
+		sendingAuthorizationHeader: approvalSecret.sendingAuthorizationHeader,
+		sendingApprovalSecretHeader: approvalSecret.hasApprovalSecret,
+	};
+}
+
 async function readServiceResponse(response, fallbackMessage) {
-	const body = await response.json().catch(() => ({}));
+	const raw = await response.text().catch(() => '');
+	let body = {};
+	try {
+		body = raw ? JSON.parse(raw) : {};
+	} catch {
+		body = {};
+	}
 	if (!response.ok) {
 		const error = new Error(body?.error || fallbackMessage);
 		error.status = response.status;
+		error.responseBody = raw.slice(0, 2000);
 		throw error;
 	}
 	return body;
@@ -139,47 +159,80 @@ async function fetchAccuraQrLoginChallenge({ challengeId, shortCode }) {
 	endpoint.searchParams.set('challengeId', expected.challengeId);
 	endpoint.searchParams.set('shortCode', expected.shortCode);
 	endpoint.searchParams.set('app', ACCURA_QR_APP);
+	const serviceAuth = qrServiceHeaders();
 
 	const response = await fetch(endpoint, {
 		method: 'GET',
-		headers: serviceHeaders(),
+		headers: serviceAuth.headers,
 		cache: 'no-store',
 		signal: AbortSignal.timeout(10_000),
 	});
-	const body = await readServiceResponse(
-		response,
-		'Unable to retrieve the ACCURA login request.',
-	);
+	let body;
+	try {
+		body = await readServiceResponse(
+			response,
+			'Unable to retrieve the ACCURA login request.',
+		);
+	} catch (error) {
+		console.warn('[signatura.accura.qr_login.challenge.response]', {
+			challengeId: expected.challengeId,
+			target: endpoint.toString(),
+			status: response.status,
+			ok: response.ok,
+			hasApprovalSecret: serviceAuth.hasApprovalSecret,
+			sendingAuthorizationHeader: serviceAuth.sendingAuthorizationHeader,
+			sendingApprovalSecretHeader: serviceAuth.sendingApprovalSecretHeader,
+			body: String(error?.responseBody || '').slice(0, 2000),
+		});
+		throw error;
+	}
+	console.info('[signatura.accura.qr_login.challenge.response]', {
+		challengeId: expected.challengeId,
+		target: endpoint.toString(),
+		status: response.status,
+		ok: response.ok,
+		hasApprovalSecret: serviceAuth.hasApprovalSecret,
+		sendingAuthorizationHeader: serviceAuth.sendingAuthorizationHeader,
+		sendingApprovalSecretHeader: serviceAuth.sendingApprovalSecretHeader,
+	});
 	return normalizeChallenge(body, expected);
 }
 
 async function postAccuraQrLoginApproval(payload) {
 	const endpoint = configuredEndpoint('ACCURA_QR_APPROVE_URL');
-	const approvalSecret = approvalSecretHeaders();
-	const headers = {
-		...serviceHeaders(),
-		...approvalSecret.headers,
-	};
+	const serviceAuth = qrServiceHeaders();
 	console.info('[signatura.accura.qr_login.approval.sending]', {
 		challengeId: payload?.challengeId,
 		target: endpoint.toString(),
-		hasApprovalSecret: approvalSecret.hasApprovalSecret,
-		sendingAuthorizationHeader: approvalSecret.sendingAuthorizationHeader,
-		sendingApprovalSecretHeader: Boolean(
-			headers['X-Signatura-Approval-Secret'],
-		),
+		hasApprovalSecret: serviceAuth.hasApprovalSecret,
+		sendingAuthorizationHeader: serviceAuth.sendingAuthorizationHeader,
+		sendingApprovalSecretHeader: serviceAuth.sendingApprovalSecretHeader,
 	});
 	const response = await fetch(endpoint, {
 		method: 'POST',
-		headers,
+		headers: serviceAuth.headers,
 		body: JSON.stringify(payload),
 		cache: 'no-store',
 		signal: AbortSignal.timeout(10_000),
 	});
-	return readServiceResponse(
-		response,
-		'ACCURA did not accept the login approval.',
-	);
+	try {
+		return await readServiceResponse(
+			response,
+			'ACCURA did not accept the login approval.',
+		);
+	} catch (error) {
+		console.warn('[signatura.accura.qr_login.approval.response]', {
+			challengeId: payload?.challengeId,
+			target: endpoint.toString(),
+			status: response.status,
+			ok: response.ok,
+			hasApprovalSecret: serviceAuth.hasApprovalSecret,
+			sendingAuthorizationHeader: serviceAuth.sendingAuthorizationHeader,
+			sendingApprovalSecretHeader: serviceAuth.sendingApprovalSecretHeader,
+			body: String(error?.responseBody || '').slice(0, 2000),
+		});
+		throw error;
+	}
 }
 
 export {

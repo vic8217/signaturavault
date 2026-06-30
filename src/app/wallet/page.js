@@ -11,6 +11,7 @@ import {
 	ScanLine,
 	Send,
 	ShieldCheck,
+	Smartphone,
 	Sparkles,
 	WalletCards,
 } from 'lucide-react';
@@ -112,6 +113,17 @@ function formatDate(value) {
 	}).format(new Date(value));
 }
 
+function formatDeviceDate(value, fallback = 'Not used yet') {
+	if (!value) return fallback;
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return fallback;
+	return new Intl.DateTimeFormat('en', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+	}).format(date);
+}
+
 async function ownerWalletData() {
 	const session = await requireSession();
 	if (!session?.userId) {
@@ -119,23 +131,34 @@ async function ownerWalletData() {
 			session: null,
 			credentials: fallbackCredentials,
 			trustedDeviceActive: false,
+			trustedDevices: [],
 			recoveryBackupSet: false,
 		};
 	}
 
-	const [user, credentials, trustedDeviceCount, recoveryCodeCount] =
+	const [user, credentials, trustedDevices, recoveryCodeCount] =
 		await Promise.all([
 			prisma.user.findUnique({
 				where: { id: session.userId },
 				select: { name: true, signaturaId: true },
 			}),
 			listOwnerDocumentCredentials(session.userId).catch(() => []),
-			prisma.trustedDevice.count({
+			prisma.trustedDevice.findMany({
 				where: {
 					userId: session.userId,
 					isTrusted: true,
 					removedAt: null,
 					status: 'active',
+				},
+				orderBy: [{ lastUsedAt: 'desc' }, { createdAt: 'desc' }],
+				take: 4,
+				select: {
+					id: true,
+					deviceName: true,
+					userAgent: true,
+					createdAt: true,
+					lastUsedAt: true,
+					status: true,
 				},
 			}),
 			prisma.recoveryCode.count({
@@ -154,7 +177,8 @@ async function ownerWalletData() {
 		},
 		credentials: credentials.length ? credentials : fallbackCredentials,
 		trustedDeviceActive:
-			trustedDeviceCount > 0 || Number(session.trustLevel || 0) >= 2,
+			trustedDevices.length > 0 || Number(session.trustLevel || 0) >= 2,
+		trustedDevices,
 		recoveryBackupSet: recoveryCodeCount > 0,
 	};
 }
@@ -169,7 +193,13 @@ function StatusPill({ children }) {
 }
 
 export default async function WalletHome() {
-	const { session, credentials, trustedDeviceActive, recoveryBackupSet } =
+	const {
+		session,
+		credentials,
+		trustedDeviceActive,
+		trustedDevices,
+		recoveryBackupSet,
+	} =
 		await ownerWalletData();
 	const displayName = session?.name || 'Signatura User';
 	const signaturaId = session?.signaturaId || 'SIG-U-8FD2-A91C';
@@ -382,6 +412,55 @@ export default async function WalletHome() {
 									/>
 								</div>
 							))}
+						</div>
+					</section>
+
+					<section className="min-w-0 overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
+						<div className="mb-4 flex items-center justify-between gap-3">
+							<div className="min-w-0">
+								<h2 className="text-lg font-black text-white">Trusted Devices</h2>
+								<p className="mt-1 text-xs font-semibold text-slate-400">
+									Registered with {signaturaId}
+								</p>
+							</div>
+							<Link
+								href="/signatura/trusted-devices"
+								className="shrink-0 text-xs font-bold text-red-200 transition hover:text-white">
+								Manage
+							</Link>
+						</div>
+						<div className="grid gap-3">
+							{trustedDevices.length ? (
+								trustedDevices.map((device) => (
+									<div
+										key={device.id}
+										className="flex min-h-16 items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.035] p-3">
+										<span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-emerald-400/25 bg-emerald-400/10 text-emerald-200">
+											<Smartphone className="h-5 w-5" />
+										</span>
+										<span className="min-w-0 flex-1">
+											<span className="block truncate text-sm font-black text-white">
+												{device.deviceName || 'Trusted device'}
+											</span>
+											<span className="mt-1 block truncate text-xs font-semibold text-slate-400">
+												Last used {formatDeviceDate(device.lastUsedAt)}
+											</span>
+											<span className="mt-1 block truncate text-[11px] text-slate-500">
+												Added {formatDeviceDate(device.createdAt, 'Recently added')}
+											</span>
+										</span>
+										<span className="shrink-0 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-black uppercase text-emerald-100">
+											{device.status || 'active'}
+										</span>
+									</div>
+								))
+							) : (
+								<Link
+									href="/signatura/trusted-devices/add"
+									className="rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4 text-sm font-semibold text-amber-50 transition hover:border-amber-200">
+									Register this phone as a trusted device
+								</Link>
+							)}
 						</div>
 					</section>
 				</div>

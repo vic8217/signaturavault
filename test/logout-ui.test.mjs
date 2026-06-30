@@ -84,3 +84,16 @@ test('owner mobile others page exposes a visible sign out row', async () => {
 	assert.match(source, /LogOut/);
 	assert.match(source, /End this trusted device session/);
 });
+
+test('mobile wallet shell does not duplicate sign out above bottom navigation', async () => {
+	for (const file of [
+		'../src/app/signatura/layout.js',
+		'../src/app/wallet/layout.js',
+	]) {
+		const source = await readFile(new URL(file, import.meta.url), 'utf8');
+
+		assert.match(source, /lg:block/, file);
+		assert.match(source, /Sign Out/, file);
+		assert.doesNotMatch(source, /lg:hidden[\s\S]*Sign out/, file);
+	}
+});
