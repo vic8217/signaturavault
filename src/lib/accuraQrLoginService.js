@@ -70,6 +70,40 @@ function serviceHeaders() {
 	};
 }
 
+function qrHttpAuthHeaders() {
+	const explicitAuth = String(process.env.ACCURA_QR_AUTH_HEADER || '').trim();
+	if (explicitAuth) {
+		return {
+			headers: { Authorization: explicitAuth },
+			source: 'explicit',
+		};
+	}
+
+	const basicUser = String(process.env.ACCURA_QR_BASIC_USER || '').trim();
+	const basicPassword = String(process.env.ACCURA_QR_BASIC_PASSWORD || '');
+	if (basicUser && basicPassword) {
+		return {
+			headers: {
+				Authorization: `Basic ${Buffer.from(`${basicUser}:${basicPassword}`).toString('base64')}`,
+			},
+			source: 'basic',
+		};
+	}
+
+	const bearerToken = String(process.env.ACCURA_QR_BEARER_TOKEN || '').trim();
+	if (bearerToken) {
+		return {
+			headers: { Authorization: `Bearer ${bearerToken}` },
+			source: 'bearer',
+		};
+	}
+
+	return {
+		headers: {},
+		source: '',
+	};
+}
+
 function approvalSecretMode() {
 	const mode = String(
 		process.env.SIGNATURA_QR_APPROVAL_SECRET_MODE ||
@@ -114,18 +148,24 @@ function approvalSecretHeaders() {
 function qrServiceHeaders() {
 	const approvalSecret = approvalSecretHeaders();
 	const baseHeaders = serviceHeaders();
-	if (approvalSecret.headers.Authorization) {
+	const httpAuth = qrHttpAuthHeaders();
+	if (approvalSecret.headers.Authorization || httpAuth.headers.Authorization) {
 		delete baseHeaders.Authorization;
 	}
+	const headers = {
+		...baseHeaders,
+		...approvalSecret.headers,
+		...httpAuth.headers,
+	};
 	return {
-		headers: {
-			...baseHeaders,
-			...approvalSecret.headers,
-		},
+		headers,
 		hasApprovalSecret: approvalSecret.hasApprovalSecret,
 		approvalSecretMode: approvalSecret.mode,
-		sendingAuthorizationHeader: approvalSecret.sendingAuthorizationHeader,
+		sendingAuthorizationHeader: Boolean(headers.Authorization),
+		sendingApprovalAuthorizationHeader: approvalSecret.sendingAuthorizationHeader,
 		sendingApprovalSecretHeader: approvalSecret.sendingApprovalSecretHeader,
+		sendingHttpAuthHeader: Boolean(httpAuth.headers.Authorization),
+		httpAuthSource: httpAuth.source,
 	};
 }
 
@@ -248,7 +288,10 @@ async function fetchAccuraQrLoginChallenge({ challengeId, shortCode }) {
 			hasApprovalSecret: serviceAuth.hasApprovalSecret,
 			approvalSecretMode: serviceAuth.approvalSecretMode,
 			sendingAuthorizationHeader: serviceAuth.sendingAuthorizationHeader,
+			sendingApprovalAuthorizationHeader: serviceAuth.sendingApprovalAuthorizationHeader,
 			sendingApprovalSecretHeader: serviceAuth.sendingApprovalSecretHeader,
+			sendingHttpAuthHeader: serviceAuth.sendingHttpAuthHeader,
+			httpAuthSource: serviceAuth.httpAuthSource,
 			body: String(error?.responseBody || '').slice(0, 2000),
 		});
 		throw error;
@@ -261,7 +304,10 @@ async function fetchAccuraQrLoginChallenge({ challengeId, shortCode }) {
 		hasApprovalSecret: serviceAuth.hasApprovalSecret,
 		approvalSecretMode: serviceAuth.approvalSecretMode,
 		sendingAuthorizationHeader: serviceAuth.sendingAuthorizationHeader,
+		sendingApprovalAuthorizationHeader: serviceAuth.sendingApprovalAuthorizationHeader,
 		sendingApprovalSecretHeader: serviceAuth.sendingApprovalSecretHeader,
+		sendingHttpAuthHeader: serviceAuth.sendingHttpAuthHeader,
+		httpAuthSource: serviceAuth.httpAuthSource,
 	});
 	return normalizeChallenge(body, expected);
 }
@@ -275,7 +321,10 @@ async function postAccuraQrLoginApproval(payload) {
 		hasApprovalSecret: serviceAuth.hasApprovalSecret,
 		approvalSecretMode: serviceAuth.approvalSecretMode,
 		sendingAuthorizationHeader: serviceAuth.sendingAuthorizationHeader,
+		sendingApprovalAuthorizationHeader: serviceAuth.sendingApprovalAuthorizationHeader,
 		sendingApprovalSecretHeader: serviceAuth.sendingApprovalSecretHeader,
+		sendingHttpAuthHeader: serviceAuth.sendingHttpAuthHeader,
+		httpAuthSource: serviceAuth.httpAuthSource,
 	});
 	const response = await fetch(endpoint, {
 		method: 'POST',
@@ -305,7 +354,10 @@ async function postAccuraQrLoginApproval(payload) {
 			hasApprovalSecret: serviceAuth.hasApprovalSecret,
 			approvalSecretMode: serviceAuth.approvalSecretMode,
 			sendingAuthorizationHeader: serviceAuth.sendingAuthorizationHeader,
+			sendingApprovalAuthorizationHeader: serviceAuth.sendingApprovalAuthorizationHeader,
 			sendingApprovalSecretHeader: serviceAuth.sendingApprovalSecretHeader,
+			sendingHttpAuthHeader: serviceAuth.sendingHttpAuthHeader,
+			httpAuthSource: serviceAuth.httpAuthSource,
 			body: String(error?.responseBody || '').slice(0, 2000),
 		});
 		throw error;

@@ -202,11 +202,13 @@ test('ACCURA challenge lookup and approval use configured authenticated endpoint
 		assert.match(calls[1].options.body, /"app":"ACCURA"/);
 		assert.equal(logs[0][0], '[signatura.accura.qr_login.challenge.response]');
 		assert.equal(logs[0][1].hasApprovalSecret, true);
-		assert.equal(logs[0][1].sendingAuthorizationHeader, false);
+		assert.equal(logs[0][1].sendingAuthorizationHeader, true);
+		assert.equal(logs[0][1].sendingApprovalAuthorizationHeader, false);
 		assert.equal(logs[0][1].sendingApprovalSecretHeader, true);
 		assert.equal(logs[1][0], '[signatura.accura.qr_login.approval.sending]');
 		assert.equal(logs[1][1].hasApprovalSecret, true);
-		assert.equal(logs[1][1].sendingAuthorizationHeader, false);
+		assert.equal(logs[1][1].sendingAuthorizationHeader, true);
+		assert.equal(logs[1][1].sendingApprovalAuthorizationHeader, false);
 		assert.equal(logs[1][1].sendingApprovalSecretHeader, true);
 		assert.doesNotMatch(JSON.stringify(logs), /approval-secret-test/);
 	} finally {
@@ -267,6 +269,7 @@ test('ACCURA QR lookup can send approval secret as bearer authorization', async 
 		assert.equal(logs[0][1].hasApprovalSecret, true);
 		assert.equal(logs[0][1].approvalSecretMode, 'bearer');
 		assert.equal(logs[0][1].sendingAuthorizationHeader, true);
+		assert.equal(logs[0][1].sendingApprovalAuthorizationHeader, true);
 		assert.equal(logs[0][1].sendingApprovalSecretHeader, false);
 		assert.doesNotMatch(JSON.stringify(logs), /approval-secret-test/);
 	} finally {
@@ -278,6 +281,77 @@ test('ACCURA QR lookup can send approval secret as bearer authorization', async 
 			ACCURA_CLIENT_SECRET: previous.clientSecret,
 			SIGNATURA_QR_APPROVAL_SECRET: previous.approvalSecret,
 			SIGNATURA_QR_APPROVAL_SECRET_MODE: previous.approvalSecretMode,
+		})) {
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
+		}
+	}
+});
+
+test('ACCURA QR lookup can use separate basic auth for nginx protected endpoints', async () => {
+	const previous = {
+		challenge: process.env.ACCURA_QR_CHALLENGE_URL,
+		clientId: process.env.ACCURA_CLIENT_ID,
+		clientSecret: process.env.ACCURA_CLIENT_SECRET,
+		approvalSecret: process.env.SIGNATURA_QR_APPROVAL_SECRET,
+		approvalSecretMode: process.env.SIGNATURA_QR_APPROVAL_SECRET_MODE,
+		basicUser: process.env.ACCURA_QR_BASIC_USER,
+		basicPassword: process.env.ACCURA_QR_BASIC_PASSWORD,
+		fetch: globalThis.fetch,
+		info: console.info,
+	};
+	process.env.ACCURA_QR_CHALLENGE_URL =
+		'https://accura.example/api/signatura/qr-login/challenge';
+	process.env.ACCURA_CLIENT_ID = 'accura';
+	process.env.ACCURA_CLIENT_SECRET = 'shared-test-secret';
+	process.env.SIGNATURA_QR_APPROVAL_SECRET = 'approval-secret-test';
+	process.env.SIGNATURA_QR_APPROVAL_SECRET_MODE = 'header';
+	process.env.ACCURA_QR_BASIC_USER = 'sandbox-user';
+	process.env.ACCURA_QR_BASIC_PASSWORD = 'sandbox-pass';
+	const calls = [];
+	const logs = [];
+	console.info = (...args) => logs.push(args);
+	globalThis.fetch = async (url, options) => {
+		calls.push({ url: String(url), options });
+		return Response.json({
+			app: 'ACCURA',
+			challengeId: 'challenge-basic-1',
+			shortCode: 'BN91',
+			status: 'PENDING',
+			expiresAt: new Date(Date.now() + 90_000).toISOString(),
+		});
+	};
+
+	try {
+		await fetchAccuraQrLoginChallenge({
+			challengeId: 'challenge-basic-1',
+			shortCode: 'BN91',
+		});
+
+		assert.equal(
+			calls[0].options.headers.Authorization,
+			`Basic ${Buffer.from('sandbox-user:sandbox-pass').toString('base64')}`,
+		);
+		assert.equal(
+			calls[0].options.headers['X-Signatura-Approval-Secret'],
+			'approval-secret-test',
+		);
+		assert.equal(logs[0][1].sendingAuthorizationHeader, true);
+		assert.equal(logs[0][1].sendingApprovalAuthorizationHeader, false);
+		assert.equal(logs[0][1].sendingHttpAuthHeader, true);
+		assert.equal(logs[0][1].httpAuthSource, 'basic');
+		assert.doesNotMatch(JSON.stringify(logs), /sandbox-pass|approval-secret-test/);
+	} finally {
+		globalThis.fetch = previous.fetch;
+		console.info = previous.info;
+		for (const [key, value] of Object.entries({
+			ACCURA_QR_CHALLENGE_URL: previous.challenge,
+			ACCURA_CLIENT_ID: previous.clientId,
+			ACCURA_CLIENT_SECRET: previous.clientSecret,
+			SIGNATURA_QR_APPROVAL_SECRET: previous.approvalSecret,
+			SIGNATURA_QR_APPROVAL_SECRET_MODE: previous.approvalSecretMode,
+			ACCURA_QR_BASIC_USER: previous.basicUser,
+			ACCURA_QR_BASIC_PASSWORD: previous.basicPassword,
 		})) {
 			if (value === undefined) delete process.env[key];
 			else process.env[key] = value;
