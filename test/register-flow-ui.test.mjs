@@ -328,6 +328,8 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(appApprovalPage, /AppApprovalInstallGate/);
 	assert.match(appApprovalPage, /\/register\?next=/);
 	assert.match(appApprovalPage, /SIG-U-/);
+	assert.match(appApprovalPage, /normalizeCompanyCode/);
+	assert.match(appApprovalPage, /companyCode/);
 	assert.doesNotMatch(appApprovalPage, /redirect\(`\/register\?next=/);
 	assert.match(appApprovalInstallGate, /getInstalledRelatedApps/);
 	assert.match(appApprovalInstallGate, /display-mode: standalone/);
@@ -345,10 +347,15 @@ test('ACCURA-linked registration shows company context and hides issuer link', a
 	assert.match(appApprovalApi, /deviceId/);
 	assert.match(appApprovalApi, /app_approval_completed/);
 	assert.match(appApprovalApi, /ensureAccuraMembershipRole/);
+	assert.match(appApprovalApi, /ACCURA company code is required for this role/);
+	assert.match(appApprovalApi, /resolvedCompanyCode/);
+	assert.doesNotMatch(appApprovalApi, /companyCode: 'ACCURA'/);
 	assert.match(appApprovalForm, /startAuthentication/);
 	assert.match(appApprovalForm, /HIGH_RISK_ROLES/);
 	assert.match(appApprovalApi, /notifyAccuraAppApprovalCallback/);
 	assert.match(appApprovalForm, /app-approval\/sync-callback/);
+	assert.match(appApprovalForm, /Company Code/);
+	assert.match(appApprovalForm, /companyCode/);
 	assert.match(appApprovalForm, /Approved locally, but ACCURA callback failed/);
 	assert.match(accuraLinkForm, /Approved\. Return to your ACCURA browser\./);
 	assert.match(registerForm, /Link your SIGNATURA ID to ACCURA/);

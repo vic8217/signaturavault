@@ -32,6 +32,11 @@ async function postAccuraApprovalFromBrowser(payload) {
 				status: 'APPROVED',
 				verificationToken: payload.verificationToken,
 				approvedAt: payload.approvedAt,
+				companyId: payload.companyId,
+				companyCode: payload.companyCode,
+				companyName: payload.companyName,
+				role: payload.requestedRole,
+				requestedRole: payload.requestedRole,
 			}),
 		});
 		return {
@@ -73,6 +78,9 @@ export function AppApprovalForm({
 	app,
 	requestedRole,
 	flowType,
+	companyId,
+	companyCode,
+	companyName,
 	callbackUrl,
 	signaturaId,
 }) {
@@ -152,6 +160,9 @@ export function AppApprovalForm({
 						app,
 						requestedRole,
 						flowType,
+						companyId,
+						companyCode,
+						companyName,
 						callbackUrl,
 						response: assertion,
 					}),
@@ -167,6 +178,10 @@ export function AppApprovalForm({
 				signaturaId: data.signaturaId || signaturaId,
 				verificationToken: data.verificationToken,
 				approvedAt: data.approvedAt,
+				companyId: data.companyId || companyId || '',
+				companyCode: data.companyCode || companyCode || '',
+				companyName: data.companyName || companyName || '',
+				requestedRole,
 			};
 			setApprovalPayload(payload);
 			const callbackOk = data?.callback?.ok === true;
@@ -262,6 +277,12 @@ export function AppApprovalForm({
 					Requested Role:{' '}
 					<span className="font-mono text-white">{requestedRole}</span>
 				</p>
+				{companyCode ? (
+					<p>
+						Company Code:{' '}
+						<span className="font-mono text-white">{companyCode}</span>
+					</p>
+				) : null}
 			</div>
 
 			<div className="mt-6 grid gap-3 sm:grid-cols-2">

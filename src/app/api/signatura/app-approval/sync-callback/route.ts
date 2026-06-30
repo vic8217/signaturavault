@@ -3,6 +3,10 @@ import { notifyAccuraAppApprovalCallback } from '@/lib/accuraRegistrationHandoff
 import { requireSession } from '@/lib/session';
 import {
 	normalizeChallengeId,
+	normalizeCompanyCode,
+	normalizeCompanyId,
+	normalizeCompanyName,
+	normalizeRole,
 } from '@/lib/signaturaAppApprovalQr';
 
 function normalizeCallbackUrl(value: unknown) {
@@ -32,6 +36,10 @@ export async function POST(req: Request) {
 		const body = await req.json().catch(() => ({}));
 		const challengeId = normalizeChallengeId(body.challengeId);
 		const callbackUrl = normalizeCallbackUrl(body.callbackUrl);
+		const companyId = normalizeCompanyId(body.companyId || body.company_id);
+		const companyCode = normalizeCompanyCode(body.companyCode || body.company_code);
+		const companyName = normalizeCompanyName(body.companyName || body.company_name);
+		const requestedRole = normalizeRole(body.requestedRole || body.role);
 		const signaturaId = String(body.signaturaId || session.signaturaId || '')
 			.trim()
 			.toUpperCase();
@@ -48,6 +56,10 @@ export async function POST(req: Request) {
 			signaturaId,
 			verificationToken,
 			approvedAt,
+			companyId,
+			companyCode,
+			companyName,
+			requestedRole,
 		});
 
 		return Response.json({

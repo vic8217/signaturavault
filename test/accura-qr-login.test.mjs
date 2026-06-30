@@ -69,15 +69,18 @@ test('ACCURA registration QR parser accepts register/accura handoff links', () =
 
 test('Signatura app approval QR parser accepts official ACCURA URL and JSON contracts', () => {
 	const urlPayload = parseSignaturaAppApprovalQr(
-		'https://signatura-sandbox.nouvoux.com/app-approval?challengeId=challenge-url-1&app=ACCURA&role=SYSTEM_ADMIN&flowType=cross_device_qr&callbackUrl=https%3A%2F%2Faccura-sandbox.nouvoux.com%2Fapi%2Fsignatura%2Fchallenge-approve',
+		'https://signatura-sandbox.nouvoux.com/app-approval?challengeId=challenge-url-1&app=ACCURA&role=COMPANY_ADMIN&companyId=company-road&companyCode=road-f05713&companyName=RoadRunner%20BeepBeep&flowType=cross_device_qr&callbackUrl=https%3A%2F%2Faccura-sandbox.nouvoux.com%2Fapi%2Fsignatura%2Fchallenge-approve',
 	);
 	assert.equal(urlPayload.valid, true);
 	assert.equal(urlPayload.challengeId, 'challenge-url-1');
 	assert.equal(urlPayload.app, 'ACCURA');
-	assert.equal(urlPayload.requestedRole, 'SYSTEM_ADMIN');
+	assert.equal(urlPayload.requestedRole, 'COMPANY_ADMIN');
+	assert.equal(urlPayload.companyId, 'company-road');
+	assert.equal(urlPayload.companyCode, 'ROAD-F05713');
+	assert.equal(urlPayload.companyName, 'RoadRunner BeepBeep');
 	assert.equal(
 		urlPayload.href,
-		'/app-approval?challengeId=challenge-url-1&app=ACCURA&requestedRole=SYSTEM_ADMIN&flowType=cross_device_qr&callbackUrl=https%3A%2F%2Faccura-sandbox.nouvoux.com%2Fapi%2Fsignatura%2Fchallenge-approve',
+		'/app-approval?challengeId=challenge-url-1&app=ACCURA&requestedRole=COMPANY_ADMIN&flowType=cross_device_qr&companyId=company-road&companyCode=ROAD-F05713&companyName=RoadRunner+BeepBeep&callbackUrl=https%3A%2F%2Faccura-sandbox.nouvoux.com%2Fapi%2Fsignatura%2Fchallenge-approve',
 	);
 
 	const jsonPayload = parseSignaturaAppApprovalQr(
@@ -86,7 +89,10 @@ test('Signatura app approval QR parser accepts official ACCURA URL and JSON cont
 			version: 1,
 			challengeId: 'challenge-json-1',
 			app: 'ACCURA',
-			requestedRole: 'SYSTEM_ADMIN',
+			requestedRole: 'COMPANY_ADMIN',
+			companyId: 'company-road',
+			companyCode: 'ROAD-F05713',
+			companyName: 'RoadRunner BeepBeep',
 			flowType: 'cross_device_qr',
 			callbackUrl:
 				'https://accura-sandbox.nouvoux.com/api/signatura/challenge-approve',
@@ -94,9 +100,11 @@ test('Signatura app approval QR parser accepts official ACCURA URL and JSON cont
 	);
 	assert.equal(jsonPayload.valid, true);
 	assert.equal(jsonPayload.challengeId, 'challenge-json-1');
+	assert.equal(jsonPayload.companyCode, 'ROAD-F05713');
 	assert.equal(jsonPayload.callbackUrl, 'https://accura-sandbox.nouvoux.com/api/signatura/challenge-approve');
 	assert.match(jsonPayload.href, /^\/app-approval\?/);
 	assert.match(jsonPayload.href, /callbackUrl=/);
+	assert.match(jsonPayload.href, /companyCode=ROAD-F05713/);
 });
 
 test('ACCURA QR parser rejects wrong app, missing pointers, and sensitive material', () => {

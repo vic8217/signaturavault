@@ -671,6 +671,10 @@ function resolveAccuraAppApprovalCallbackUrl(callbackUrl) {
  *   verificationToken?: string;
  *   approvedAt?: string;
  *   status?: string;
+ *   companyId?: string;
+ *   companyCode?: string;
+ *   companyName?: string;
+ *   requestedRole?: string;
  * }} approval
  */
 async function notifyAccuraAppApprovalCallback({
@@ -680,6 +684,10 @@ async function notifyAccuraAppApprovalCallback({
 	verificationToken,
 	approvedAt,
 	status = 'APPROVED',
+	companyId = '',
+	companyCode = '',
+	companyName = '',
+	requestedRole = '',
 } = {}) {
 	const target = resolveAccuraAppApprovalCallbackUrl(callbackUrl);
 	const resolvedChallengeId = String(challengeId || '').trim();
@@ -693,6 +701,11 @@ async function notifyAccuraAppApprovalCallback({
 		verificationToken: String(verificationToken || '').trim(),
 		status,
 		approvedAt: approvedAt || new Date().toISOString(),
+		companyId: String(companyId || '').trim(),
+		companyCode: normalizeCompanyCode(companyCode),
+		companyName: normalizeCompanyName(companyName),
+		requestedRole: String(requestedRole || '').trim(),
+		role: String(requestedRole || '').trim(),
 	};
 
 	const attempts = 3;

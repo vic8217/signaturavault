@@ -6,6 +6,9 @@ import { requireSession } from '@/lib/session';
 import {
 	normalizeApp,
 	normalizeChallengeId,
+	normalizeCompanyCode,
+	normalizeCompanyId,
+	normalizeCompanyName,
 	normalizeFlowType,
 	normalizeRole,
 } from '@/lib/signaturaAppApprovalQr';
@@ -66,6 +69,9 @@ export async function POST(req: Request) {
 		const app = normalizeApp(body.app);
 		const requestedRole = normalizeRole(body.requestedRole || body.role);
 		const flowType = normalizeFlowType(body.flowType);
+		const companyCode = normalizeCompanyCode(body.companyCode || body.company_code);
+		const companyId = normalizeCompanyId(body.companyId || body.company_id);
+		const companyName = normalizeCompanyName(body.companyName || body.company_name);
 		const callbackUrl = normalizeCallbackUrl(body.callbackUrl);
 		const assertion = body.response || body.assertion || null;
 		if (!challengeId) return jsonError('challengeId is required', 400);
@@ -74,6 +80,16 @@ export async function POST(req: Request) {
 		if (!callbackUrl) return jsonError('callbackUrl is required', 400);
 
 		const rolePrefix = rolePrefixForRequestedRole(requestedRole);
+		const isSystemAdminRole = rolePrefix === 'SADM';
+		const resolvedCompanyCode = companyCode || (isSystemAdminRole ? 'ACCURA' : '');
+		const resolvedCompanyId =
+			companyId || (isSystemAdminRole ? 'accura-platform' : resolvedCompanyCode);
+		const resolvedCompanyName =
+			companyName ||
+			(isSystemAdminRole ? 'ACCURA Platform' : resolvedCompanyCode || 'ACCURA Company');
+		if (!isSystemAdminRole && (!resolvedCompanyCode || !resolvedCompanyId)) {
+			return jsonError('ACCURA company code is required for this role', 400);
+		}
 		const isHighRisk = HIGH_RISK_ROLES.has(requestedRole);
 		let authenticationMethod = 'trusted_session';
 		let deviceId = '';
@@ -180,7 +196,7 @@ export async function POST(req: Request) {
 				where: {
 					userId: session.userId,
 					sourceApp: 'ACCURA',
-					companyCode: 'ACCURA',
+					companyCode: resolvedCompanyCode,
 					rolePrefix,
 					status: 'ACTIVE',
 				},
@@ -193,6 +209,9 @@ export async function POST(req: Request) {
 				requestedRole,
 				flowType,
 				callbackUrl,
+				companyId: resolvedCompanyId,
+				companyCode: resolvedCompanyCode,
+				companyName: resolvedCompanyName,
 				approvedAt,
 				authenticationMethod,
 				deviceId,
@@ -215,10 +234,10 @@ export async function POST(req: Request) {
 						userId: session.userId,
 						signaturaId: session.signaturaId,
 						sourceApp: 'ACCURA',
-						companyCode: 'ACCURA',
-						companyName: 'ACCURA',
-						companyId: 'accura-platform',
-						tenantId: 'accura-platform',
+						companyCode: resolvedCompanyCode,
+						companyName: resolvedCompanyName,
+						companyId: resolvedCompanyId,
+						tenantId: resolvedCompanyId,
 						role: requestedRole,
 						rolePrefix,
 						registrationContext,
@@ -230,9 +249,9 @@ export async function POST(req: Request) {
 
 			await ensureAccuraMembershipRole(tx, {
 				identityId: session.userId,
-				companyId: 'accura-platform',
-				companyCode: 'ACCURA',
-				companyName: 'ACCURA',
+				companyId: resolvedCompanyId,
+				companyCode: resolvedCompanyCode,
+				companyName: resolvedCompanyName,
 				rolePrefix,
 				roleName: requestedRole,
 			});
@@ -244,6 +263,10 @@ export async function POST(req: Request) {
 			signaturaId: session.signaturaId,
 			verificationToken,
 			approvedAt,
+			companyId: resolvedCompanyId,
+			companyCode: resolvedCompanyCode,
+			companyName: resolvedCompanyName,
+			requestedRole,
 		});
 
 		await logSecurityEvent(req, 'app_approval_completed', session.userId, {
@@ -264,6 +287,9 @@ export async function POST(req: Request) {
 			signaturaId: session.signaturaId,
 			verificationToken,
 			approvedAt,
+			companyId: resolvedCompanyId,
+			companyCode: resolvedCompanyCode,
+			companyName: resolvedCompanyName,
 			flowType,
 			callback,
 			message: `Approved. Return to your ${app} browser.`,

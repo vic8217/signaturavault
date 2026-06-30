@@ -8,6 +8,24 @@ function normalizeChallengeId(value) {
 	return String(value || '').trim().slice(0, 200);
 }
 
+function normalizeCompanyId(value) {
+	return String(value || '').trim().slice(0, 120);
+}
+
+function normalizeCompanyCode(value) {
+	return String(value || '')
+		.trim()
+		.toUpperCase()
+		.replace(/[^A-Z0-9-]/g, '')
+		.replace(/-+/g, '-')
+		.replace(/^-|-$/g, '')
+		.slice(0, 32);
+}
+
+function normalizeCompanyName(value) {
+	return String(value || '').trim().slice(0, 120);
+}
+
 function normalizeApp(value) {
 	return String(value || '').trim().toUpperCase();
 }
@@ -53,6 +71,12 @@ function appApprovalPath(approval) {
 		requestedRole: normalizeRole(approval.requestedRole || approval.role),
 		flowType: normalizeFlowType(approval.flowType),
 	});
+	const companyId = normalizeCompanyId(approval.companyId);
+	const companyCode = normalizeCompanyCode(approval.companyCode);
+	const companyName = normalizeCompanyName(approval.companyName);
+	if (companyId) params.set('companyId', companyId);
+	if (companyCode) params.set('companyCode', companyCode);
+	if (companyName) params.set('companyName', companyName);
 	const callbackUrl = normalizeCallbackUrl(approval.callbackUrl);
 	if (callbackUrl) params.set('callbackUrl', callbackUrl);
 	return `/app-approval?${params.toString()}`;
@@ -73,6 +97,9 @@ function validApprovalPayload(payload) {
 		app,
 		requestedRole,
 		flowType: normalizeFlowType(payload.flowType),
+		companyId: normalizeCompanyId(payload.companyId),
+		companyCode: normalizeCompanyCode(payload.companyCode),
+		companyName: normalizeCompanyName(payload.companyName),
 		callbackUrl,
 	};
 }
@@ -128,6 +155,9 @@ function parseSignaturaAppApprovalQr(payload) {
 			requestedRole:
 				url.searchParams.get('requestedRole') || url.searchParams.get('role'),
 			flowType: url.searchParams.get('flowType'),
+			companyId: url.searchParams.get('companyId'),
+			companyCode: url.searchParams.get('companyCode'),
+			companyName: url.searchParams.get('companyName'),
 			callbackUrl: url.searchParams.get('callbackUrl'),
 		});
 		if (!approval) {
@@ -153,6 +183,9 @@ export {
 	normalizeApp,
 	normalizeCallbackUrl,
 	normalizeChallengeId,
+	normalizeCompanyCode,
+	normalizeCompanyId,
+	normalizeCompanyName,
 	normalizeFlowType,
 	normalizeRole,
 	parseSignaturaAppApprovalQr,

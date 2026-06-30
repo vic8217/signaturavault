@@ -5,6 +5,9 @@ import { requireSession } from '@/lib/session';
 import {
 	normalizeApp,
 	normalizeChallengeId,
+	normalizeCompanyCode,
+	normalizeCompanyId,
+	normalizeCompanyName,
 	normalizeFlowType,
 	normalizeRole,
 } from '@/lib/signaturaAppApprovalQr';
@@ -31,12 +34,18 @@ export default async function AppApprovalPage({ searchParams }) {
 		firstParam(params?.requestedRole) || firstParam(params?.role),
 	);
 	const flowType = normalizeFlowType(firstParam(params?.flowType));
+	const companyId = normalizeCompanyId(firstParam(params?.companyId));
+	const companyCode = normalizeCompanyCode(firstParam(params?.companyCode));
+	const companyName = normalizeCompanyName(firstParam(params?.companyName));
 	const callbackUrl = callbackParam(firstParam(params?.callbackUrl));
 	const currentPath = `/app-approval?${new URLSearchParams({
 		challengeId,
 		app,
 		requestedRole,
 		flowType,
+		...(companyId ? { companyId } : {}),
+		...(companyCode ? { companyCode } : {}),
+		...(companyName ? { companyName } : {}),
 		...(callbackUrl ? { callbackUrl } : {}),
 	}).toString()}`;
 	const session = await requireSession();
@@ -79,6 +88,9 @@ export default async function AppApprovalPage({ searchParams }) {
 						app={app}
 						requestedRole={requestedRole}
 						flowType={flowType}
+						companyId={companyId}
+						companyCode={companyCode}
+						companyName={companyName}
 						callbackUrl={callbackUrl}
 						signaturaId={session.signaturaId}
 					/>
