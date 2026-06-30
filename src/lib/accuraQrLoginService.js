@@ -42,29 +42,62 @@ function serviceHeaders() {
 	};
 }
 
+function approvalSecretMode() {
+	const mode = String(
+		process.env.SIGNATURA_QR_APPROVAL_SECRET_MODE ||
+			process.env.SIGNATURA_QR_APPROVAL_AUTH_MODE ||
+			'header',
+	)
+		.trim()
+		.toLowerCase();
+	return ['bearer', 'header', 'both'].includes(mode) ? mode : 'header';
+}
+
 function approvalSecretHeaders() {
 	const approvalSecret = String(
 		process.env.SIGNATURA_QR_APPROVAL_SECRET || '',
 	).trim();
+	const mode = approvalSecretMode();
+	if (!approvalSecret) {
+		return {
+			headers: {},
+			hasApprovalSecret: false,
+			mode,
+			sendingAuthorizationHeader: false,
+			sendingApprovalSecretHeader: false,
+		};
+	}
+	const headers = {};
+	if (mode === 'bearer' || mode === 'both') {
+		headers.Authorization = `Bearer ${approvalSecret}`;
+	}
+	if (mode === 'header' || mode === 'both') {
+		headers['X-Signatura-Approval-Secret'] = approvalSecret;
+	}
 	return {
-		headers: approvalSecret
-			? { 'X-Signatura-Approval-Secret': approvalSecret }
-			: {},
-		hasApprovalSecret: Boolean(approvalSecret),
-		sendingAuthorizationHeader: false,
+		headers,
+		hasApprovalSecret: true,
+		mode,
+		sendingAuthorizationHeader: Boolean(headers.Authorization),
+		sendingApprovalSecretHeader: Boolean(headers['X-Signatura-Approval-Secret']),
 	};
 }
 
 function qrServiceHeaders() {
 	const approvalSecret = approvalSecretHeaders();
+	const baseHeaders = serviceHeaders();
+	if (approvalSecret.headers.Authorization) {
+		delete baseHeaders.Authorization;
+	}
 	return {
 		headers: {
-			...serviceHeaders(),
+			...baseHeaders,
 			...approvalSecret.headers,
 		},
 		hasApprovalSecret: approvalSecret.hasApprovalSecret,
+		approvalSecretMode: approvalSecret.mode,
 		sendingAuthorizationHeader: approvalSecret.sendingAuthorizationHeader,
-		sendingApprovalSecretHeader: approvalSecret.hasApprovalSecret,
+		sendingApprovalSecretHeader: approvalSecret.sendingApprovalSecretHeader,
 	};
 }
 
@@ -77,7 +110,12 @@ async function readServiceResponse(response, fallbackMessage) {
 		body = {};
 	}
 	if (!response.ok) {
-		const error = new Error(body?.error || fallbackMessage);
+		const upstreamMessage = body?.error || body?.message || '';
+		const error = new Error(
+			upstreamMessage
+				? `${fallbackMessage} (${response.status}): ${upstreamMessage}`
+				: `${fallbackMessage} (${response.status})`,
+		);
 		error.status = response.status;
 		error.responseBody = raw.slice(0, 2000);
 		throw error;
@@ -180,6 +218,7 @@ async function fetchAccuraQrLoginChallenge({ challengeId, shortCode }) {
 			status: response.status,
 			ok: response.ok,
 			hasApprovalSecret: serviceAuth.hasApprovalSecret,
+			approvalSecretMode: serviceAuth.approvalSecretMode,
 			sendingAuthorizationHeader: serviceAuth.sendingAuthorizationHeader,
 			sendingApprovalSecretHeader: serviceAuth.sendingApprovalSecretHeader,
 			body: String(error?.responseBody || '').slice(0, 2000),
@@ -192,6 +231,7 @@ async function fetchAccuraQrLoginChallenge({ challengeId, shortCode }) {
 		status: response.status,
 		ok: response.ok,
 		hasApprovalSecret: serviceAuth.hasApprovalSecret,
+		approvalSecretMode: serviceAuth.approvalSecretMode,
 		sendingAuthorizationHeader: serviceAuth.sendingAuthorizationHeader,
 		sendingApprovalSecretHeader: serviceAuth.sendingApprovalSecretHeader,
 	});
@@ -205,6 +245,7 @@ async function postAccuraQrLoginApproval(payload) {
 		challengeId: payload?.challengeId,
 		target: endpoint.toString(),
 		hasApprovalSecret: serviceAuth.hasApprovalSecret,
+		approvalSecretMode: serviceAuth.approvalSecretMode,
 		sendingAuthorizationHeader: serviceAuth.sendingAuthorizationHeader,
 		sendingApprovalSecretHeader: serviceAuth.sendingApprovalSecretHeader,
 	});
@@ -227,6 +268,7 @@ async function postAccuraQrLoginApproval(payload) {
 			status: response.status,
 			ok: response.ok,
 			hasApprovalSecret: serviceAuth.hasApprovalSecret,
+			approvalSecretMode: serviceAuth.approvalSecretMode,
 			sendingAuthorizationHeader: serviceAuth.sendingAuthorizationHeader,
 			sendingApprovalSecretHeader: serviceAuth.sendingApprovalSecretHeader,
 			body: String(error?.responseBody || '').slice(0, 2000),

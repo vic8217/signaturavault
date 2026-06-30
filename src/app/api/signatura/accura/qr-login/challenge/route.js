@@ -9,13 +9,15 @@ import { listActiveAccuraWalletAccounts } from '@/lib/accuraQrWallet';
 import { requireSession } from '@/lib/session';
 
 export async function GET(req) {
+	let challengeId = '';
+	let shortCode = '';
 	try {
 		const session = await requireSession();
 		if (!session?.userId) return jsonError('Authentication required', 401);
 
 		const url = new URL(req.url);
-		const challengeId = normalizeChallengeId(url.searchParams.get('challengeId'));
-		const shortCode = normalizeShortCode(url.searchParams.get('shortCode'));
+		challengeId = normalizeChallengeId(url.searchParams.get('challengeId'));
+		shortCode = normalizeShortCode(url.searchParams.get('shortCode'));
 		if (!challengeId || !shortCode) {
 			return jsonError('Challenge ID and short code are required', 400);
 		}
@@ -66,6 +68,12 @@ export async function GET(req) {
 			},
 		});
 	} catch (error) {
+		console.warn('[signatura.accura.qr_login.challenge.failed]', {
+			challengeId,
+			shortCode,
+			error: error instanceof Error ? error.message : 'challenge_lookup_failed',
+			status: error?.status || 400,
+		});
 		return jsonError(
 			safeApiErrorMessage(error, 'Unable to load the ACCURA login request'),
 			error.status ?? 400,
