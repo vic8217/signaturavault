@@ -5,16 +5,44 @@ import {
 } from './accuraQrLogin';
 import { normalizeAccuraRolePrefix } from './registrationSource';
 
-function configuredEndpoint(name) {
-	const value = String(process.env[name] || '').trim();
-	if (!value) throw new Error(`${name} is not configured`);
+const ACCURA_QR_LOGIN_BASE_PATH = '/api/signatura/qr-login';
+const LEGACY_QR_LOGIN_BASE_PATH = '/api/auth/signatura/qr';
+
+function normalizeAccuraQrLoginEndpoint(value = '', suffix = '') {
+	const raw = String(value || '').trim();
+	if (!raw) return '';
 	try {
-		const url = new URL(value);
-		if (!['http:', 'https:'].includes(url.protocol)) throw new Error();
+		const url = new URL(raw);
+		let path = url.pathname.replace(/\/+$/, '') || '';
+		if (path === LEGACY_QR_LOGIN_BASE_PATH || path.startsWith(`${LEGACY_QR_LOGIN_BASE_PATH}/`)) {
+			path = path.replace(LEGACY_QR_LOGIN_BASE_PATH, ACCURA_QR_LOGIN_BASE_PATH);
+			console.warn('[signatura.accura.qr_login.rewrite]', {
+				from: url.pathname,
+				to: path,
+			});
+		}
+		if (suffix) {
+			const normalizedSuffix = `/${String(suffix).replace(/^\/+/, '')}`;
+			if (!path.endsWith(normalizedSuffix)) {
+				path = `${ACCURA_QR_LOGIN_BASE_PATH}${normalizedSuffix}`;
+			}
+		}
+		url.pathname = path;
 		return url;
 	} catch {
+		return null;
+	}
+}
+
+function configuredEndpoint(name, suffix = '') {
+	const value = String(process.env[name] || '').trim();
+	if (!value) throw new Error(`${name} is not configured`);
+	const url = normalizeAccuraQrLoginEndpoint(value, suffix);
+	if (!url) throw new Error(`${name} must be an absolute HTTP or HTTPS URL`);
+	if (!['http:', 'https:'].includes(url.protocol)) {
 		throw new Error(`${name} must be an absolute HTTP or HTTPS URL`);
 	}
+	return url;
 }
 
 function accuraClientCredentials() {
@@ -193,7 +221,7 @@ async function fetchAccuraQrLoginChallenge({ challengeId, shortCode }) {
 		challengeId: normalizeChallengeId(challengeId),
 		shortCode: normalizeShortCode(shortCode),
 	};
-	const endpoint = configuredEndpoint('ACCURA_QR_CHALLENGE_URL');
+	const endpoint = configuredEndpoint('ACCURA_QR_CHALLENGE_URL', 'challenge');
 	endpoint.searchParams.set('challengeId', expected.challengeId);
 	endpoint.searchParams.set('shortCode', expected.shortCode);
 	endpoint.searchParams.set('app', ACCURA_QR_APP);
@@ -239,7 +267,7 @@ async function fetchAccuraQrLoginChallenge({ challengeId, shortCode }) {
 }
 
 async function postAccuraQrLoginApproval(payload) {
-	const endpoint = configuredEndpoint('ACCURA_QR_APPROVE_URL');
+	const endpoint = configuredEndpoint('ACCURA_QR_APPROVE_URL', 'approve');
 	const serviceAuth = qrServiceHeaders();
 	console.info('[signatura.accura.qr_login.approval.sending]', {
 		challengeId: payload?.challengeId,
@@ -257,10 +285,17 @@ async function postAccuraQrLoginApproval(payload) {
 		signal: AbortSignal.timeout(10_000),
 	});
 	try {
-		return await readServiceResponse(
+		const body = await readServiceResponse(
 			response,
 			'ACCURA did not accept the login approval.',
 		);
+		console.info('[signatura.accura.qr_login.approval.response]', {
+			challengeId: payload?.challengeId,
+			target: endpoint.toString(),
+			status: response.status,
+			ok: response.ok,
+		});
+		return body;
 	} catch (error) {
 		console.warn('[signatura.accura.qr_login.approval.response]', {
 			challengeId: payload?.challengeId,

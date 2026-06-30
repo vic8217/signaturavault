@@ -186,6 +186,8 @@ test('ACCURA challenge lookup and approval use configured authenticated endpoint
 			challengeId: 'challenge-1',
 		});
 		assert.equal(calls.length, 2);
+		assert.match(calls[0].url, /\/api\/signatura\/qr-login\/challenge/);
+		assert.match(calls[1].url, /\/api\/signatura\/qr-login\/approve/);
 		assert.match(calls[0].options.headers.Authorization, /^Basic /);
 		assert.equal(
 			calls[0].options.headers['X-Signatura-Approval-Secret'],
