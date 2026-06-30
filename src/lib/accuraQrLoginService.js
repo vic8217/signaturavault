@@ -42,6 +42,19 @@ function serviceHeaders() {
 	};
 }
 
+function approvalSecretHeaders() {
+	const approvalSecret = String(
+		process.env.SIGNATURA_QR_APPROVAL_SECRET || '',
+	).trim();
+	return {
+		headers: approvalSecret
+			? { 'X-Signatura-Approval-Secret': approvalSecret }
+			: {},
+		hasApprovalSecret: Boolean(approvalSecret),
+		sendingAuthorizationHeader: false,
+	};
+}
+
 async function readServiceResponse(response, fallbackMessage) {
 	const body = await response.json().catch(() => ({}));
 	if (!response.ok) {
@@ -142,9 +155,23 @@ async function fetchAccuraQrLoginChallenge({ challengeId, shortCode }) {
 
 async function postAccuraQrLoginApproval(payload) {
 	const endpoint = configuredEndpoint('ACCURA_QR_APPROVE_URL');
+	const approvalSecret = approvalSecretHeaders();
+	const headers = {
+		...serviceHeaders(),
+		...approvalSecret.headers,
+	};
+	console.info('[signatura.accura.qr_login.approval.sending]', {
+		challengeId: payload?.challengeId,
+		target: endpoint.toString(),
+		hasApprovalSecret: approvalSecret.hasApprovalSecret,
+		sendingAuthorizationHeader: approvalSecret.sendingAuthorizationHeader,
+		sendingApprovalSecretHeader: Boolean(
+			headers['X-Signatura-Approval-Secret'],
+		),
+	});
 	const response = await fetch(endpoint, {
 		method: 'POST',
-		headers: serviceHeaders(),
+		headers,
 		body: JSON.stringify(payload),
 		cache: 'no-store',
 		signal: AbortSignal.timeout(10_000),
