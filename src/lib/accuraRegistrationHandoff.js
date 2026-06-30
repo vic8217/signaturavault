@@ -566,20 +566,13 @@ function normalizeAccuraChallengeApproveTarget(value = '') {
 
 function accuraChallengeApproveHeaders() {
 	const headers = { 'content-type': 'application/json' };
+
 	const explicitAuth = String(
 		process.env.ACCURA_CHALLENGE_APPROVE_AUTH_HEADER || '',
 	).trim();
 	if (explicitAuth) {
 		headers.Authorization = explicitAuth;
-		return headers;
-	}
-
-	const bearerToken = String(
-		process.env.ACCURA_CHALLENGE_APPROVE_BEARER_TOKEN || '',
-	).trim();
-	if (bearerToken) {
-		headers.Authorization = `Bearer ${bearerToken}`;
-		return headers;
+		return { headers, authMode: 'explicit' };
 	}
 
 	const basicUser = String(
@@ -592,9 +585,51 @@ function accuraChallengeApproveHeaders() {
 		headers.Authorization = `Basic ${Buffer.from(
 			`${basicUser}:${basicPassword}`,
 		).toString('base64')}`;
+		return { headers, authMode: 'sandbox_basic' };
 	}
 
-	return headers;
+	const bearerToken = String(
+		process.env.ACCURA_CHALLENGE_APPROVE_BEARER_TOKEN || '',
+	).trim();
+	if (bearerToken) {
+		headers.Authorization = `Bearer ${bearerToken}`;
+		return { headers, authMode: 'bearer' };
+	}
+
+	const approvalSecret = String(
+		process.env.SIGNATURA_QR_APPROVAL_SECRET || '',
+	).trim();
+	if (approvalSecret) {
+		headers.Authorization = `Bearer ${approvalSecret}`;
+		headers['X-Signatura-Approval-Secret'] = approvalSecret;
+		return { headers, authMode: 'approval_secret' };
+	}
+
+	const clientId = String(
+		process.env.ACCURA_CLIENT_ID || process.env.SIGNATURA_CLIENT_ID || 'accura',
+	).trim();
+	const clientSecret = String(
+		process.env.ACCURA_CLIENT_SECRET || process.env.SIGNATURA_CLIENT_SECRET || '',
+	).trim();
+	if (clientSecret) {
+		headers.Authorization = `Basic ${Buffer.from(
+			`${clientId}:${clientSecret}`,
+		).toString('base64')}`;
+		headers['X-Signatura-Client-Id'] = clientId;
+		return { headers, authMode: 'client_basic' };
+	}
+
+	return { headers, authMode: 'none' };
+}
+
+function logAccuraChallengeApproveAuthHint({ authMode, status, target }) {
+	if (status !== 401 || authMode !== 'none') return;
+	console.warn('[signatura.accura.challenge_approve.auth_required]', {
+		target,
+		status,
+		hint:
+			'ACCURA returned 401 before the app handler ran. Configure ACCURA_CHALLENGE_APPROVE_BASIC_USER/PASSWORD for nginx sandbox auth, or allowlist /api/signatura/challenge-approve in nginx.',
+	});
 }
 
 function normalizeConfiguredAccuraChallengeApproveUrl(configured) {
@@ -664,18 +699,25 @@ async function notifyAccuraAppApprovalCallback({
 	let lastResult = { ok: false, target };
 	for (let attempt = 1; attempt <= attempts; attempt += 1) {
 		try {
+			const { headers, authMode } = accuraChallengeApproveHeaders();
 			console.info('[signatura.accura.app_approval.callback.sending]', {
 				challengeId: resolvedChallengeId,
 				target,
 				attempt,
+				authMode,
 			});
 			const response = await fetch(target, {
 				method: 'POST',
 				cache: 'no-store',
-				headers: accuraChallengeApproveHeaders(),
+				headers,
 				body: JSON.stringify(body),
 			});
 			const responseBody = await response.text().catch(() => '');
+			logAccuraChallengeApproveAuthHint({
+				authMode,
+				status: response.status,
+				target,
+			});
 			console.info('[signatura.accura.app_approval.callback.response]', {
 				challengeId: resolvedChallengeId,
 				target,
@@ -744,18 +786,25 @@ async function notifyAccuraChallengeApproval({
 	};
 
 	try {
+		const { headers, authMode } = accuraChallengeApproveHeaders();
 		console.info('[signatura.accura.registration.callback.sending]', {
 			challengeId: resolvedChallengeId,
 			target,
 			status,
+			authMode,
 		});
 		const response = await fetch(target, {
 			method: 'POST',
 			cache: 'no-store',
-			headers: accuraChallengeApproveHeaders(),
+			headers,
 			body: JSON.stringify(body),
 		});
 		const responseBody = await response.text().catch(() => '');
+		logAccuraChallengeApproveAuthHint({
+			authMode,
+			status: response.status,
+			target,
+		});
 		console.info('[signatura.accura.registration.callback.response]', {
 			challengeId: resolvedChallengeId,
 			target,

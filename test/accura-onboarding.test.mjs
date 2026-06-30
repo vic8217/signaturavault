@@ -171,6 +171,62 @@ test('ACCURA app approval callback rewrites Signatura-origin URLs to ACCURA', as
 	}
 });
 
+test('ACCURA app approval callback falls back to ACCURA client basic auth', async () => {
+	const handoff = await import('../src/lib/accuraRegistrationHandoff.js');
+	const previousFetch = globalThis.fetch;
+	const previous = {
+		clientId: process.env.ACCURA_CLIENT_ID,
+		clientSecret: process.env.ACCURA_CLIENT_SECRET,
+		basicUser: process.env.ACCURA_CHALLENGE_APPROVE_BASIC_USER,
+		basicPassword: process.env.ACCURA_CHALLENGE_APPROVE_BASIC_PASSWORD,
+		approveUrl: process.env.ACCURA_CHALLENGE_APPROVE_URL,
+	};
+	const calls = [];
+	globalThis.fetch = async (url, options) => {
+		calls.push({ url: String(url), options });
+		return new Response(JSON.stringify({ ok: true }), { status: 200 });
+	};
+	process.env.ACCURA_CLIENT_ID = 'accura';
+	process.env.ACCURA_CLIENT_SECRET = 'shared-test-secret';
+	delete process.env.ACCURA_CHALLENGE_APPROVE_BASIC_USER;
+	delete process.env.ACCURA_CHALLENGE_APPROVE_BASIC_PASSWORD;
+	process.env.ACCURA_CHALLENGE_APPROVE_URL =
+		'https://accura-sandbox.nouvoux.com/api/signatura/challenge-approve';
+
+	try {
+		const result = await handoff.notifyAccuraAppApprovalCallback({
+			callbackUrl:
+				'https://accura-sandbox.nouvoux.com/api/signatura/challenge-approve',
+			challengeId: 'challenge-client-auth',
+			signaturaId: 'SIG-U-TEST-0001',
+			verificationToken: 'verification-token',
+		});
+		assert.equal(result.ok, true);
+		assert.match(
+			calls[0].options.headers.Authorization,
+			/^Basic /,
+		);
+	} finally {
+		globalThis.fetch = previousFetch;
+		if (previous.clientId === undefined) delete process.env.ACCURA_CLIENT_ID;
+		else process.env.ACCURA_CLIENT_ID = previous.clientId;
+		if (previous.clientSecret === undefined) delete process.env.ACCURA_CLIENT_SECRET;
+		else process.env.ACCURA_CLIENT_SECRET = previous.clientSecret;
+		if (previous.basicUser === undefined) {
+			delete process.env.ACCURA_CHALLENGE_APPROVE_BASIC_USER;
+		} else {
+			process.env.ACCURA_CHALLENGE_APPROVE_BASIC_USER = previous.basicUser;
+		}
+		if (previous.basicPassword === undefined) {
+			delete process.env.ACCURA_CHALLENGE_APPROVE_BASIC_PASSWORD;
+		} else {
+			process.env.ACCURA_CHALLENGE_APPROVE_BASIC_PASSWORD = previous.basicPassword;
+		}
+		if (previous.approveUrl === undefined) delete process.env.ACCURA_CHALLENGE_APPROVE_URL;
+		else process.env.ACCURA_CHALLENGE_APPROVE_URL = previous.approveUrl;
+	}
+});
+
 test('ACCURA_CHALLENGE_APPROVE_URL origin-only value appends challenge approve path', async () => {
 	const handoff = await import('../src/lib/accuraRegistrationHandoff.js');
 	const previous = {
