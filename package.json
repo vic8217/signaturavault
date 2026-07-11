@@ -17,6 +17,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
+	"authenticator:provision:accura": "node scripts/provision-accura-authenticator.js",
     "db:studio": "prisma studio",
     "demo:seed-signatura": "node scripts/demo-seed-signatura.mjs",
     "demo:presentation-token": "node scripts/demo-presentation-token.mjs",

@@ -350,6 +350,22 @@ To add HAVEN, WEKONNEK, PAYROLLPH, or another application:
 6. Never place the client secret in browser code.
 7. Do not add application-specific conditions to the shared authenticator service.
 
+### ACCURA provisioning
+
+After configuring `AUTHENTICATOR_CLIENT_PEPPER` and `ACCURA_CLIENT_SECRET`, populate or rotate the ACCURA application credential hash with:
+
+```bash
+npm run authenticator:provision:accura
+```
+
+The command performs an idempotent upsert for `application_id = accura-erp` and stores:
+
+```text
+HMAC-SHA256(AUTHENTICATOR_CLIENT_PEPPER, ACCURA_CLIENT_SECRET)
+```
+
+It never prints either secret or the resulting hash. The normal Prisma seed command performs the same upsert and fails closed if either required environment variable is missing.
+
 ## Environment configuration
 
 | Variable | Requirement | Purpose |
