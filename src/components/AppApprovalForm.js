@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import {
@@ -84,6 +85,7 @@ export function AppApprovalForm({
 	callbackUrl,
 	signaturaId,
 }) {
+	const router = useRouter();
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
 	const [isApproving, setIsApproving] = useState(false);
@@ -209,6 +211,7 @@ export function AppApprovalForm({
 			setApproved(true);
 			setCallbackFailed(false);
 			setStatus(`Approved. Return to your ${app} browser.`);
+			router.replace('/owner/wallet');
 		} catch (approvalError) {
 			setStatus('');
 			setError(

@@ -30,10 +30,59 @@ model User {
   adminSetupTokens            AdminSetupToken[]
   memberships                 Membership[]
   invitedMemberships          Membership[] @relation("MembershipInviter")
+  authenticatorEnrollments    AuthenticatorEnrollment[]
+  authenticatorChallenges     AuthenticatorChallenge[]
 
   @@index([emailLookupHash])
   @@index([mobileLookupHash])
   @@map("users")
+}
+
+model AuthenticatorApplication {
+  id               String                    @id @default(cuid())
+  applicationId    String                    @unique @map("application_id")
+  name             String
+  status           String                    @default("active")
+  requireBiometric Boolean                   @default(false) @map("require_biometric")
+  clientSecretHash String?                   @map("client_secret_hash")
+  createdAt        DateTime                  @default(now()) @map("created_at")
+  updatedAt        DateTime                  @updatedAt @map("updated_at")
+  enrollments      AuthenticatorEnrollment[]
+  challenges       AuthenticatorChallenge[]
+
+  @@map("authenticator_applications")
+}
+
+model AuthenticatorEnrollment {
+  id              String                   @id @default(cuid())
+  applicationId   String                   @map("application_id")
+  identityId      String                   @map("identity_id")
+  secretCiphertext String                  @map("secret_ciphertext")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  status          String                   @default("active")
+  application     AuthenticatorApplication @relation(fields: [applicationId], references: [applicationId], onDelete: Cascade)
+  identity        User                     @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, identityId])
+  @@index([identityId, status])
+  @@map("authenticator_enrollments")
+}
+
+model AuthenticatorChallenge {
+  id            String                   @id @default(cuid())
+  tokenHash     String                   @unique @map("token_hash")
+  applicationId String                   @map("application_id")
+  identityId    String                   @map("identity_id")
+  status        String                   @default("pending")
+  expiresAt     DateTime                 @map("expires_at")
+  verifiedAt    DateTime?                @map("verified_at")
+  createdAt     DateTime                 @default(now()) @map("created_at")
+  application   AuthenticatorApplication @relation(fields: [applicationId], references: [applicationId], onDelete: Cascade)
+  identity      User                     @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, identityId, status])
+  @@index([expiresAt])
+  @@map("authenticator_challenges")
 }
 
 model AdminSetupToken {

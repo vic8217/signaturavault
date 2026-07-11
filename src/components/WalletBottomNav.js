@@ -48,6 +48,7 @@ function isActive(pathname, href) {
 			pathname === '/owner/security' ||
 			pathname === '/signatura/settings/security' ||
 			pathname.startsWith('/signatura/settings/') ||
+			pathname.startsWith('/signatura/security/') ||
 			pathname.startsWith('/signatura/trusted-devices')
 		);
 	}

@@ -3,6 +3,12 @@ import { PortalIcon } from '@/components/PortalIcon';
 
 const securityActions = [
 	{
+		icon: 'lock',
+		title: 'Authenticator',
+		href: '/signatura/security/authenticator',
+		description: 'Generate rotating codes for applications approved for your identity.',
+	},
+	{
 		icon: 'identity',
 		title: 'Trusted devices',
 		href: '/signatura/trusted-devices',

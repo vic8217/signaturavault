@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
 const links = [
+	['Authenticator', '/signatura/security/authenticator'],
 	['Devices', '/signatura/trusted-devices'],
 	['Add Device', '/signatura/trusted-devices/add'],
 	['Add Passkey', '/signatura/trusted-devices/add-passkey'],

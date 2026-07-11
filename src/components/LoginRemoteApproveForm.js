@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
 	browserSupportsWebAuthn,
 	startAuthentication,
@@ -52,6 +53,7 @@ export function LoginRemoteApproveForm({
 	homeHref = '/signatura/dashboard',
 	expectedSignaturaId = '',
 }) {
+	const router = useRouter();
 	const [challenge, setChallenge] = useState(null);
 	const [status, setStatus] = useState('');
 	const [error, setError] = useState('');
@@ -169,6 +171,7 @@ export function LoginRemoteApproveForm({
 						? 'Issuer portal sign-in approved. You may return to your desktop.'
 					: 'Browser sign-in approved. You can return to the other device; it should sign in automatically.',
 			);
+			router.replace('/owner/wallet');
 		} catch (approveError) {
 			setError(
 				approveError instanceof Error

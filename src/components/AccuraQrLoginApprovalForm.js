@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
 	browserSupportsWebAuthn,
 	startAuthentication,
@@ -20,6 +21,7 @@ function formatExpiry(value) {
 }
 
 export function AccuraQrLoginApprovalForm({ challengeId, shortCode }) {
+	const router = useRouter();
 	const [challenge, setChallenge] = useState(null);
 	const [accounts, setAccounts] = useState([]);
 	const [currentAccount, setCurrentAccount] = useState(null);
@@ -143,6 +145,7 @@ export function AccuraQrLoginApprovalForm({ challengeId, shortCode }) {
 			}
 			setApproved(true);
 			setStatus('Approved');
+			router.replace('/owner/wallet');
 		} catch (approveError) {
 			setError(
 				approveError instanceof Error

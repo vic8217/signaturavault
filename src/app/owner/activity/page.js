@@ -1,5 +1,7 @@
 import Link from 'next/link';
-import { Activity, BadgeCheck, Clock, Send } from 'lucide-react';
+import { Activity, BadgeCheck, Clock, KeyRound, Send } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { requireSession } from '@/lib/session';
 
 const activityItems = [
 	{
@@ -22,7 +24,92 @@ const activityItems = [
 	},
 ];
 
-export default function OwnerActivityPage() {
+const APPROVAL_EVENTS = [
+	'app_approval_completed',
+	'accura_qr_login_approved',
+	'remote_login_approved',
+];
+
+function formatActivityTime(value) {
+	if (!value) return 'Recently';
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return 'Recently';
+	return new Intl.DateTimeFormat('en', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit',
+	}).format(date);
+}
+
+function detailValue(details, key) {
+	return typeof details?.[key] === 'string' ? details[key] : '';
+}
+
+function approvalActivityForLog(log) {
+	const details = log.details && typeof log.details === 'object' ? log.details : {};
+	if (log.event === 'app_approval_completed') {
+		const app = detailValue(details, 'app') || 'ACCURA';
+		const role = detailValue(details, 'requestedRole') || 'role';
+		const result = detailValue(details, 'result');
+		return {
+			title: `${app} role approval completed`,
+			detail: `${role}${result ? ` - ${result}` : ''}`,
+			time: formatActivityTime(log.createdAt),
+			icon: KeyRound,
+		};
+	}
+
+	if (log.event === 'accura_qr_login_approved') {
+		const role = detailValue(details, 'rolePrefix') || 'ACCURA';
+		const signaturaId = detailValue(details, 'signaturaId');
+		return {
+			title: 'ACCURA login approved',
+			detail: signaturaId ? `${role} account ${signaturaId}` : `${role} account`,
+			time: formatActivityTime(log.createdAt),
+			icon: KeyRound,
+		};
+	}
+
+	return {
+		title: 'Trusted-device login approved',
+		detail: 'Browser sign-in approved from this wallet',
+		time: formatActivityTime(log.createdAt),
+		icon: KeyRound,
+	};
+}
+
+async function listApprovalActivity() {
+	const session = await requireSession();
+	if (!session?.userId) return [];
+
+	const logs = await prisma.securityEventLog.findMany({
+		where: {
+			userId: session.userId,
+			event: { in: APPROVAL_EVENTS },
+		},
+		orderBy: { createdAt: 'desc' },
+		take: 20,
+	});
+
+	const seen = new Set();
+	return logs
+		.filter((log) => {
+			const details = log.details && typeof log.details === 'object' ? log.details : {};
+			const challengeId = detailValue(details, 'challengeId') || log.id;
+			const key = `${log.event}:${challengeId}`;
+			if (seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		})
+		.map(approvalActivityForLog);
+}
+
+export default async function OwnerActivityPage() {
+	const approvalItems = await listApprovalActivity();
+	const items = [...approvalItems, ...activityItems];
+
 	return (
 		<div className="mx-auto w-full max-w-md space-y-5 md:max-w-2xl">
 			<section className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5">
@@ -36,11 +123,11 @@ export default function OwnerActivityPage() {
 			</section>
 
 			<section className="grid gap-3">
-				{activityItems.map((item) => {
+				{items.map((item) => {
 					const Icon = item.icon;
 					return (
 						<div
-							key={item.title}
+							key={`${item.title}-${item.time}`}
 							className="flex min-h-20 items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
 							<span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-red-400/30 bg-red-500/10 text-red-200">
 								<Icon className="h-5 w-5" />
